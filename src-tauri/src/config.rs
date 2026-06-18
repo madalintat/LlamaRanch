@@ -7,6 +7,9 @@ pub struct Config {
     pub models_dir: String,
     pub server_bin: String,
     pub expose_to_network: bool,
+    /// Unload an idle model after this many seconds (0 = never).
+    #[serde(default)]
+    pub sleep_idle_seconds: u32,
 }
 
 impl Default for Config {
@@ -16,6 +19,7 @@ impl Default for Config {
             models_dir: "/home/madalin/llama.cpp/models".into(),
             server_bin: "/home/madalin/llama.cpp/build/bin/llama-server".into(),
             expose_to_network: false,
+            sleep_idle_seconds: 0,
         }
     }
 }

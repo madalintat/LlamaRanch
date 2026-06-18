@@ -1,124 +1,87 @@
 use crate::config::{self, Config};
 use crate::launch;
-use crate::scanner::{self, Model};
+use crate::scanner;
 use crate::server::{self, SharedServer};
 use serde::Serialize;
 use std::path::Path;
 use std::sync::Mutex;
-use std::thread;
-use std::time::{Duration, Instant};
-use tauri::State;
+use tauri::{AppHandle, State};
 
 pub struct AppConfig(pub Mutex<Config>);
 
 #[derive(Serialize)]
 pub struct ModelView {
-    #[serde(flatten)]
-    pub model: Model,
+    pub id: String,
+    pub name: String,
+    pub group: String,
+    pub size_bytes: u64,
+    pub vision: bool,
     pub placement: String,
+    pub status: String, // unloaded | loading | loaded | sleeping | downloading | error
 }
 
 #[derive(Serialize)]
-pub struct StatusView {
-    pub status: String,
-    pub model_id: Option<String>,
+pub struct RouterStatus {
+    pub status: String, // starting | running | error: .. | stopped
     pub endpoint: String,
 }
 
-fn endpoint(cfg: &Config) -> String {
-    format!("http://127.0.0.1:{}/v1", cfg.port)
+fn cfg_of(cfg: &State<AppConfig>) -> Config {
+    cfg.0.lock().unwrap().clone()
 }
 
 #[tauri::command]
 pub fn list_models(cfg: State<AppConfig>) -> Vec<ModelView> {
-    let cfg = cfg.0.lock().unwrap().clone();
+    let cfg = cfg_of(&cfg);
+    let router = server::list_models(cfg.port);
     scanner::scan(Path::new(&cfg.models_dir))
         .into_iter()
         .map(|m| {
-            let placement = launch::placement_for(m.size_bytes).to_string();
-            ModelView { model: m, placement }
+            let status = router
+                .iter()
+                .find(|r| r.id == m.id)
+                .map(|r| r.status.clone())
+                .unwrap_or_else(|| "unloaded".into());
+            ModelView {
+                placement: launch::placement_for(m.size_bytes).to_string(),
+                vision: m.mmproj_path.is_some(),
+                id: m.id,
+                name: m.name,
+                group: m.group,
+                size_bytes: m.size_bytes,
+                status,
+            }
         })
         .collect()
 }
 
 #[tauri::command]
-pub fn server_status(srv: State<SharedServer>, cfg: State<AppConfig>) -> StatusView {
-    let s = srv.lock();
-    let cfg = cfg.0.lock().unwrap();
-    StatusView {
-        status: s.status.clone(),
-        model_id: s.model_id.clone(),
-        endpoint: endpoint(&cfg),
+pub fn router_status(srv: State<SharedServer>, cfg: State<AppConfig>) -> RouterStatus {
+    let status = srv.lock().status.clone();
+    let port = cfg.0.lock().unwrap().port;
+    RouterStatus {
+        status,
+        endpoint: format!("http://127.0.0.1:{port}/v1"),
     }
 }
 
 #[tauri::command]
-pub fn start_server(
-    model_id: String,
-    srv: State<SharedServer>,
-    cfg: State<AppConfig>,
-) -> Result<(), String> {
-    let cfg = cfg.0.lock().unwrap().clone();
-    let model = scanner::scan(Path::new(&cfg.models_dir))
-        .into_iter()
-        .find(|m| m.id == model_id)
-        .ok_or_else(|| format!("model not found: {model_id}"))?;
-    let args = launch::flags_for(&model, &cfg);
-
-    {
-        let mut s = srv.lock();
-        server::start(&mut s, &cfg.server_bin, &args, &model_id)?;
-    }
-
-    let srv_inner = srv.inner().clone_handle();
-    let port = cfg.port;
-    thread::spawn(move || {
-        let deadline = Instant::now() + Duration::from_secs(120);
-        loop {
-            if Instant::now() > deadline {
-                let mut s = srv_inner.lock();
-                let err = server::drain_stderr(&mut s);
-                server::stop(&mut s);
-                s.status = format!("error: timed out starting llama-server\n{err}");
-                break;
-            }
-            if server::health_ok(port) {
-                let mut s = srv_inner.lock();
-                if s.child.is_some() {
-                    s.status = "running".into();
-                }
-                break;
-            }
-            {
-                let mut s = srv_inner.lock();
-                if let Some(child) = s.child.as_mut() {
-                    if let Ok(Some(_)) = child.try_wait() {
-                        let err = server::drain_stderr(&mut s);
-                        server::stop(&mut s);
-                        s.status = format!("error: llama-server exited\n{err}");
-                        break;
-                    }
-                }
-            }
-            thread::sleep(Duration::from_millis(800));
-        }
-    });
-
-    Ok(())
+pub fn load_model(model_id: String, cfg: State<AppConfig>) -> Result<(), String> {
+    let port = cfg.0.lock().unwrap().port;
+    server::load(port, &model_id)
 }
 
 #[tauri::command]
-pub fn stop_server(srv: State<SharedServer>) {
-    let mut s = srv.lock();
-    server::stop(&mut s);
+pub fn unload_model(model_id: String, cfg: State<AppConfig>) -> Result<(), String> {
+    let port = cfg.0.lock().unwrap().port;
+    server::unload(port, &model_id)
 }
 
 #[tauri::command]
 pub fn open_webui(cfg: State<AppConfig>) -> Result<(), String> {
     let port = cfg.0.lock().unwrap().port;
-    let url = format!("http://127.0.0.1:{}", port);
     std::process::Command::new("xdg-open")
-        .arg(url)
+        .arg(format!("http://127.0.0.1:{port}"))
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -129,10 +92,19 @@ pub fn get_config(cfg: State<AppConfig>) -> Config {
     cfg.0.lock().unwrap().clone()
 }
 
+/// Save config, update in-memory state, and restart the router so changes
+/// (port, models dir, idle timeout, network exposure) take effect.
 #[tauri::command]
-pub fn set_config(new_cfg: Config, cfg: State<AppConfig>) -> Result<(), String> {
+pub fn set_config(new_cfg: Config, cfg: State<AppConfig>, app: AppHandle) -> Result<(), String> {
     *cfg.0.lock().unwrap() = new_cfg.clone();
-    config::save_to(&config::config_path(), &new_cfg).map_err(|e| e.to_string())
+    config::save_to(&config::config_path(), &new_cfg).map_err(|e| e.to_string())?;
+    crate::start_router(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn restart_router(app: AppHandle) {
+    crate::start_router(&app);
 }
 
 #[tauri::command]

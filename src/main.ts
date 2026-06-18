@@ -7,52 +7,64 @@ import "./styles.css";
 import llamaMark from "./assets/llama.svg";
 
 type ModelView = {
-  id: string; name: string; group: string; path: string;
-  size_bytes: number; mmproj_path: string | null; placement: string;
+  id: string; name: string; group: string; size_bytes: number;
+  vision: boolean; placement: string; status: string;
 };
-type StatusView = { status: string; model_id: string | null; endpoint: string };
+type RouterStatus = { status: string; endpoint: string };
 
 const $ = (id: string) => document.getElementById(id)!;
 const gb = (n: number) => (n / 1e9).toFixed(1) + " GB";
 
+const LOADED = (s: string) => s === "loaded" || s === "sleeping";
+const BUSY = (s: string) => s === "loading" || s === "downloading";
+
 let pollTimer: number | undefined;
 
-function setStatus(status: string, modelId: string | null) {
+function setHeader(router: RouterStatus, models: ModelView[]) {
   const el = $("status");
   const label = $("status-label");
   el.className = "status";
-  if (status === "running") {
-    el.classList.add("status--running");
-    label.textContent = modelId ? `serving ${modelId}` : "running";
-  } else if (status === "starting") {
-    el.classList.add("status--starting");
-    label.textContent = "starting...";
-  } else if (status.startsWith("error")) {
+  if (router.status.startsWith("error")) {
     el.classList.add("status--error");
-    label.textContent = "error";
+    label.textContent = "router error";
+    return;
+  }
+  if (router.status !== "running") {
+    el.classList.add("status--starting");
+    label.textContent = "starting router...";
+    return;
+  }
+  const active = models.find((m) => LOADED(m.status));
+  const loading = models.find((m) => BUSY(m.status));
+  if (active) {
+    el.classList.add("status--running");
+    label.textContent = `serving ${active.name}`;
+  } else if (loading) {
+    el.classList.add("status--starting");
+    label.textContent = "loading...";
   } else {
-    el.classList.add("status--idle");
-    label.textContent = "idle";
+    el.classList.add("status--running");
+    label.textContent = "ready";
   }
 }
 
 async function refresh() {
-  const [models, status] = await Promise.all([
+  const [router, models] = await Promise.all([
+    invoke<RouterStatus>("router_status"),
     invoke<ModelView[]>("list_models"),
-    invoke<StatusView>("server_status"),
   ]);
 
-  ($("endpoint") as HTMLElement).textContent = status.endpoint;
-  setStatus(status.status, status.model_id);
+  ($("endpoint") as HTMLElement).textContent = router.endpoint;
+  setHeader(router, models);
 
   const webuiBtn = $("webui") as HTMLButtonElement;
-  const live = status.status === "running";
-  webuiBtn.disabled = !live;
-  webuiBtn.title = live ? "" : "Load a model first";
+  const ready = router.status === "running";
+  webuiBtn.disabled = !ready;
+  webuiBtn.title = ready ? "" : "Router is starting";
 
   const err = $("error");
-  if (status.status.startsWith("error")) {
-    err.textContent = status.status.replace(/^error:\s*/, "");
+  if (router.status.startsWith("error")) {
+    err.textContent = router.status.replace(/^error:\s*/, "");
     err.classList.remove("hidden");
   } else {
     err.classList.add("hidden");
@@ -79,12 +91,13 @@ async function refresh() {
     host.appendChild(label);
 
     for (const m of list) {
-      const serving = status.model_id === m.id && status.status === "running";
-      const starting = status.model_id === m.id && status.status === "starting";
+      const loaded = LOADED(m.status);
+      const busy = BUSY(m.status);
 
       const card = document.createElement("div");
-      card.className = "card" + (serving ? " is-serving" : "");
+      card.className = "card" + (loaded ? " is-serving" : "");
       card.dataset.placement = m.placement;
+      const visionTag = m.vision ? `<span class="tag tag--vision">vision</span>` : "";
       card.innerHTML = `
         <div class="card__body">
           <div class="card__name" title="${m.name}">${m.name}</div>
@@ -92,16 +105,22 @@ async function refresh() {
             <span class="card__size">${gb(m.size_bytes)}</span>
             <span class="dot">&middot;</span>
             <span class="tag tag--${m.placement}">${m.placement}</span>
+            ${visionTag}
           </div>
         </div>`;
 
       const btn = document.createElement("button");
-      btn.className = "btn card__action" + (serving ? " is-stop" : starting ? " is-busy" : "");
-      btn.textContent = serving ? "Stop" : starting ? "..." : "Load";
-      btn.disabled = status.status === "starting";
+      btn.className = "btn card__action" + (loaded ? " is-stop" : busy ? " is-busy" : "");
+      btn.textContent = loaded ? "Stop" : busy ? (m.status === "downloading" ? "..." : "...") : "Load";
+      btn.disabled = busy;
       btn.onclick = async () => {
-        if (serving) await invoke("stop_server");
-        else await invoke("start_server", { modelId: m.id });
+        try {
+          if (loaded) await invoke("unload_model", { modelId: m.id });
+          else await invoke("load_model", { modelId: m.id });
+        } catch (e) {
+          $("error").textContent = String(e);
+          $("error").classList.remove("hidden");
+        }
         await refresh();
         startPolling();
       };
@@ -114,12 +133,17 @@ async function refresh() {
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(async () => {
-    const s = await invoke<StatusView>("server_status");
-    if (s.status !== "starting") {
+    const [router, models] = await Promise.all([
+      invoke<RouterStatus>("router_status"),
+      invoke<ModelView[]>("list_models"),
+    ]);
+    const settling =
+      router.status !== "running" || models.some((m) => BUSY(m.status));
+    await refresh();
+    if (!settling) {
       clearInterval(pollTimer);
       pollTimer = undefined;
     }
-    await refresh();
   }, 1500) as unknown as number;
 }
 
@@ -145,6 +169,7 @@ async function init() {
     ($("s-port") as HTMLInputElement).value = String(cfg.port);
     ($("s-models") as HTMLInputElement).value = cfg.models_dir;
     ($("s-bin") as HTMLInputElement).value = cfg.server_bin;
+    ($("s-idle") as HTMLInputElement).value = String(cfg.sleep_idle_seconds ?? 0);
     ($("s-expose") as HTMLInputElement).checked = cfg.expose_to_network;
     dlg.showModal();
   };
@@ -155,13 +180,16 @@ async function init() {
         port: Number(($("s-port") as HTMLInputElement).value),
         models_dir: ($("s-models") as HTMLInputElement).value,
         server_bin: ($("s-bin") as HTMLInputElement).value,
+        sleep_idle_seconds: Number(($("s-idle") as HTMLInputElement).value) || 0,
         expose_to_network: ($("s-expose") as HTMLInputElement).checked,
       },
     });
     await refresh();
+    startPolling();
   });
 
   await refresh();
+  startPolling();
 }
 
 init();
