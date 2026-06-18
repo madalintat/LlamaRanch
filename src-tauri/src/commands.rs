@@ -140,6 +140,18 @@ fn install_dir(models_dir: &str, entry: &catalog::CatalogEntry) -> PathBuf {
 #[derive(Default)]
 pub struct Cancels(pub Mutex<std::collections::HashSet<String>>);
 
+impl Cancels {
+    fn mark(&self, id: &str) {
+        self.0.lock().unwrap().insert(id.to_string());
+    }
+    fn clear(&self, id: &str) {
+        self.0.lock().unwrap().remove(id);
+    }
+    fn is_cancelled(&self, id: &str) -> bool {
+        self.0.lock().unwrap().contains(id)
+    }
+}
+
 #[tauri::command]
 pub fn list_catalog(cfg: State<AppConfig>) -> Vec<CatalogView> {
     let dir = cfg.0.lock().unwrap().models_dir.clone();
@@ -158,7 +170,7 @@ pub fn list_catalog(cfg: State<AppConfig>) -> Vec<CatalogView> {
 
 #[tauri::command]
 pub fn cancel_download(id: String, cancels: State<Cancels>) {
-    cancels.0.lock().unwrap().insert(id);
+    cancels.mark(&id);
 }
 
 /// Stream a catalog model (and its mmproj for vision) from Hugging Face into the
@@ -187,12 +199,10 @@ pub fn download_model(id: String, app: AppHandle, cfg: State<AppConfig>) -> Resu
     if files[0].1.with_extension("part").exists() {
         return Err("already downloading".into());
     }
-    app.state::<Cancels>().0.lock().unwrap().remove(&id);
+    app.state::<Cancels>().clear(&id);
 
     std::thread::spawn(move || {
-        let cancelled = || {
-            app.state::<Cancels>().0.lock().unwrap().contains(&id)
-        };
+        let cancelled = || app.state::<Cancels>().is_cancelled(&id);
         let mut result: Result<(), String> = Ok(());
         for (url, dest) in &files {
             let app2 = app.clone();
@@ -207,7 +217,7 @@ pub fn download_model(id: String, app: AppHandle, cfg: State<AppConfig>) -> Resu
                 break;
             }
         }
-        app.state::<Cancels>().0.lock().unwrap().remove(&id);
+        app.state::<Cancels>().clear(&id);
         match result {
             Ok(_) => {
                 crate::start_router(&app);

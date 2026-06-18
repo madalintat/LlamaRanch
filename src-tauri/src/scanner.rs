@@ -44,10 +44,12 @@ pub fn scan(root: &Path) -> Vec<Model> {
     files
         .iter()
         .filter(|p| !is_mmproj(p))
-        .filter(|p| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0) >= MIN_MODEL_BYTES)
-        .map(|p| {
-            let id = p.file_stem().unwrap().to_string_lossy().to_string();
+        .filter_map(|p| {
             let size_bytes = std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
+            if size_bytes < MIN_MODEL_BYTES {
+                return None;
+            }
+            let id = p.file_stem().unwrap().to_string_lossy().to_string();
             let mmproj_path = mmprojs
                 .iter()
                 .find(|mm| mm.parent() == p.parent())
@@ -62,14 +64,14 @@ pub fn scan(root: &Path) -> Vec<Model> {
                     .map(|s| s.to_string_lossy().to_string())
                     .unwrap_or_else(|| "models".into())
             };
-            Model {
+            Some(Model {
                 id: id.clone(),
                 name: id,
                 group,
                 path: p.to_string_lossy().to_string(),
                 size_bytes,
                 mmproj_path,
-            }
+            })
         })
         .collect()
 }

@@ -95,13 +95,23 @@ pub fn stop(state: &mut ServerState) {
     state.status = "stopped".into();
 }
 
+/// A file alongside the config (e.g. models.ini, router.log).
+fn config_sibling(name: &str) -> PathBuf {
+    config::config_path()
+        .parent()
+        .map(|p| p.join(name))
+        .unwrap_or_else(|| PathBuf::from(name))
+}
+
+/// Path of the generated router preset.
+pub fn preset_path() -> PathBuf {
+    config_sibling("models.ini")
+}
+
 /// Where the router's stderr is logged (so the pipe never fills and we can read
 /// errors without blocking on a live process).
 pub fn router_log_path() -> PathBuf {
-    config::config_path()
-        .parent()
-        .map(|p| p.join("router.log"))
-        .unwrap_or_else(|| PathBuf::from("router.log"))
+    config_sibling("router.log")
 }
 
 /// Spawn the router process, logging its stderr to a file. Readiness is
@@ -209,8 +219,8 @@ pub fn list_models(port: u16) -> Vec<RouterModel> {
         .collect()
 }
 
-pub fn load(port: u16, id: &str) -> Result<(), String> {
-    let url = format!("http://127.0.0.1:{port}/models/load");
+fn model_action(port: u16, action: &str, id: &str) -> Result<(), String> {
+    let url = format!("http://127.0.0.1:{port}/models/{action}");
     ureq::post(&url)
         .timeout(Duration::from_secs(10))
         .send_json(serde_json::json!({ "model": id }))
@@ -218,13 +228,12 @@ pub fn load(port: u16, id: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+pub fn load(port: u16, id: &str) -> Result<(), String> {
+    model_action(port, "load", id)
+}
+
 pub fn unload(port: u16, id: &str) -> Result<(), String> {
-    let url = format!("http://127.0.0.1:{port}/models/unload");
-    ureq::post(&url)
-        .timeout(Duration::from_secs(10))
-        .send_json(serde_json::json!({ "model": id }))
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    model_action(port, "unload", id)
 }
 
 #[cfg(test)]

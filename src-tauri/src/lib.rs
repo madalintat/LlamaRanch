@@ -99,10 +99,7 @@ pub fn start_router<R: Runtime>(app: &AppHandle<R>) {
 
     let models = scanner::scan(Path::new(&cfg.models_dir));
 
-    let preset_path = config::config_path()
-        .parent()
-        .map(|p| p.join("models.ini"))
-        .unwrap_or_else(|| std::path::PathBuf::from("models.ini"));
+    let preset_path = server::preset_path();
     if let Some(parent) = preset_path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
