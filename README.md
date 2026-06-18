@@ -78,6 +78,7 @@ you can update llama.cpp on your own schedule.
 - **Text and vision.** Multimodal models are detected and paired with their projector automatically.
 - **Big models too.** Anything larger than your VRAM runs split across GPU and RAM.
 - **Built in catalog.** Find and download models from Hugging Face, with a token for gated repos.
+- **Stays current.** Checks for new signed releases on launch and updates from inside the app, with a heads-up notification.
 - **Fully local.** Nothing leaves your machine.
 
 ## Works with
@@ -144,10 +145,15 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
 
 ## Roadmap
 
-- Windows build
-- A larger model catalog
+Done: Linux and Windows builds, in-app auto-updates, a built-in catalog, vision models.
+
+Next:
+
+- A larger, richer model catalog (more families, sizes, descriptions)
 - Multiple models loaded at once
 - Per-model configuration (context length, sampling)
+- Code-signing for Windows so the SmartScreen prompt goes away (e.g. free OSS signing via SignPath)
+- ARM64 builds (Linux and Windows on Arm)
 
 ## Contributing
 
