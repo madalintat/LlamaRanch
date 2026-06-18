@@ -108,42 +108,54 @@ pub fn start_router<R: Runtime>(app: &AppHandle<R>) {
     }
     let _ = std::fs::write(&preset_path, server::preset_for(&models));
 
-    {
+    // Capture the generation of the router we just started; if another
+    // start_router runs later (settings change, download, delete), `generation`
+    // advances and this poll thread bails without touching the new router.
+    let generation = {
         let srv = app.state::<SharedServer>();
         let mut s = srv.lock();
         if let Err(e) = server::start_router(&mut s, &cfg, &preset_path.to_string_lossy()) {
             s.status = format!("error: {e}");
             return;
         }
-    }
+        s.generation
+    };
 
     let app = app.clone();
     let port = cfg.port;
     thread::spawn(move || {
         let deadline = Instant::now() + Duration::from_secs(60);
         loop {
-            if Instant::now() > deadline {
-                let srv = app.state::<SharedServer>();
-                let mut s = srv.lock();
-                let err = server::drain_stderr(&mut s);
-                server::stop(&mut s);
-                s.status = format!("error: router did not start\n{err}");
-                break;
+            // someone restarted the router; stop watching this one
+            if app.state::<SharedServer>().lock().generation != generation {
+                return;
             }
             if server::health_ok(port) {
-                app.state::<SharedServer>().lock().status = "running".into();
-                break;
+                let srv = app.state::<SharedServer>();
+                let mut s = srv.lock();
+                if s.generation == generation {
+                    s.status = "running".into();
+                }
+                return;
             }
             {
                 let srv = app.state::<SharedServer>();
                 let mut s = srv.lock();
+                if s.generation != generation {
+                    return;
+                }
                 if let Some(child) = s.child.as_mut() {
                     if let Ok(Some(_)) = child.try_wait() {
-                        let err = server::drain_stderr(&mut s);
                         server::stop(&mut s);
-                        s.status = format!("error: router exited\n{err}");
-                        break;
+                        s.status = format!("error: router exited\n{}", server::router_log_tail());
+                        return;
                     }
+                }
+                if Instant::now() > deadline {
+                    server::stop(&mut s);
+                    s.status =
+                        format!("error: router did not start\n{}", server::router_log_tail());
+                    return;
                 }
             }
             thread::sleep(Duration::from_millis(500));

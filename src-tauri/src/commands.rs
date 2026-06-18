@@ -99,6 +99,12 @@ pub fn get_config(cfg: State<AppConfig>) -> Config {
 /// (port, models dir, idle timeout, network exposure) take effect.
 #[tauri::command]
 pub fn set_config(new_cfg: Config, cfg: State<AppConfig>, app: AppHandle) -> Result<(), String> {
+    if new_cfg.port == 0 {
+        return Err("Port must be greater than 0".into());
+    }
+    if !Path::new(&new_cfg.server_bin).exists() {
+        return Err(format!("llama-server not found at {}", new_cfg.server_bin));
+    }
     *cfg.0.lock().unwrap() = new_cfg.clone();
     config::save_to(&config::config_path(), &new_cfg).map_err(|e| e.to_string())?;
     crate::start_router(&app);
@@ -175,6 +181,13 @@ pub fn download_model(id: String, app: AppHandle, cfg: State<AppConfig>) -> Resu
             dir.join(mm),
         ));
     }
+
+    // reject a second concurrent download of the same model, and clear any
+    // stale cancel flag from a previous run so this one isn't aborted instantly
+    if files[0].1.with_extension("part").exists() {
+        return Err("already downloading".into());
+    }
+    app.state::<Cancels>().0.lock().unwrap().remove(&id);
 
     std::thread::spawn(move || {
         let cancelled = || {
@@ -264,6 +277,10 @@ pub fn delete_model(model_id: String, app: AppHandle, cfg: State<AppConfig>) -> 
         .into_iter()
         .find(|m| m.id == model_id)
         .ok_or_else(|| format!("not found: {model_id}"))?;
+    // unload it from the router first so we don't yank the file from a running model
+    let port = cfg.0.lock().unwrap().port;
+    let _ = server::unload(port, &model_id);
+
     let path = PathBuf::from(&model.path);
     std::fs::remove_file(&path).map_err(|e| e.to_string())?;
     if let Some(mm) = &model.mmproj_path {

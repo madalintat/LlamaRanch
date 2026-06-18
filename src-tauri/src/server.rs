@@ -1,7 +1,8 @@
-use crate::config::Config;
+use crate::config::{self, Config};
 use crate::scanner::Model;
 use serde::Deserialize;
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom};
+use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -11,6 +12,9 @@ use std::time::Duration;
 pub struct ServerState {
     pub child: Option<Child>,
     pub status: String, // "starting" | "running" | "error: <msg>"
+    /// Bumped on every (re)start so stale poll threads can detect they are
+    /// watching a router that has since been replaced and bail out.
+    pub generation: u64,
 }
 
 #[derive(Clone)]
@@ -91,13 +95,31 @@ pub fn stop(state: &mut ServerState) {
     state.status = "stopped".into();
 }
 
-/// Spawn the router process. Readiness is reported later via `status`.
+/// Where the router's stderr is logged (so the pipe never fills and we can read
+/// errors without blocking on a live process).
+pub fn router_log_path() -> PathBuf {
+    config::config_path()
+        .parent()
+        .map(|p| p.join("router.log"))
+        .unwrap_or_else(|| PathBuf::from("router.log"))
+}
+
+/// Spawn the router process, logging its stderr to a file. Readiness is
+/// reported later via `status`. Bumps `generation` so older poll threads stop.
 pub fn start_router(state: &mut ServerState, cfg: &Config, preset_path: &str) -> Result<(), String> {
     stop(state);
+    let log = router_log_path();
+    if let Some(parent) = log.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let stderr = std::fs::File::create(&log)
+        .map(std::process::Stdio::from)
+        .unwrap_or_else(|_| std::process::Stdio::null());
+
     let mut cmd = Command::new(&cfg.server_bin);
     cmd.args(router_args(cfg, preset_path))
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped());
+        .stderr(stderr);
     if !cfg.hf_token.trim().is_empty() {
         cmd.env("HF_TOKEN", cfg.hf_token.trim());
     }
@@ -106,19 +128,22 @@ pub fn start_router(state: &mut ServerState, cfg: &Config, preset_path: &str) ->
         .map_err(|e| format!("failed to launch {}: {e}", cfg.server_bin))?;
     state.child = Some(child);
     state.status = "starting".into();
+    state.generation = state.generation.wrapping_add(1);
     Ok(())
 }
 
-pub fn drain_stderr(state: &mut ServerState) -> String {
-    let mut out = String::new();
-    if let Some(child) = state.child.as_mut() {
-        if let Some(err) = child.stderr.as_mut() {
-            let mut buf = Vec::new();
-            let _ = err.read_to_end(&mut buf);
-            out = String::from_utf8_lossy(&buf).to_string();
-        }
-    }
-    out
+/// Last ~4 KB of the router log, for surfacing startup/crash errors.
+pub fn router_log_tail() -> String {
+    let path = router_log_path();
+    let Ok(mut f) = std::fs::File::open(&path) else {
+        return String::new();
+    };
+    let len = f.metadata().map(|m| m.len()).unwrap_or(0);
+    let start = len.saturating_sub(4096);
+    let _ = f.seek(SeekFrom::Start(start));
+    let mut buf = Vec::new();
+    let _ = f.read_to_end(&mut buf);
+    String::from_utf8_lossy(&buf).to_string()
 }
 
 // ---- Router HTTP API ----------------------------------------------------
@@ -153,7 +178,7 @@ struct ArchRaw {
 
 pub fn list_models(port: u16) -> Vec<RouterModel> {
     let url = format!("http://127.0.0.1:{port}/v1/models");
-    let resp = match ureq::get(&url).timeout(Duration::from_secs(3)).call() {
+    let resp = match ureq::get(&url).timeout(Duration::from_millis(1500)).call() {
         Ok(r) => r,
         Err(_) => return vec![],
     };
@@ -280,6 +305,7 @@ mod tests {
         let mut state = ServerState {
             child: Some(child),
             status: "running".into(),
+            generation: 1,
         };
         stop(&mut state);
         assert!(state.child.is_none());
