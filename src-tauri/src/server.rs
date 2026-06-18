@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::Read;
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -84,6 +84,7 @@ pub fn drain_stderr(state: &mut ServerState) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::net::TcpListener;
     use std::thread;
 

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=LlamaRanch
+Comment=Local LLM runner for llama.cpp
+Exec=/home/madalin/LlamaRanch/src-tauri/target/release/llamaranch
+Icon=llamaranch
+Terminal=false
+Categories=Utility;Development;
