@@ -8,6 +8,10 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# let tauri-action create/upload the GitHub Release on a tag
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
