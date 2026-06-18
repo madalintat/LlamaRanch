@@ -133,6 +133,12 @@ pub fn start_router(state: &mut ServerState, cfg: &Config, preset_path: &str) ->
     if !cfg.hf_token.trim().is_empty() {
         cmd.env("HF_TOKEN", cfg.hf_token.trim());
     }
+    // don't pop a console window when launching the router on Windows
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
     let child = cmd
         .spawn()
         .map_err(|e| format!("failed to launch {}: {e}", cfg.server_bin))?;
@@ -308,6 +314,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn stop_kills_child() {
         let child = Command::new("sleep").arg("60").spawn().unwrap();
         let pid = child.id();

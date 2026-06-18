@@ -15,12 +15,41 @@ pub struct Config {
     pub hf_token: String,
 }
 
+fn home() -> PathBuf {
+    dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
+}
+
+/// `~/llama.cpp/models`, resolved per-user and per-OS.
+fn default_models_dir() -> String {
+    home()
+        .join("llama.cpp")
+        .join("models")
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// `~/llama.cpp/build/bin/llama-server[.exe]`, resolved per-user and per-OS.
+fn default_server_bin() -> String {
+    let name = if cfg!(windows) {
+        "llama-server.exe"
+    } else {
+        "llama-server"
+    };
+    home()
+        .join("llama.cpp")
+        .join("build")
+        .join("bin")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
+
 impl Default for Config {
     fn default() -> Self {
         Config {
             port: 2276,
-            models_dir: "/home/madalin/llama.cpp/models".into(),
-            server_bin: "/home/madalin/llama.cpp/build/bin/llama-server".into(),
+            models_dir: default_models_dir(),
+            server_bin: default_server_bin(),
             expose_to_network: false,
             sleep_idle_seconds: 0,
             hf_token: String::new(),
