@@ -2,43 +2,56 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="stylesheet" href="/src/styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri App</title>
+    <title>LlamaRanch</title>
   </head>
 
   <body>
-  <div id="app">
-    <header>
-      <h1>LlamaRanch</h1>
-      <div id="serving" class="muted">idle</div>
-    </header>
-    <section class="endpoint">
-      <code id="endpoint">http://127.0.0.1:2276/v1</code>
-      <button id="copy">copy</button>
-      <button id="webui">Open WebUI</button>
-    </section>
-    <div id="error" class="error hidden"></div>
-    <section id="models"></section>
-    <footer>
-      <span id="version" class="muted"></span>
-      <span class="spacer"></span>
-      <button id="settings-btn">Settings</button>
-      <button id="quit">Quit</button>
-    </footer>
-    <dialog id="settings">
-      <form method="dialog">
-        <label>Port <input id="s-port" type="number"></label>
-        <label>Models dir <input id="s-models"></label>
-        <label>Server bin <input id="s-bin"></label>
-        <label><input id="s-expose" type="checkbox"> Expose to network</label>
-        <menu>
-          <button value="cancel">Cancel</button>
-          <button id="s-save" value="save">Save</button>
-        </menu>
-      </form>
-    </dialog>
-  </div>
-  <script type="module" src="/src/main.ts"></script>
+    <div id="app">
+      <header class="head">
+        <div class="brand">
+          <img class="brand__mark" id="brand-mark" alt="" />
+          <span class="brand__name">Llama<b>Ranch</b></span>
+        </div>
+        <div class="status status--idle" id="status">
+          <span class="status__dot"></span>
+          <span class="status__label" id="status-label">idle</span>
+        </div>
+      </header>
+
+      <div class="bar">
+        <button class="endpoint" id="copy" title="Copy endpoint to clipboard">
+          <span class="endpoint__url" id="endpoint">http://127.0.0.1:2276/v1</span>
+          <span class="endpoint__copy" id="copy-label">Copy</span>
+        </button>
+        <button class="btn btn--web" id="webui">Open WebUI</button>
+      </div>
+
+      <div class="error hidden" id="error"></div>
+
+      <main class="models" id="models"></main>
+
+      <footer class="foot">
+        <span class="foot__ver" id="version">llama.cpp</span>
+        <span class="foot__spacer"></span>
+        <button class="btn btn--quiet" id="settings-btn">Settings</button>
+        <button class="btn btn--quiet" id="quit">Quit</button>
+      </footer>
+
+      <dialog class="settings" id="settings">
+        <form method="dialog" class="settings__form">
+          <h3 class="settings__title">Settings</h3>
+          <label class="field">Port<input id="s-port" type="number" /></label>
+          <label class="field">Models directory<input id="s-models" type="text" /></label>
+          <label class="field">llama-server binary<input id="s-bin" type="text" /></label>
+          <label class="check"><input id="s-expose" type="checkbox" /> Expose server to local network</label>
+          <menu class="settings__actions">
+            <button class="btn btn--quiet" value="cancel">Cancel</button>
+            <button class="btn btn--web" id="s-save" value="save">Save</button>
+          </menu>
+        </form>
+      </dialog>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
