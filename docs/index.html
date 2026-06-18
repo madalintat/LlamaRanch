@@ -43,12 +43,12 @@
         <h1>A quiet ranch for<br />your local models.</h1>
         <p class="lede">LlamaRanch keeps every <a href="https://github.com/ggml-org/llama.cpp">llama.cpp</a> model on your machine in one tray and serves them behind a single private endpoint. No cloud. No API keys. Just your hardware, doing the thinking.</p>
         <div class="cta">
-          <a class="btn btn--solid" href="https://github.com/madalintat/LlamaRanch/releases/latest">Download for Linux</a>
+          <a class="btn btn--solid" href="https://github.com/madalintat/LlamaRanch/releases/latest">Download</a>
           <a class="btn btn--ghost" href="https://github.com/madalintat/LlamaRanch">View on GitHub</a>
           <a class="btn btn--ghost" href="https://huggingface.co/models?apps=llama.cpp&sort=trending"><img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="" />Browse models</a>
         </div>
         <p class="linux-badge">🐧 built for Linux, runs on your machine only</p>
-        <p class="mac-note">On a Mac? Use <a href="https://github.com/ggml-org/Llama-macOS">Llama</a>, the macOS app by ggml-org. Windows is on the roadmap.</p>
+        <p class="mac-note">Linux and Windows 10 / 11. On a Mac? Use <a href="https://github.com/ggml-org/Llama-macOS">Llama</a>, the macOS app by ggml-org.</p>
       </div>
     </div>
   </section>
@@ -103,9 +103,13 @@
       <h2 class="section-title">Install</h2>
       <div class="install__cols">
         <div>
-          <h3>Download the package</h3>
-          <pre><code>sudo dpkg -i LlamaRanch_0.1.0_amd64.deb</code></pre>
-          <p>Grab the <code>.deb</code> from the latest release, install, then launch LlamaRanch from your app menu. Turn on Start on login in Settings.</p>
+          <h3>Download the installer</h3>
+          <pre><code># Linux
+sudo dpkg -i LlamaRanch_*.deb
+
+# Windows 10 / 11
+run the .exe installer</code></pre>
+          <p>Grab the build for your OS from the latest release, then launch LlamaRanch and turn on Start on login in Settings.</p>
         </div>
         <div>
           <h3>Build from source</h3>

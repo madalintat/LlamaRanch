@@ -30,22 +30,21 @@ companion to ggml-org's macOS app, [Llama](https://github.com/ggml-org/Llama-mac
 
 | OS | App |
 |----|-----|
-| **Linux** | **LlamaRanch** (this project) |
+| **Linux** | **LlamaRanch** (`.deb` / AppImage) |
+| **Windows 10 / 11** | **LlamaRanch** (`.exe` installer) |
 | **macOS** | [**Llama**](https://github.com/ggml-org/Llama-macOS), the original by ggml-org (`brew install --cask llamabarn`) |
-| **Windows** | on the roadmap |
 
 ## Install
 
-Download the latest `.deb` from [**Releases**](https://github.com/madalintat/LlamaRanch/releases/latest) and install it:
+Grab the latest build from [**Releases**](https://github.com/madalintat/LlamaRanch/releases/latest):
 
-```sh
-sudo dpkg -i LlamaRanch_0.1.0_amd64.deb
-```
+- **Linux:** `sudo dpkg -i LlamaRanch_*.deb` (or run the AppImage)
+- **Windows 10 / 11:** download and run the `.exe` installer
 
-Launch **LlamaRanch** from your app menu, then turn on **Start on login** in Settings.
+Launch **LlamaRanch** from your apps, then turn on **Start on login** in Settings.
 
-You also need a built `llama-server` from llama.cpp, and a system tray (i3bar,
-GNOME with AppIndicator, KDE, etc.).
+You also need a `llama-server` from llama.cpp ([Windows builds here](https://github.com/ggml-org/llama.cpp/releases/latest), CPU / CUDA / Vulkan), and on
+Linux a system tray (i3bar, GNOME with AppIndicator, KDE, etc.).
 
 ## How it works
 
