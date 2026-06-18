@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 use std::process::{Child, Command};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 #[derive(Default)]
@@ -10,7 +10,23 @@ pub struct ServerState {
     pub status: String, // "idle" | "starting" | "running" | "error: <msg>"
 }
 
-pub type SharedServer = Mutex<ServerState>;
+#[derive(Clone)]
+pub struct SharedServer(pub Arc<Mutex<ServerState>>);
+
+impl SharedServer {
+    pub fn new() -> Self {
+        SharedServer(Arc::new(Mutex::new(ServerState {
+            status: "idle".into(),
+            ..Default::default()
+        })))
+    }
+    pub fn lock(&self) -> std::sync::MutexGuard<'_, ServerState> {
+        self.0.lock().unwrap()
+    }
+    pub fn clone_handle(&self) -> SharedServer {
+        self.clone()
+    }
+}
 
 pub fn health_ok(port: u16) -> bool {
     let url = format!("http://127.0.0.1:{}/health", port);
