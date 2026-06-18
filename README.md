@@ -4,10 +4,10 @@
 
 # LlamaRanch
 
-**A cosy home for your LLMs, on Linux.**
+**A quiet ranch for your local models.**
 
-Run local models with [llama.cpp](https://github.com/ggml-org/llama.cpp) from your system tray.
-Pick a model, click load, chat.
+Run [llama.cpp](https://github.com/ggml-org/llama.cpp) models from your tray, behind one private endpoint.
+Load a model, chat. Nothing leaves your machine.
 
 [**Website**](https://madalintat.github.io/LlamaRanch/) &nbsp;·&nbsp; [**Download**](https://github.com/madalintat/LlamaRanch/releases/latest) &nbsp;·&nbsp; [**Models on Hugging Face**](https://huggingface.co/models?apps=llama.cpp&sort=trending)
 
@@ -21,10 +21,10 @@ Pick a model, click load, chat.
 
 ---
 
-LlamaRanch is a Linux tray app for running local LLMs. It keeps one `llama-server`
-running quietly in the background and serves every model behind a single
-OpenAI-compatible endpoint. It is the Linux counterpart to
-[Llama](https://github.com/ggml-org/Llama-macOS) (the macOS menu bar app by ggml-org).
+LlamaRanch runs AI models on your own hardware, nothing in the cloud. It keeps one
+`llama-server` working quietly in the background and serves every model behind a single
+OpenAI-compatible endpoint, so any app on your machine can talk to them. It is the Linux
+companion to ggml-org's macOS app, [Llama](https://github.com/ggml-org/Llama-macOS).
 
 ## Platforms
 

@@ -70,18 +70,12 @@ section { padding: 76px 0; }
 .mac-note { margin: 8px 0 0; font-size: 13px; color: var(--text-2); }
 .mac-note a { color: var(--text); text-decoration: underline; text-decoration-color: var(--accent); }
 
-/* features */
-.grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
-.card h3 { font-size: 19px; font-weight: 600; margin: 12px 0 7px; }
-.card p { margin: 0; color: var(--text-2); font-size: 14.5px; line-height: 1.55; }
-.card code { background: rgba(127,127,127,.14); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
-.tag { font-family: var(--code); font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px; }
-.tag--gpu { color: var(--gpu); background: rgba(46,139,72,.13); }
-.tag--vision { color: var(--vision); background: rgba(47,125,240,.13); }
-.tag--hybrid { color: var(--hybrid); background: rgba(138,148,155,.16); }
-.tag--load,.tag--get { color: var(--accent); background: rgba(176,122,62,.15); }
-.tag--api { color: #7a4fd0; background: rgba(122,79,208,.14); }
+/* features (clean list, no boxes) */
+.feat { display: grid; grid-template-columns: 1fr 1fr; column-gap: 56px; }
+.feat__item { padding: 22px 0; border-top: 1px solid var(--line); }
+.feat__item h3 { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
+.feat__item p { margin: 0; color: var(--text-2); font-size: 15px; line-height: 1.55; }
+.feat__item code { background: rgba(127,127,127,.14); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
 
 /* works with */
 .works { text-align: center; border-top: 1px solid var(--line); }
@@ -121,7 +115,7 @@ section { padding: 76px 0; }
 .brand b, .foot b { font-weight: 700; }
 
 @media (max-width: 800px) {
-  .grid, .models .wrap, .install__cols { grid-template-columns: 1fr; }
+  .feat, .models .wrap, .install__cols { grid-template-columns: 1fr; }
   .promo { aspect-ratio: 4 / 5; }
   .promo__panel { width: 64%; right: 50%; transform: translateX(50%); top: 56px; }
   .nav__links a:not(.nav__gh) { display: none; }
