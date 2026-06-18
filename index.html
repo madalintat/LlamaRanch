@@ -5,39 +5,40 @@
     <link rel="stylesheet" href="/src/styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tauri App</title>
-    <script type="module" src="/src/main.ts" defer></script>
   </head>
 
   <body>
-    <main class="container">
-      <h1>Welcome to Tauri</h1>
-
-      <div class="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/src/assets/vite.svg" class="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img
-            src="/src/assets/tauri.svg"
-            class="logo tauri"
-            alt="Tauri logo"
-          />
-        </a>
-        <a href="https://www.typescriptlang.org/docs" target="_blank">
-          <img
-            src="/src/assets/typescript.svg"
-            class="logo typescript"
-            alt="typescript logo"
-          />
-        </a>
-      </div>
-      <p>Click on the Tauri logo to learn more about the framework</p>
-
-      <form class="row" id="greet-form">
-        <input id="greet-input" placeholder="Enter a name..." />
-        <button type="submit">Greet</button>
+  <div id="app">
+    <header>
+      <h1>LlamaRanch</h1>
+      <div id="serving" class="muted">idle</div>
+    </header>
+    <section class="endpoint">
+      <code id="endpoint">http://127.0.0.1:2276/v1</code>
+      <button id="copy">copy</button>
+      <button id="webui">Open WebUI</button>
+    </section>
+    <div id="error" class="error hidden"></div>
+    <section id="models"></section>
+    <footer>
+      <span id="version" class="muted"></span>
+      <span class="spacer"></span>
+      <button id="settings-btn">Settings</button>
+      <button id="quit">Quit</button>
+    </footer>
+    <dialog id="settings">
+      <form method="dialog">
+        <label>Port <input id="s-port" type="number"></label>
+        <label>Models dir <input id="s-models"></label>
+        <label>Server bin <input id="s-bin"></label>
+        <label><input id="s-expose" type="checkbox"> Expose to network</label>
+        <menu>
+          <button value="cancel">Cancel</button>
+          <button id="s-save" value="save">Save</button>
+        </menu>
       </form>
-      <p id="greet-msg"></p>
-    </main>
+    </dialog>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

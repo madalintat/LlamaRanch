@@ -18,6 +18,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
         .manage(AppConfig(Mutex::new(cfg)))
         .manage(shared)
         .invoke_handler(tauri::generate_handler![
