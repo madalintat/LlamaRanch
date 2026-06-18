@@ -46,6 +46,20 @@ Launch **LlamaRanch** from your apps, then turn on **Start on login** in Setting
 You also need a `llama-server` from llama.cpp ([Windows builds here](https://github.com/ggml-org/llama.cpp/releases/latest), CPU / CUDA / Vulkan), and on
 Linux a system tray (i3bar, GNOME with AppIndicator, KDE, etc.).
 
+## Updates
+
+LlamaRanch checks GitHub Releases on launch and shows an in-app banner when a
+new **signed** version is available. On **Windows** and the **Linux AppImage** it
+updates in place in one click; **`.deb`** users update with `apt` or by grabbing
+the new package. Every update is verified against a signing key, so a tampered
+build can't install.
+
+On Windows, the first install may show a SmartScreen "unknown publisher" prompt
+(click **More info -> Run anyway**) since the app isn't code-signed with a paid
+certificate. Free Authenticode signing for open source (e.g. SignPath) is a
+possible future improvement; update integrity is already guaranteed by the
+signing key.
+
 ## How it works
 
 LlamaRanch runs a local server at `http://127.0.0.1:2276/v1`.

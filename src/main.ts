@@ -1,6 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
-import { exit } from "@tauri-apps/plugin-process";
+import { exit, relaunch } from "@tauri-apps/plugin-process";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { check } from "@tauri-apps/plugin-updater";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
 import { enable as autoEnable, disable as autoDisable, isEnabled as autoIsEnabled } from "@tauri-apps/plugin-autostart";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
@@ -180,6 +188,49 @@ function showError(msg: string) {
   err.classList.remove("hidden");
 }
 
+async function notify(title: string, body: string) {
+  try {
+    let granted = await isPermissionGranted();
+    if (!granted) granted = (await requestPermission()) === "granted";
+    if (granted) sendNotification({ title, body });
+  } catch {}
+}
+
+const RELEASES = "https://github.com/madalintat/LlamaRanch/releases/latest";
+
+// Check GitHub Releases for a newer, signed build. On AppImage/Windows the
+// update installs in place; on a .deb install (which apt owns) we point the
+// user at the release page instead.
+async function checkForUpdate() {
+  let update;
+  try {
+    update = await check();
+  } catch {
+    return;
+  }
+  if (!update) return;
+
+  const banner = $("update");
+  const now = $("update-now") as HTMLButtonElement;
+  $("update-text").textContent = `LlamaRanch ${update.version} is available.`;
+  banner.classList.remove("hidden");
+  notify("Update available", `LlamaRanch ${update.version} is ready to install.`);
+
+  now.onclick = async () => {
+    now.disabled = true;
+    now.textContent = "Updating...";
+    try {
+      await update.downloadAndInstall();
+      await relaunch();
+    } catch {
+      // e.g. a .deb install can't replace itself: send them to the release
+      await openUrl(RELEASES);
+      banner.classList.add("hidden");
+    }
+  };
+  $("update-later").onclick = () => banner.classList.add("hidden");
+}
+
 async function refresh() {
   [router, models, catalog] = await Promise.all([
     invoke<RouterStatus>("router_status"),
@@ -226,6 +277,14 @@ async function init() {
   };
   $("webui").onclick = () => invoke("open_webui");
   $("quit").onclick = () => exit(0);
+
+  $("close-btn").onclick = async () => {
+    await getCurrentWindow().hide();
+    if (!localStorage.getItem("tray-hint-shown")) {
+      localStorage.setItem("tray-hint-shown", "1");
+      notify("LlamaRanch is still running", "Click the llama icon in your tray to reopen it.");
+    }
+  };
 
   const dlg = $("settings") as HTMLDialogElement;
   $("settings-btn").onclick = async () => {
@@ -275,6 +334,7 @@ async function init() {
 
   await refresh();
   startPolling();
+  checkForUpdate();
 }
 
 init();

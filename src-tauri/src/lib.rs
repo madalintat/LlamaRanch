@@ -27,6 +27,8 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .manage(AppConfig(Mutex::new(cfg)))
         .manage(shared)
         .manage(commands::Cancels::default())

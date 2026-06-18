@@ -1,6 +1,6 @@
 [package]
 name = "llamaranch"
-version = "0.1.1"
+version = "0.1.2"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -26,6 +26,8 @@ dirs = "5"
 ureq = { version = "2", features = ["json"] }
 tauri-plugin-process = "2.3.1"
 tauri-plugin-autostart = "2.5.1"
+tauri-plugin-updater = "2.10.1"
+tauri-plugin-notification = "2.3.3"
 
 [dev-dependencies]
 tempfile = "3"

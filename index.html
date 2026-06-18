@@ -8,16 +8,26 @@
 
   <body>
     <div id="app">
-      <header class="head" data-tauri-drag-region>
+      <header class="head">
         <div class="brand" data-tauri-drag-region>
           <img class="brand__mark" id="brand-mark" alt="" />
           <span class="brand__name">Llama<b>Ranch</b></span>
         </div>
-        <div class="status status--idle" id="status">
-          <span class="status__dot"></span>
-          <span class="status__label" id="status-label">idle</span>
+        <div class="head__drag" data-tauri-drag-region></div>
+        <div class="head__right">
+          <div class="status status--idle" id="status">
+            <span class="status__dot"></span>
+            <span class="status__label" id="status-label">idle</span>
+          </div>
+          <button class="head__close" id="close-btn" title="Close to tray" aria-label="Close">&times;</button>
         </div>
       </header>
+
+      <div class="update hidden" id="update">
+        <span class="update__text" id="update-text">An update is available.</span>
+        <button class="update__btn" id="update-now">Update</button>
+        <button class="update__dismiss" id="update-later">Later</button>
+      </div>
 
       <div class="bar">
         <button class="endpoint" id="copy" title="Copy endpoint to clipboard">
