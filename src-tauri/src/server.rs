@@ -94,10 +94,14 @@ pub fn stop(state: &mut ServerState) {
 /// Spawn the router process. Readiness is reported later via `status`.
 pub fn start_router(state: &mut ServerState, cfg: &Config, preset_path: &str) -> Result<(), String> {
     stop(state);
-    let child = Command::new(&cfg.server_bin)
-        .args(router_args(cfg, preset_path))
+    let mut cmd = Command::new(&cfg.server_bin);
+    cmd.args(router_args(cfg, preset_path))
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    if !cfg.hf_token.trim().is_empty() {
+        cmd.env("HF_TOKEN", cfg.hf_token.trim());
+    }
+    let child = cmd
         .spawn()
         .map_err(|e| format!("failed to launch {}: {e}", cfg.server_bin))?;
     state.child = Some(child);

@@ -170,6 +170,7 @@ async function init() {
     ($("s-models") as HTMLInputElement).value = cfg.models_dir;
     ($("s-bin") as HTMLInputElement).value = cfg.server_bin;
     ($("s-idle") as HTMLInputElement).value = String(cfg.sleep_idle_seconds ?? 0);
+    ($("s-hf") as HTMLInputElement).value = cfg.hf_token ?? "";
     ($("s-expose") as HTMLInputElement).checked = cfg.expose_to_network;
     dlg.showModal();
   };
@@ -181,6 +182,7 @@ async function init() {
         models_dir: ($("s-models") as HTMLInputElement).value,
         server_bin: ($("s-bin") as HTMLInputElement).value,
         sleep_idle_seconds: Number(($("s-idle") as HTMLInputElement).value) || 0,
+        hf_token: ($("s-hf") as HTMLInputElement).value.trim(),
         expose_to_network: ($("s-expose") as HTMLInputElement).checked,
       },
     });

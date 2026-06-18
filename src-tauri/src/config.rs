@@ -10,6 +10,9 @@ pub struct Config {
     /// Unload an idle model after this many seconds (0 = never).
     #[serde(default)]
     pub sleep_idle_seconds: u32,
+    /// Hugging Face access token, passed to the router for downloads (optional).
+    #[serde(default)]
+    pub hf_token: String,
 }
 
 impl Default for Config {
@@ -20,6 +23,7 @@ impl Default for Config {
             server_bin: "/home/madalin/llama.cpp/build/bin/llama-server".into(),
             expose_to_network: false,
             sleep_idle_seconds: 0,
+            hf_token: String::new(),
         }
     }
 }
