@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    llamaranch_scaffold_lib::run()
+    llamaranch_lib::run()
 }

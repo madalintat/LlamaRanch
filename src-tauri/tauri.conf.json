@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "llamaranch-scaffold",
+  "productName": "LlamaRanch",
   "version": "0.1.0",
   "identifier": "com.llamaranch.app",
   "build": {
@@ -13,9 +13,11 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "llamaranch-scaffold",
-        "width": 800,
-        "height": 600
+        "title": "LlamaRanch",
+        "width": 420,
+        "height": 560,
+        "resizable": false,
+        "visible": false
       }
     ],
     "security": {
