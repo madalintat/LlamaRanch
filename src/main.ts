@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { exit } from "@tauri-apps/plugin-process";
 import { listen } from "@tauri-apps/api/event";
+import { enable as autoEnable, disable as autoDisable, isEnabled as autoIsEnabled } from "@tauri-apps/plugin-autostart";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
@@ -143,6 +144,11 @@ function renderDiscover() {
       btn.textContent = prog.total ? `${Math.round((prog.done / prog.total) * 100)}%` : "...";
       btn.classList.add("is-busy");
       btn.disabled = true;
+      const cancel = document.createElement("button");
+      cancel.className = "iconbtn";
+      cancel.textContent = "Cancel";
+      cancel.onclick = () => invoke("cancel_download", { id: e.id });
+      card.appendChild(cancel);
     } else {
       btn.textContent = "Download";
       btn.onclick = async () => {
@@ -230,10 +236,15 @@ async function init() {
     ($("s-idle") as HTMLInputElement).value = String(cfg.sleep_idle_seconds ?? 0);
     ($("s-hf") as HTMLInputElement).value = cfg.hf_token ?? "";
     ($("s-expose") as HTMLInputElement).checked = cfg.expose_to_network;
+    try { ($("s-autostart") as HTMLInputElement).checked = await autoIsEnabled(); } catch {}
     dlg.showModal();
   };
   dlg.addEventListener("close", async () => {
     if (dlg.returnValue !== "save") return;
+    try {
+      const want = ($("s-autostart") as HTMLInputElement).checked;
+      if ((await autoIsEnabled()) !== want) want ? await autoEnable() : await autoDisable();
+    } catch {}
     await invoke("set_config", {
       newCfg: {
         port: Number(($("s-port") as HTMLInputElement).value),
@@ -258,7 +269,7 @@ async function init() {
   });
   await listen<{ id: string; error: string }>("download:error", (e) => {
     dl.delete(e.payload.id);
-    showError(`Download failed: ${e.payload.error}`);
+    if (e.payload.error !== "cancelled") showError(`Download failed: ${e.payload.error}`);
     if (view === "discover") renderDiscover();
   });
 

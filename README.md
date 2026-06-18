@@ -57,11 +57,17 @@ npm run tauri build -- --no-bundle
 ./src-tauri/target/release/llamaranch
 ```
 
-Install the desktop launcher (optional):
+### Install as a package
+
+Build a `.deb` and install it (adds the app launcher entry + icon):
 
 ```sh
-bash scripts/install-desktop.sh
+npm run tauri build -- --bundles deb
+sudo dpkg -i src-tauri/target/release/bundle/deb/LlamaRanch_*.deb
 ```
+
+Then launch "LlamaRanch" from your app menu. Enable **Start on login** in
+Settings to run it automatically.
 
 ## Configuration
 

@@ -8,7 +8,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 pub struct AppConfig(pub Mutex<Config>);
 
@@ -120,47 +120,82 @@ pub struct CatalogView {
     pub installed: bool,
 }
 
+/// Where a catalog model installs to. Vision models (with an mmproj) get their
+/// own subdirectory so the mmproj pairs unambiguously.
+fn install_dir(models_dir: &str, entry: &catalog::CatalogEntry) -> PathBuf {
+    if entry.mmproj.is_some() {
+        Path::new(models_dir).join(entry.id)
+    } else {
+        Path::new(models_dir).join(entry.group)
+    }
+}
+
+/// Tracks in-flight downloads the user has asked to cancel.
+#[derive(Default)]
+pub struct Cancels(pub Mutex<std::collections::HashSet<String>>);
+
 #[tauri::command]
 pub fn list_catalog(cfg: State<AppConfig>) -> Vec<CatalogView> {
     let dir = cfg.0.lock().unwrap().models_dir.clone();
     catalog::catalog()
         .iter()
-        .map(|e| {
-            let dest = Path::new(&dir).join(e.group).join(e.file);
-            CatalogView {
-                id: e.id.into(),
-                name: e.name.into(),
-                description: e.description.into(),
-                group: e.group.into(),
-                approx_gb: e.approx_gb,
-                installed: dest.exists(),
-            }
+        .map(|e| CatalogView {
+            id: e.id.into(),
+            name: e.name.into(),
+            description: e.description.into(),
+            group: e.group.into(),
+            approx_gb: e.approx_gb,
+            installed: install_dir(&dir, e).join(e.file).exists(),
         })
         .collect()
 }
 
-/// Stream a catalog model from Hugging Face into the models dir, emitting
-/// progress events, then restart the router so it appears. Returns immediately.
+#[tauri::command]
+pub fn cancel_download(id: String, cancels: State<Cancels>) {
+    cancels.0.lock().unwrap().insert(id);
+}
+
+/// Stream a catalog model (and its mmproj for vision) from Hugging Face into the
+/// models dir with progress events, then restart the router. Returns immediately.
 #[tauri::command]
 pub fn download_model(id: String, app: AppHandle, cfg: State<AppConfig>) -> Result<(), String> {
     let c = cfg.0.lock().unwrap().clone();
     let entry = catalog::find(&id).ok_or_else(|| format!("unknown model: {id}"))?;
-    let dest = Path::new(&c.models_dir).join(entry.group).join(entry.file);
-    let url = format!(
-        "https://huggingface.co/{}/resolve/main/{}",
-        entry.repo, entry.file
-    );
+    let dir = install_dir(&c.models_dir, entry);
     let token = c.hf_token.clone();
 
+    // (url, dest) for the model and optional mmproj
+    let mut files: Vec<(String, PathBuf)> = vec![(
+        format!("https://huggingface.co/{}/resolve/main/{}", entry.repo, entry.file),
+        dir.join(entry.file),
+    )];
+    if let Some(mm) = entry.mmproj {
+        files.push((
+            format!("https://huggingface.co/{}/resolve/main/{}", entry.repo, mm),
+            dir.join(mm),
+        ));
+    }
+
     std::thread::spawn(move || {
-        let app2 = app.clone();
-        let res = download_file(&url, &dest, &token, |done, total| {
-            let _ = app2.emit(
-                "download:progress",
-                serde_json::json!({ "id": id, "done": done, "total": total }),
-            );
-        });
-        match res {
+        let cancelled = || {
+            app.state::<Cancels>().0.lock().unwrap().contains(&id)
+        };
+        let mut result: Result<(), String> = Ok(());
+        for (url, dest) in &files {
+            let app2 = app.clone();
+            let idc = id.clone();
+            result = download_file(url, dest, &token, &cancelled, move |done, total| {
+                let _ = app2.emit(
+                    "download:progress",
+                    serde_json::json!({ "id": idc, "done": done, "total": total }),
+                );
+            });
+            if result.is_err() {
+                break;
+            }
+        }
+        app.state::<Cancels>().0.lock().unwrap().remove(&id);
+        match result {
             Ok(_) => {
                 crate::start_router(&app);
                 let _ = app.emit("download:done", serde_json::json!({ "id": id }));
@@ -177,6 +212,7 @@ fn download_file(
     url: &str,
     dest: &Path,
     token: &str,
+    cancelled: &dyn Fn() -> bool,
     mut progress: impl FnMut(u64, u64),
 ) -> Result<(), String> {
     if let Some(p) = dest.parent() {
@@ -199,6 +235,11 @@ fn download_file(
     let mut done: u64 = 0;
     let mut last: u64 = 0;
     loop {
+        if cancelled() {
+            drop(out);
+            let _ = std::fs::remove_file(&tmp);
+            return Err("cancelled".into());
+        }
         let n = reader.read(&mut buf).map_err(|e| e.to_string())?;
         if n == 0 {
             break;
@@ -223,9 +264,16 @@ pub fn delete_model(model_id: String, app: AppHandle, cfg: State<AppConfig>) -> 
         .into_iter()
         .find(|m| m.id == model_id)
         .ok_or_else(|| format!("not found: {model_id}"))?;
-    std::fs::remove_file(&model.path).map_err(|e| e.to_string())?;
+    let path = PathBuf::from(&model.path);
+    std::fs::remove_file(&path).map_err(|e| e.to_string())?;
     if let Some(mm) = &model.mmproj_path {
         let _ = std::fs::remove_file(mm);
+    }
+    // remove the model's own subdirectory if it's now empty (vision installs)
+    if let Some(parent) = path.parent() {
+        if parent != Path::new(&dir) {
+            let _ = std::fs::remove_dir(parent);
+        }
     }
     crate::start_router(&app);
     Ok(())

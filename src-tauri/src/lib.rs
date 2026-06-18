@@ -23,8 +23,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .manage(AppConfig(Mutex::new(cfg)))
         .manage(shared)
+        .manage(commands::Cancels::default())
         .invoke_handler(tauri::generate_handler![
             commands::list_models,
             commands::router_status,
@@ -37,6 +42,7 @@ pub fn run() {
             commands::llama_cpp_version,
             commands::list_catalog,
             commands::download_model,
+            commands::cancel_download,
             commands::delete_model,
         ])
         .setup(|app| {
@@ -84,6 +90,13 @@ pub fn run() {
 /// health in the background and flip the status to running/error.
 pub fn start_router<R: Runtime>(app: &AppHandle<R>) {
     let cfg = app.state::<AppConfig>().0.lock().unwrap().clone();
+
+    if !Path::new(&cfg.server_bin).exists() {
+        app.state::<SharedServer>().lock().status =
+            format!("error: llama-server not found at {}", cfg.server_bin);
+        return;
+    }
+
     let models = scanner::scan(Path::new(&cfg.models_dir));
 
     let preset_path = config::config_path()

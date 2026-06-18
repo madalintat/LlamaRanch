@@ -47,16 +47,21 @@ pub fn scan(root: &Path) -> Vec<Model> {
         .filter(|p| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0) >= MIN_MODEL_BYTES)
         .map(|p| {
             let id = p.file_stem().unwrap().to_string_lossy().to_string();
-            let group = p
-                .parent()
-                .and_then(|d| d.file_name())
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_else(|| "models".into());
             let size_bytes = std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
             let mmproj_path = mmprojs
                 .iter()
                 .find(|mm| mm.parent() == p.parent())
                 .map(|mm| mm.to_string_lossy().to_string());
+            // Models with an mmproj are vision models; group them together
+            // regardless of which subdir they live in.
+            let group = if mmproj_path.is_some() {
+                "vision".to_string()
+            } else {
+                p.parent()
+                    .and_then(|d| d.file_name())
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "models".into())
+            };
             Model {
                 id: id.clone(),
                 name: id,

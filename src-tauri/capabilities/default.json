@@ -7,6 +7,9 @@
     "core:default",
     "core:window:allow-start-dragging",
     "opener:default",
-    "process:default"
+    "process:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
   ]
 }
