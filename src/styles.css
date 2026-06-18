@@ -155,7 +155,7 @@ html, body {
 .tag { font-weight: 600; }
 .tag--GPU { color: var(--gpu); }
 .tag--Partial { color: var(--partial); }
-.tag--CPU { color: var(--cpu); }
+.tag--Hybrid { color: var(--cpu); }
 .tag--vision { color: var(--accent); }
 
 .card__action { flex: none; min-width: 58px; text-align: center; }
@@ -178,6 +178,8 @@ html, body {
   font-family: var(--ff); font-size: 11px; padding: 4px 6px; border-radius: 6px;
 }
 .iconbtn:hover { color: var(--danger); background: rgba(224,50,44,0.08); }
+.card__del { opacity: 0; transition: opacity 0.12s; }
+.card:hover .card__del, .card__del:focus-visible { opacity: 1; }
 
 /* ---------- footer ---------- */
 .foot {

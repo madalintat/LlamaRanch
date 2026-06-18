@@ -93,7 +93,7 @@ function renderInstalled() {
         </div>`;
 
       const del = document.createElement("button");
-      del.className = "iconbtn";
+      del.className = "iconbtn card__del";
       del.textContent = "Delete";
       del.title = "Delete model file";
       del.onclick = async () => {
