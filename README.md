@@ -45,6 +45,8 @@ sudo dpkg -i LlamaRanch_0.1.0_amd64.deb
 
 Launch **LlamaRanch** from your app menu, then turn on **Start on login** in Settings.
 
+> On a Mac? Use [**LlamaBarn**](https://github.com/ggml-org/Llama-macOS), the macOS original by ggml-org. LlamaRanch is the Linux counterpart.
+
 ## Build from source
 
 ```sh
