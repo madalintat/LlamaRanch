@@ -45,6 +45,11 @@ async function refresh() {
   ($("endpoint") as HTMLElement).textContent = status.endpoint;
   setStatus(status.status, status.model_id);
 
+  const webuiBtn = $("webui") as HTMLButtonElement;
+  const live = status.status === "running";
+  webuiBtn.disabled = !live;
+  webuiBtn.title = live ? "" : "Load a model first";
+
   const err = $("error");
   if (status.status.startsWith("error")) {
     err.textContent = status.status.replace(/^error:\s*/, "");

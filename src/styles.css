@@ -93,6 +93,7 @@ html, body {
   padding: 0;
 }
 .btn--web:hover { text-decoration: underline; }
+.btn--web:disabled { color: var(--text-3); cursor: default; text-decoration: none; }
 
 /* ---------- buttons (generic) ---------- */
 .btn {
