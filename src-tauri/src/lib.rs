@@ -1,3 +1,4 @@
+mod catalog;
 mod config;
 mod scanner;
 mod launch;
@@ -34,6 +35,9 @@ pub fn run() {
             commands::set_config,
             commands::restart_router,
             commands::llama_cpp_version,
+            commands::list_catalog,
+            commands::download_model,
+            commands::delete_model,
         ])
         .setup(|app| {
             let open = MenuItem::with_id(app, "open", "Open LlamaRanch", true, None::<&str>)?;

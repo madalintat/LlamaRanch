@@ -1,11 +1,14 @@
+use crate::catalog;
 use crate::config::{self, Config};
 use crate::launch;
 use crate::scanner;
 use crate::server::{self, SharedServer};
 use serde::Serialize;
-use std::path::Path;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::{AppHandle, State};
+use std::time::Duration;
+use tauri::{AppHandle, Emitter, State};
 
 pub struct AppConfig(pub Mutex<Config>);
 
@@ -105,6 +108,127 @@ pub fn set_config(new_cfg: Config, cfg: State<AppConfig>, app: AppHandle) -> Res
 #[tauri::command]
 pub fn restart_router(app: AppHandle) {
     crate::start_router(&app);
+}
+
+#[derive(Serialize)]
+pub struct CatalogView {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub group: String,
+    pub approx_gb: f64,
+    pub installed: bool,
+}
+
+#[tauri::command]
+pub fn list_catalog(cfg: State<AppConfig>) -> Vec<CatalogView> {
+    let dir = cfg.0.lock().unwrap().models_dir.clone();
+    catalog::catalog()
+        .iter()
+        .map(|e| {
+            let dest = Path::new(&dir).join(e.group).join(e.file);
+            CatalogView {
+                id: e.id.into(),
+                name: e.name.into(),
+                description: e.description.into(),
+                group: e.group.into(),
+                approx_gb: e.approx_gb,
+                installed: dest.exists(),
+            }
+        })
+        .collect()
+}
+
+/// Stream a catalog model from Hugging Face into the models dir, emitting
+/// progress events, then restart the router so it appears. Returns immediately.
+#[tauri::command]
+pub fn download_model(id: String, app: AppHandle, cfg: State<AppConfig>) -> Result<(), String> {
+    let c = cfg.0.lock().unwrap().clone();
+    let entry = catalog::find(&id).ok_or_else(|| format!("unknown model: {id}"))?;
+    let dest = Path::new(&c.models_dir).join(entry.group).join(entry.file);
+    let url = format!(
+        "https://huggingface.co/{}/resolve/main/{}",
+        entry.repo, entry.file
+    );
+    let token = c.hf_token.clone();
+
+    std::thread::spawn(move || {
+        let app2 = app.clone();
+        let res = download_file(&url, &dest, &token, |done, total| {
+            let _ = app2.emit(
+                "download:progress",
+                serde_json::json!({ "id": id, "done": done, "total": total }),
+            );
+        });
+        match res {
+            Ok(_) => {
+                crate::start_router(&app);
+                let _ = app.emit("download:done", serde_json::json!({ "id": id }));
+            }
+            Err(e) => {
+                let _ = app.emit("download:error", serde_json::json!({ "id": id, "error": e }));
+            }
+        }
+    });
+    Ok(())
+}
+
+fn download_file(
+    url: &str,
+    dest: &Path,
+    token: &str,
+    mut progress: impl FnMut(u64, u64),
+) -> Result<(), String> {
+    if let Some(p) = dest.parent() {
+        std::fs::create_dir_all(p).map_err(|e| e.to_string())?;
+    }
+    let mut req = ureq::get(url).timeout(Duration::from_secs(7200));
+    if !token.trim().is_empty() {
+        req = req.set("Authorization", &format!("Bearer {}", token.trim()));
+    }
+    let resp = req.call().map_err(|e| e.to_string())?;
+    let total: u64 = resp
+        .header("Content-Length")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+
+    let tmp: PathBuf = dest.with_extension("part");
+    let mut out = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
+    let mut reader = resp.into_reader();
+    let mut buf = vec![0u8; 1 << 20];
+    let mut done: u64 = 0;
+    let mut last: u64 = 0;
+    loop {
+        let n = reader.read(&mut buf).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        out.write_all(&buf[..n]).map_err(|e| e.to_string())?;
+        done += n as u64;
+        if done - last > (8 << 20) {
+            progress(done, total);
+            last = done;
+        }
+    }
+    drop(out);
+    std::fs::rename(&tmp, dest).map_err(|e| e.to_string())?;
+    progress(done, total.max(done));
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_model(model_id: String, app: AppHandle, cfg: State<AppConfig>) -> Result<(), String> {
+    let dir = cfg.0.lock().unwrap().models_dir.clone();
+    let model = scanner::scan(Path::new(&dir))
+        .into_iter()
+        .find(|m| m.id == model_id)
+        .ok_or_else(|| format!("not found: {model_id}"))?;
+    std::fs::remove_file(&model.path).map_err(|e| e.to_string())?;
+    if let Some(mm) = &model.mmproj_path {
+        let _ = std::fs::remove_file(mm);
+    }
+    crate::start_router(&app);
+    Ok(())
 }
 
 #[tauri::command]

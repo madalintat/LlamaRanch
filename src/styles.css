@@ -107,6 +107,16 @@ html, body {
 .btn:active { transform: scale(0.97); }
 .btn--quiet { box-shadow: none; }
 
+/* ---------- tabs ---------- */
+.tabs { display: flex; gap: 4px; padding: 0 14px 4px; }
+.tab {
+  border: 0; background: none; cursor: pointer;
+  font-family: var(--ff); font-size: 12.5px; font-weight: 600; color: var(--text-2);
+  padding: 5px 10px; border-radius: 7px;
+}
+.tab:hover { background: var(--hover); }
+.tab.is-active { background: var(--text); color: var(--bg); }
+
 /* ---------- model list ---------- */
 .models { flex: 1; overflow-y: auto; padding: 0 8px 6px; }
 .models::-webkit-scrollbar { width: 8px; }
@@ -153,6 +163,17 @@ html, body {
 .card__action:disabled { opacity: 0.5; cursor: default; }
 
 .empty { padding: 30px 16px; text-align: center; color: var(--text-3); }
+
+/* discover / catalog */
+.card--cat { align-items: flex-start; }
+.card__desc { font-size: 11.5px; color: var(--text-2); margin-top: 2px; line-height: 1.35; }
+.bar { height: 4px; border-radius: 3px; background: rgba(0,0,0,0.1); margin-top: 7px; overflow: hidden; }
+.bar__fill { height: 100%; background: var(--accent); transition: width 0.2s; }
+.iconbtn {
+  border: 0; background: none; cursor: pointer; color: var(--text-3);
+  font-family: var(--ff); font-size: 11px; padding: 4px 6px; border-radius: 6px;
+}
+.iconbtn:hover { color: var(--danger); background: rgba(224,50,44,0.08); }
 
 /* ---------- footer ---------- */
 .foot {
