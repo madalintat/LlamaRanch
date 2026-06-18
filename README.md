@@ -54,12 +54,6 @@ updates in place in one click; **`.deb`** users update with `apt` or by grabbing
 the new package. Every update is verified against a signing key, so a tampered
 build can't install.
 
-On Windows, the first install may show a SmartScreen "unknown publisher" prompt
-(click **More info -> Run anyway**) since the app isn't code-signed with a paid
-certificate. Free Authenticode signing for open source (e.g. SignPath) is a
-possible future improvement; update integrity is already guaranteed by the
-signing key.
-
 ## How it works
 
 LlamaRanch runs a local server at `http://127.0.0.1:2276/v1`.
@@ -152,7 +146,6 @@ Next:
 - A larger, richer model catalog (more families, sizes, descriptions)
 - Multiple models loaded at once
 - Per-model configuration (context length, sampling)
-- Code-signing for Windows so the SmartScreen prompt goes away (e.g. free OSS signing via SignPath)
 - ARM64 builds (Linux and Windows on Arm)
 
 ## Contributing
