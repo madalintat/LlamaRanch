@@ -15,29 +15,28 @@ Pick a model, click load, chat.
 ![License](https://img.shields.io/badge/license-MIT-b07a3e)
 ![Built on](https://img.shields.io/badge/built%20on-llama.cpp-2e8b48)
 
-<img src="docs/assets/screenshot.png" width="360" alt="LlamaRanch panel" />
+<img src="docs/assets/promo.png" width="640" alt="LlamaRanch panel over a ranch at dusk" />
 
 </div>
 
 ---
 
-LlamaRanch is a small tray app that runs one `llama-server` in the background and
-serves every model behind a single OpenAI-compatible endpoint. It is a Linux take
-on the macOS [LlamaBarn](https://github.com/ggml-org/Llama-macOS).
+LlamaRanch is a Linux tray app for running local LLMs. It keeps one `llama-server`
+running quietly in the background and serves every model behind a single
+OpenAI-compatible endpoint. It is the Linux counterpart to
+[Llama](https://github.com/ggml-org/Llama-macOS) (the macOS menu bar app by ggml-org).
 
-## Features
+## Platforms
 
-- **One click serving.** Load a model from the panel. It loads on demand and unloads when idle.
-- **Hardware aware.** `--fit` sizes GPU layers and context to the memory you have. Nothing to tune.
-- **Text and vision.** Multimodal models are detected and paired with their projector automatically.
-- **Big models too.** Anything larger than your VRAM runs split across GPU and RAM.
-- **OpenAI compatible.** Point Continue, Zed, Open WebUI, or your own scripts at `http://127.0.0.1:2276/v1`.
-- **Built in catalog.** Find and download models from Hugging Face, with a token for gated repos.
-- **Fully local.** Nothing leaves your machine.
+| OS | App |
+|----|-----|
+| **Linux** | **LlamaRanch** (this project) |
+| **macOS** | [**Llama**](https://github.com/ggml-org/Llama-macOS), the original by ggml-org (`brew install --cask llamabarn`) |
+| **Windows** | on the roadmap |
 
-## Download
+## Install
 
-Grab the latest `.deb` from [**Releases**](https://github.com/madalintat/LlamaRanch/releases/latest):
+Download the latest `.deb` from [**Releases**](https://github.com/madalintat/LlamaRanch/releases/latest) and install it:
 
 ```sh
 sudo dpkg -i LlamaRanch_0.1.0_amd64.deb
@@ -45,7 +44,72 @@ sudo dpkg -i LlamaRanch_0.1.0_amd64.deb
 
 Launch **LlamaRanch** from your app menu, then turn on **Start on login** in Settings.
 
-> On a Mac? Use [**LlamaBarn**](https://github.com/ggml-org/Llama-macOS), the macOS original by ggml-org. LlamaRanch is the Linux counterpart.
+You also need a built `llama-server` from llama.cpp, and a system tray (i3bar,
+GNOME with AppIndicator, KDE, etc.).
+
+## How it works
+
+LlamaRanch runs a local server at `http://127.0.0.1:2276/v1`.
+
+- **Add models** from the built-in catalog, or drop `.gguf` files in your models folder.
+- **Connect any app** (chat UIs, editors, CLI tools, scripts) to the endpoint.
+- **Models load when requested** and unload when idle.
+
+It drives the prebuilt `llama-server` binary rather than embedding llama.cpp, so
+you can update llama.cpp on your own schedule.
+
+## Features
+
+- **One click serving.** Load a model from the panel; it loads on demand and unloads when idle.
+- **Hardware aware.** `--fit` sizes GPU layers and context to the memory you have. Nothing to tune.
+- **Text and vision.** Multimodal models are detected and paired with their projector automatically.
+- **Big models too.** Anything larger than your VRAM runs split across GPU and RAM.
+- **Built in catalog.** Find and download models from Hugging Face, with a token for gated repos.
+- **Fully local.** Nothing leaves your machine.
+
+## Works with
+
+LlamaRanch works with any OpenAI-compatible client. Just set the base URL to
+`http://127.0.0.1:2276/v1`.
+
+- **Chat UIs:** Open WebUI, Chatbox, and the built-in WebUI at `http://127.0.0.1:2276`
+- **Editors:** VS Code, Zed
+- **Editor extensions:** Continue, Cline
+- **CLI tools and scripts:** curl, the OpenAI SDKs, etc.
+
+## API examples
+
+```sh
+# list models
+curl http://127.0.0.1:2276/v1/models
+
+# chat with a model (use any id from /v1/models)
+curl http://127.0.0.1:2276/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Qwen3-4B-Q4_K_M","messages":[{"role":"user","content":"Hello"}]}'
+```
+
+Full API reference is in the [llama-server docs](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md).
+
+## Settings
+
+Settings live in the panel and in `~/.config/llamaranch/config.json`:
+
+- **Port** and **models directory**
+- **llama-server path**
+- **Idle timeout** (unload a model after N seconds, 0 to keep it loaded)
+- **Hugging Face token** (for gated downloads)
+- **Expose to network.** By default the server is only reachable from your machine
+  (`127.0.0.1`). Enabling this binds `0.0.0.0` so other devices on your network can
+  connect. Only enable it if you understand the security risks.
+
+## Models
+
+Drop any `.gguf` in your models folder, or grab one from the **Discover** tab.
+
+<a href="https://huggingface.co/models?apps=llama.cpp&sort=trending"><img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" width="16" align="top" alt="" /> Models that run on llama.cpp</a>
+&nbsp;·&nbsp;
+<a href="https://huggingface.co/ggml-org">Official GGUFs from ggml-org</a>
 
 ## Build from source
 
@@ -53,12 +117,11 @@ Launch **LlamaRanch** from your app menu, then turn on **Start on login** in Set
 git clone https://github.com/madalintat/LlamaRanch
 cd LlamaRanch
 npm install
-npm run tauri build -- --no-bundle
-./src-tauri/target/release/llamaranch
+npm run tauri build -- --no-bundle      # run ./src-tauri/target/release/llamaranch
+npm run tauri build -- --bundles deb    # or build the .deb
 ```
 
-You need Rust, Node 18+, a built `llama-server`, and (on Debian/Ubuntu) the Tauri
-system libraries:
+Needs Rust, Node 18+, and (on Debian/Ubuntu) the Tauri system libraries:
 
 ```sh
 sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
@@ -66,35 +129,16 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
   build-essential curl wget file libssl-dev libxdo-dev patchelf
 ```
 
-To build the package yourself: `npm run tauri build -- --bundles deb`.
+## Roadmap
 
-## Connect any app
+- Windows build
+- A larger model catalog
+- Multiple models loaded at once
+- Per-model configuration (context length, sampling)
 
-The server speaks the OpenAI API, so any compatible client works once you set the
-base URL:
+## Credits
 
-```sh
-curl http://127.0.0.1:2276/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"Qwen3-4B-Q4_K_M","messages":[{"role":"user","content":"hi"}]}'
-```
+Built on [llama.cpp](https://github.com/ggml-org/llama.cpp) by ggml-org, and
+inspired by their macOS app [Llama](https://github.com/ggml-org/Llama-macOS).
 
-Or click **Open WebUI** in the panel to chat in your browser.
-
-## Models
-
-Drop any `.gguf` in your models folder, or grab one from the **Discover** tab.
-Anything that runs in llama.cpp runs here.
-
-<a href="https://huggingface.co/models?apps=llama.cpp&sort=trending"><img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" width="16" align="top" alt="" /> Models that run on llama.cpp</a>
-&nbsp;·&nbsp;
-<a href="https://huggingface.co/ggml-org">Official GGUFs from ggml-org</a>
-
-## Settings
-
-Settings live in `~/.config/llamaranch/config.json`: port, models directory,
-`llama-server` path, idle timeout, network exposure, and Hugging Face token.
-
-## License
-
-MIT
+MIT licensed.

@@ -83,6 +83,13 @@ section { padding: 76px 0; }
 .tag--load,.tag--get { color: var(--accent); background: rgba(176,122,62,.15); }
 .tag--api { color: #7a4fd0; background: rgba(122,79,208,.14); }
 
+/* works with */
+.works { text-align: center; border-top: 1px solid var(--line); }
+.works p { color: var(--text-2); font-size: 16px; margin: 0 0 24px; }
+.works code { background: rgba(127,127,127,.14); padding: 2px 6px; border-radius: 5px; font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.chips span { font-family: var(--code); font-size: 13px; padding: 7px 13px; border: 1px solid var(--line); border-radius: 999px; color: var(--text-2); background: var(--surface); }
+
 /* models */
 .models .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
 .models p { color: var(--text-2); font-size: 16px; line-height: 1.6; margin: 0 0 24px; max-width: 26em; }
