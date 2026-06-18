@@ -132,7 +132,7 @@ function renderDiscover() {
         <div class="card__name">${e.name}</div>
         <div class="card__desc">${e.description}</div>
         <div class="card__meta"><span class="card__size">~${e.approx_gb.toFixed(1)} GB</span></div>
-        ${prog ? `<div class="bar"><div class="bar__fill" style="width:${prog.total ? Math.round((prog.done / prog.total) * 100) : 0}%"></div></div>` : ""}
+        ${prog ? `<div class="progress"><div class="progress__fill" style="width:${prog.total ? Math.round((prog.done / prog.total) * 100) : 0}%"></div></div>` : ""}
       </div>`;
     const btn = document.createElement("button");
     btn.className = "btn card__action";
