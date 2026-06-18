@@ -222,10 +222,15 @@ async function checkForUpdate() {
     try {
       await update.downloadAndInstall();
       await relaunch();
-    } catch {
-      // e.g. a .deb install can't replace itself: send them to the release
-      await openUrl(RELEASES);
-      banner.classList.add("hidden");
+    } catch (e) {
+      // self-update isn't supported for every install (e.g. a .deb, which apt
+      // owns), and downloads can genuinely fail. Tell the user, then offer the
+      // release page as a manual fallback.
+      $("update-text").textContent = "Couldn't update automatically. Get it from Releases.";
+      console.error("update failed:", e);
+      now.disabled = false;
+      now.textContent = "Open Releases";
+      now.onclick = () => openUrl(RELEASES);
     }
   };
   $("update-later").onclick = () => banner.classList.add("hidden");
