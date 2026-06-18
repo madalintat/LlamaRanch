@@ -1,45 +1,61 @@
+<div align="center">
+
+<img src="src-tauri/icons/128x128.png" width="92" alt="LlamaRanch" />
+
 # LlamaRanch
 
-A lightweight Linux tray app for running local LLMs with [llama.cpp](https://github.com/ggml-org/llama.cpp).
+**A cosy home for your LLMs — on Linux.**
 
-Click the tray icon, pick a model, and LlamaRanch launches `llama-server` with
-hardware-aware flags and exposes an OpenAI-compatible API plus the built-in
-WebUI. A Linux take on the macOS LlamaBarn app.
+Run local models with [llama.cpp](https://github.com/ggml-org/llama.cpp) from your system tray.
+Pick a model, click load, chat.
+
+![Linux](https://img.shields.io/badge/Linux-tray%20app-14202a)
+![License](https://img.shields.io/badge/license-MIT-e0a23c)
+![Built on](https://img.shields.io/badge/built%20on-llama.cpp-2ea043)
+
+<img src="docs/assets/screenshot.png" width="360" alt="LlamaRanch panel" />
+
+</div>
+
+---
+
+LlamaRanch is a small tray app that runs one `llama-server` in the background and
+serves every model behind a single OpenAI-compatible endpoint. A Linux take on
+the macOS [LlamaBarn](https://github.com/ggml-org/Llama-macOS).
 
 ## Features
 
-- **One-click model serving** - scans your models directory, groups models by
-  folder, and starts/stops a single `llama-server` on demand.
-- **Hardware-aware launch** - picks GPU offload (`-ngl`) from model size:
-  full GPU for small models, partial offload for mid-size, mostly CPU for large
-  MoE models.
-- **OpenAI-compatible endpoint** - point any compatible client at
-  `http://127.0.0.1:2276/v1`, or open the built-in WebUI in one click.
-- **Vision support** - automatically pairs multimodal models with their
-  `mmproj` file.
-- **Native tray popover** - a borderless panel that opens next to the tray icon.
+- **One-click serving** — load a model from the panel; it loads on demand and unloads when idle.
+- **Hardware-aware** — `--fit` auto-sizes GPU layers and context to the memory you have. No flags to tune.
+- **Text & vision** — multimodal models are detected and paired with their projector automatically.
+- **Big models too** — anything larger than your VRAM runs split across GPU and RAM.
+- **OpenAI-compatible** — point Continue, Zed, Open WebUI, or your own scripts at `http://127.0.0.1:2276/v1`.
+- **Built-in catalog** — discover and download models from Hugging Face, with a token for gated repos.
+- **100% local** — nothing leaves your machine.
 
-## How it works
+## Install
 
-LlamaRanch does not embed llama.cpp. It spawns the prebuilt `llama-server`
-binary as a subprocess and polls its `/health` endpoint to track readiness.
-Update or rebuild llama.cpp independently and LlamaRanch keeps working.
+**Package (Debian/Ubuntu):**
 
-```
-LlamaRanch (tray)  --spawn + flags-->  llama-server (llama.cpp)
-                   <--GET /health----
-                                          serves http://127.0.0.1:2276
-                                            /v1  OpenAI API
-                                            /    WebUI
+```sh
+npm run tauri build -- --bundles deb
+sudo dpkg -i src-tauri/target/release/bundle/deb/LlamaRanch_*.deb
 ```
 
-## Requirements
+Launch **LlamaRanch** from your app menu. Enable **Start on login** in Settings.
 
-- Linux with a system tray (e.g. i3bar, GNOME with AppIndicator, KDE)
-- A built `llama-server` from llama.cpp
-- GGUF models on disk
+**From source:**
 
-Build prerequisites (Debian/Ubuntu):
+```sh
+git clone https://github.com/madalintat/LlamaRanch
+cd LlamaRanch
+npm install
+npm run tauri build -- --no-bundle
+./src-tauri/target/release/llamaranch
+```
+
+Needs Rust, Node 18+, a built `llama-server`, and (Debian/Ubuntu) the Tauri
+system libraries:
 
 ```sh
 sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
@@ -47,48 +63,43 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
   build-essential curl wget file libssl-dev libxdo-dev patchelf
 ```
 
-Plus Rust and Node 18+.
+## Connect any app
 
-## Build & run
-
-```sh
-npm install
-npm run tauri build -- --no-bundle
-./src-tauri/target/release/llamaranch
-```
-
-### Install as a package
-
-Build a `.deb` and install it (adds the app launcher entry + icon):
+The server speaks the OpenAI API, so any compatible client works — just set the
+base URL:
 
 ```sh
-npm run tauri build -- --bundles deb
-sudo dpkg -i src-tauri/target/release/bundle/deb/LlamaRanch_*.deb
+curl http://127.0.0.1:2276/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Qwen3-4B-Q4_K_M","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-Then launch "LlamaRanch" from your app menu. Enable **Start on login** in
-Settings to run it automatically.
+Or click **Open WebUI** in the panel to chat in your browser.
 
-## Configuration
+## Models
 
-Settings live at `~/.config/llamaranch/config.json`:
+Drop any `.gguf` in your models folder, or grab one from the **Discover** tab.
+Anything that runs in llama.cpp runs here.
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `port` | `2276` | Server port |
-| `models_dir` | `~/llama.cpp/models` | Where to scan for `.gguf` files |
-| `server_bin` | `~/llama.cpp/build/bin/llama-server` | Path to `llama-server` |
-| `expose_to_network` | `false` | Bind `0.0.0.0` instead of `127.0.0.1` |
+- [GGUF models on Hugging Face](https://huggingface.co/models?library=gguf&sort=trending)
+- [Official GGUFs from ggml-org](https://huggingface.co/ggml-org)
 
-Edit them in the app's Settings dialog or directly in the file.
+## How it works
 
-### i3 note
-
-i3 tiles new windows by default. To let the panel float next to the tray, add:
+LlamaRanch doesn't embed llama.cpp — it drives the prebuilt `llama-server` binary
+and talks to it over HTTP. Update llama.cpp on your own schedule; the ranch keeps
+running.
 
 ```
-for_window [class="Llamaranch"] floating enable, border none
+LlamaRanch (tray)  --spawn + flags-->  llama-server (llama.cpp)
+                   <---- /health -----
+                                         serves  127.0.0.1:2276
+                                           /v1   OpenAI API
+                                           /     built-in WebUI
 ```
+
+Settings live in `~/.config/llamaranch/config.json` (port, models dir,
+`llama-server` path, idle timeout, network exposure, HF token).
 
 ## License
 
