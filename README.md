@@ -136,6 +136,11 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
 - Multiple models loaded at once
 - Per-model configuration (context length, sampling)
 
+## Contributing
+
+Bug reports, fixes, new catalog models, and features are all welcome. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the project layout and how to build and test.
+
 ## Credits
 
 Built on [llama.cpp](https://github.com/ggml-org/llama.cpp) by ggml-org, and

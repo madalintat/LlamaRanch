@@ -105,6 +105,12 @@ section { padding: 76px 0; }
 .install p { color: var(--text-2); font-size: 14px; margin-top: 12px; }
 .dl { margin-top: 26px; text-align: center; }
 
+/* family / credit */
+.family { text-align: center; border-top: 1px solid var(--line); }
+.family p { color: var(--text-2); max-width: 42em; margin: 0 auto 22px; font-size: 16px; line-height: 1.6; }
+.family__links { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; font-size: 15px; font-weight: 500; }
+.family__links a { color: var(--text); text-decoration: underline; text-decoration-color: var(--accent); }
+
 /* footer */
 .foot { padding: 36px 0; text-align: center; color: var(--text-2); }
 .foot .brand { justify-content: center; margin-bottom: 14px; }
