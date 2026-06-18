@@ -53,7 +53,6 @@ section { padding: 76px 0; }
 .promo__bar { position: absolute; inset: 0 0 auto 0; height: 38px; display: flex; align-items: center; gap: 14px; padding: 0 16px; background: rgba(20,28,34,.34); backdrop-filter: blur(6px); color: #fff; font-family: var(--code); font-size: 12px; }
 .promo__bar img { width: 20px; height: 20px; border-radius: 5px; }
 .promo__bar .spacer { flex: 1; }
-.promo__bar .glyphs { letter-spacing: 4px; opacity: .85; }
 .promo__panel { position: absolute; top: 50px; right: 18px; width: min(300px, 42%); border-radius: 14px; border: 1px solid rgba(0,0,0,.15); box-shadow: 0 18px 40px rgba(0,0,0,.32); }
 .hero__intro { padding-top: 40px; text-align: center; }
 .eyebrow { font-family: var(--code); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }

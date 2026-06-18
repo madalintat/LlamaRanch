@@ -25,3 +25,6 @@ src-tauri/target/
 *.njsproj
 *.sln
 *.sw?
+
+# source art (committed copy lives in docs/assets/)
+image.jpg
