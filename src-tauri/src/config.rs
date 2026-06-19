@@ -35,7 +35,6 @@ fn first_existing(candidates: &[PathBuf], exists: &dyn Fn(&Path) -> bool) -> Opt
 
 /// Keep `current` if it exists; otherwise the first existing candidate;
 /// otherwise `current` unchanged (preserves the existing not-found UX).
-#[allow(dead_code)]
 fn reconcile(current: &Path, candidates: &[PathBuf], exists: &dyn Fn(&Path) -> bool) -> PathBuf {
     if exists(current) {
         return current.to_path_buf();
@@ -99,7 +98,6 @@ pub fn discover_server_bin() -> String {
 
 /// Given a possibly-stale stored path, keep it if it still exists, otherwise
 /// re-discover. Never overrides a path that exists (respects user's choice).
-#[allow(dead_code)]
 pub fn ensure_server_bin(current: &str) -> String {
     reconcile(Path::new(current), &server_bin_candidates(), &|p| p.is_file())
         .to_string_lossy()

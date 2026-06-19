@@ -17,7 +17,14 @@ use tauri::{AppHandle, Manager, Runtime, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let cfg = config::load_from(&config::config_path());
+    let mut cfg = config::load_from(&config::config_path());
+    // If the stored llama-server path went missing (or a fresh config picked the
+    // historical default on a brew-only Mac), re-resolve and persist the fix.
+    let resolved = config::ensure_server_bin(&cfg.server_bin);
+    if resolved != cfg.server_bin {
+        cfg.server_bin = resolved;
+        let _ = config::save_to(&config::config_path(), &cfg);
+    }
     let shared = SharedServer::new();
 
     tauri::Builder::default()
