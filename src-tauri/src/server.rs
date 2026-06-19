@@ -114,10 +114,76 @@ pub fn router_log_path() -> PathBuf {
     config_sibling("router.log")
 }
 
+/// Path of the file recording the current router child PID.
+pub fn router_pid_path() -> PathBuf {
+    config_sibling("router.pid")
+}
+
+/// Decide whether a recorded PID should be reclaimed: only if it's alive
+/// (name lookup succeeded) AND looks like our server (guards PID reuse).
+fn pid_to_reclaim(recorded: Option<u32>, name_of: impl Fn(u32) -> Option<String>) -> Option<u32> {
+    let pid = recorded?;
+    if name_of(pid)?.contains("llama-server") {
+        Some(pid)
+    } else {
+        None
+    }
+}
+
+/// Process name for a PID via `ps` (unix); None if not found. No-op elsewhere.
+fn process_name(pid: u32) -> Option<String> {
+    #[cfg(unix)]
+    {
+        let out = Command::new("ps")
+            .args(["-p", &pid.to_string(), "-o", "comm="])
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if s.is_empty() {
+            None
+        } else {
+            Some(s)
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = pid;
+        None
+    }
+}
+
+fn recorded_router_pid() -> Option<u32> {
+    std::fs::read_to_string(router_pid_path())
+        .ok()?
+        .trim()
+        .parse()
+        .ok()
+}
+
+/// Kill a stale router from a prior run (dev-reload/crash) so the port is free.
+/// Scoped to our recorded PID and guarded by process name, so it can never
+/// touch an unrelated process (e.g. a separate Llama app on another port).
+pub fn reclaim_stale_router() {
+    if let Some(pid) = pid_to_reclaim(recorded_router_pid(), process_name) {
+        #[cfg(unix)]
+        {
+            let _ = Command::new("kill").arg(pid.to_string()).status();
+        }
+    }
+}
+
+fn write_router_pid(pid: u32) {
+    let _ = std::fs::write(router_pid_path(), pid.to_string());
+}
+
 /// Spawn the router process, logging its stderr to a file. Readiness is
 /// reported later via `status`. Bumps `generation` so older poll threads stop.
 pub fn start_router(state: &mut ServerState, cfg: &Config, preset_path: &str) -> Result<(), String> {
     stop(state);
+    reclaim_stale_router();
     let log = router_log_path();
     if let Some(parent) = log.parent() {
         let _ = std::fs::create_dir_all(parent);
@@ -142,6 +208,7 @@ pub fn start_router(state: &mut ServerState, cfg: &Config, preset_path: &str) ->
     let child = cmd
         .spawn()
         .map_err(|e| format!("failed to launch {}: {e}", cfg.server_bin))?;
+    write_router_pid(child.id());
     state.child = Some(child);
     state.status = "starting".into();
     state.generation = state.generation.wrapping_add(1);
@@ -332,5 +399,28 @@ mod tests {
             .unwrap()
             .success();
         assert!(!alive);
+    }
+
+    #[test]
+    fn pid_to_reclaim_when_name_matches() {
+        let name = |_pid: u32| Some("llama-server".to_string());
+        assert_eq!(pid_to_reclaim(Some(123), name), Some(123));
+    }
+
+    #[test]
+    fn pid_to_reclaim_skips_foreign_process() {
+        let name = |_pid: u32| Some("bash".to_string());
+        assert_eq!(pid_to_reclaim(Some(123), name), None);
+    }
+
+    #[test]
+    fn pid_to_reclaim_skips_dead_pid() {
+        let name = |_pid: u32| None;
+        assert_eq!(pid_to_reclaim(Some(123), name), None);
+    }
+
+    #[test]
+    fn pid_to_reclaim_none_without_record() {
+        assert_eq!(pid_to_reclaim(None, |_p| Some("llama-server".to_string())), None);
     }
 }
