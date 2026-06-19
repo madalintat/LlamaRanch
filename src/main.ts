@@ -29,6 +29,8 @@ type RouterStatus = { status: string; endpoint: string };
 
 const $ = (id: string) => document.getElementById(id)!;
 const gb = (n: number) => (n / 1e9).toFixed(1) + " GB";
+const esc = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const LOADED = (s: string) => s === "loaded" || s === "sleeping";
 const BUSY = (s: string) => s === "loading" || s === "downloading";
 
@@ -101,7 +103,7 @@ function renderInstalled() {
         : "";
       card.innerHTML = `
         <div class="card__body">
-          <div class="card__name" title="${m.name}">${m.name}</div>
+          <div class="card__name" title="${esc(m.name)}">${esc(m.name)}</div>
           <div class="card__meta">
             ${sizeCell}
             ${placementTag}
