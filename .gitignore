@@ -28,3 +28,7 @@ src-tauri/target/
 
 # source art (committed copy lives in docs/assets/)
 image.jpg
+
+# superpowers process scratch (specs/plans/ledgers) — never committed
+docs/superpowers/
+.superpowers/
