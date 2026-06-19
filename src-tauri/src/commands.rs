@@ -21,6 +21,8 @@ pub struct ModelView {
     pub vision: bool,
     pub placement: String,
     pub status: String, // unloaded | loading | loaded | sleeping | downloading | error
+    pub local: bool,
+    pub need_download: bool,
 }
 
 #[derive(Serialize)]
@@ -33,28 +35,51 @@ fn cfg_of(cfg: &State<AppConfig>) -> Config {
     cfg.0.lock().unwrap().clone()
 }
 
+/// The router exposes a no-model "default" entry; never show it as a model.
+fn should_list(id: &str) -> bool {
+    id != "default"
+}
+
+/// Merge a router model with filesystem info into a view for the UI.
+fn to_view(r: server::RouterModel, fs: &[scanner::Model]) -> ModelView {
+    match fs.iter().find(|m| m.id == r.id) {
+        Some(m) => ModelView {
+            placement: launch::placement_for(m.size_bytes).to_string(),
+            size_bytes: m.size_bytes,
+            group: m.group.clone(),
+            name: m.name.clone(),
+            local: true,
+            id: r.id,
+            vision: r.vision,
+            status: r.status,
+            need_download: r.need_download,
+        },
+        None => ModelView {
+            placement: String::new(),
+            size_bytes: 0,
+            group: if r.hf_repo.is_some() || r.need_download {
+                "downloadable".to_string()
+            } else {
+                "built-in".to_string()
+            },
+            name: r.id.clone(),
+            local: false,
+            id: r.id,
+            vision: r.vision,
+            status: r.status,
+            need_download: r.need_download,
+        },
+    }
+}
+
 #[tauri::command]
 pub fn list_models(cfg: State<AppConfig>) -> Vec<ModelView> {
     let cfg = cfg_of(&cfg);
-    let router = server::list_models(cfg.port);
-    scanner::scan(Path::new(&cfg.models_dir))
+    let fs = scanner::scan(Path::new(&cfg.models_dir));
+    server::list_models(cfg.port)
         .into_iter()
-        .map(|m| {
-            let status = router
-                .iter()
-                .find(|r| r.id == m.id)
-                .map(|r| r.status.clone())
-                .unwrap_or_else(|| "unloaded".into());
-            ModelView {
-                placement: launch::placement_for(m.size_bytes).to_string(),
-                vision: m.mmproj_path.is_some(),
-                id: m.id,
-                name: m.name,
-                group: m.group,
-                size_bytes: m.size_bytes,
-                status,
-            }
-        })
+        .filter(|r| should_list(&r.id))
+        .map(|r| to_view(r, &fs))
         .collect()
 }
 
@@ -285,7 +310,7 @@ pub fn delete_model(model_id: String, app: AppHandle, cfg: State<AppConfig>) -> 
     let model = scanner::scan(Path::new(&dir))
         .into_iter()
         .find(|m| m.id == model_id)
-        .ok_or_else(|| format!("not found: {model_id}"))?;
+        .ok_or_else(|| "only downloaded models can be deleted".to_string())?;
     // unload it from the router first so we don't yank the file from a running model
     let port = cfg.0.lock().unwrap().port;
     let _ = server::unload(port, &model_id);
@@ -317,4 +342,70 @@ pub fn llama_cpp_version(cfg: State<AppConfig>) -> String {
             s.lines().next().unwrap_or("").to_string()
         })
         .unwrap_or_else(|| "unknown".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_view_local_model_enriched() {
+        let r = server::RouterModel {
+            id: "Qwen3".into(),
+            status: "loaded".into(),
+            vision: false,
+            need_download: false,
+            hf_repo: None,
+        };
+        let fs = vec![scanner::Model {
+            id: "Qwen3".into(),
+            name: "Qwen3".into(),
+            group: "chat".into(),
+            path: "/m/q.gguf".into(),
+            size_bytes: 2_000_000_000,
+            mmproj_path: None,
+        }];
+        let v = to_view(r, &fs);
+        assert!(v.local);
+        assert_eq!(v.size_bytes, 2_000_000_000);
+        assert_eq!(v.group, "chat");
+        assert_eq!(v.status, "loaded");
+    }
+
+    #[test]
+    fn to_view_remote_hf_model() {
+        let r = server::RouterModel {
+            id: "ggml-org/gemma:Q4".into(),
+            status: "unloaded".into(),
+            vision: true,
+            need_download: true,
+            hf_repo: Some("ggml-org/gemma".into()),
+        };
+        let v = to_view(r, &[]);
+        assert!(!v.local);
+        assert_eq!(v.size_bytes, 0);
+        assert_eq!(v.group, "downloadable");
+        assert!(v.vision);
+        assert!(v.need_download);
+    }
+
+    #[test]
+    fn to_view_builtin_non_hf() {
+        let r = server::RouterModel {
+            id: "squ11z1/Mythos:Q4".into(),
+            status: "unloaded".into(),
+            vision: false,
+            need_download: false,
+            hf_repo: None,
+        };
+        let v = to_view(r, &[]);
+        assert!(!v.local);
+        assert_eq!(v.group, "built-in");
+    }
+
+    #[test]
+    fn should_list_filters_default() {
+        assert!(!should_list("default"));
+        assert!(should_list("Qwen3"));
+    }
 }

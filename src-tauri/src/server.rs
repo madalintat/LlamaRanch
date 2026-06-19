@@ -236,6 +236,8 @@ pub struct RouterModel {
     pub id: String,
     pub status: String, // unloaded | loading | loaded | sleeping | downloading | error
     pub vision: bool,
+    pub need_download: bool,
+    pub hf_repo: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -247,16 +249,28 @@ struct ModelRaw {
     id: String,
     status: Option<StatusRaw>,
     architecture: Option<ArchRaw>,
+    #[serde(default)]
+    need_download: bool,
 }
 #[derive(Deserialize)]
 struct StatusRaw {
     value: String,
     #[serde(default)]
     failed: bool,
+    #[serde(default)]
+    args: Vec<String>,
 }
 #[derive(Deserialize)]
 struct ArchRaw {
     input_modalities: Option<Vec<String>>,
+}
+
+/// Extract the HF repo id from router args (`--hf-repo <repo>`), if present.
+fn hf_repo_from_args(args: &[String]) -> Option<String> {
+    args.iter()
+        .position(|a| a == "--hf-repo")
+        .and_then(|i| args.get(i + 1))
+        .cloned()
 }
 
 pub fn list_models(port: u16) -> Vec<RouterModel> {
@@ -273,6 +287,7 @@ pub fn list_models(port: u16) -> Vec<RouterModel> {
         .data
         .into_iter()
         .map(|m| {
+            let args = m.status.as_ref().map(|s| s.args.clone()).unwrap_or_default();
             let status = match m.status {
                 Some(s) if s.failed => "error".to_string(),
                 Some(s) => s.value,
@@ -287,6 +302,8 @@ pub fn list_models(port: u16) -> Vec<RouterModel> {
                 id: m.id,
                 status,
                 vision,
+                need_download: m.need_download,
+                hf_repo: hf_repo_from_args(&args),
             }
         })
         .collect()
@@ -422,5 +439,21 @@ mod tests {
     #[test]
     fn pid_to_reclaim_none_without_record() {
         assert_eq!(pid_to_reclaim(None, |_p| Some("llama-server".to_string())), None);
+    }
+
+    #[test]
+    fn hf_repo_parsed_from_args() {
+        let args = vec![
+            "--jinja".to_string(),
+            "--hf-repo".to_string(),
+            "ggml-org/gemma".to_string(),
+        ];
+        assert_eq!(hf_repo_from_args(&args), Some("ggml-org/gemma".to_string()));
+    }
+
+    #[test]
+    fn hf_repo_none_when_absent() {
+        let args = vec!["--jinja".to_string(), "--fit".to_string(), "on".to_string()];
+        assert_eq!(hf_repo_from_args(&args), None);
     }
 }
