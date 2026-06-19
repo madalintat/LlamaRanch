@@ -19,6 +19,7 @@ import llamaMark from "./assets/llama.svg";
 type ModelView = {
   id: string; name: string; group: string; size_bytes: number;
   vision: boolean; placement: string; status: string;
+  local: boolean; need_download: boolean;
 };
 type CatalogView = {
   id: string; name: string; description: string; group: string;
@@ -70,7 +71,10 @@ function renderInstalled() {
   const host = $("models");
   host.innerHTML = "";
   if (models.length === 0) {
-    host.innerHTML = `<div class="empty">No models yet. Try the Discover tab.</div>`;
+    const msg = router.status === "running"
+      ? "No models. Try the Discover tab."
+      : "Starting router…";
+    host.innerHTML = `<div class="empty">${msg}</div>`;
     return;
   }
   const groups: Record<string, ModelView[]> = {};
@@ -89,30 +93,41 @@ function renderInstalled() {
       card.className = "card" + (loaded ? " is-serving" : "");
       card.dataset.placement = m.placement;
       const visionTag = m.vision ? `<span class="tag tag--vision">vision</span>` : "";
+      const sizeCell = m.local
+        ? `<span class="card__size">${gb(m.size_bytes)}</span>`
+        : `<span class="card__size">cloud</span>`;
+      const placementTag = m.placement
+        ? `<span class="dot">&middot;</span><span class="tag tag--${m.placement}">${m.placement}</span>`
+        : "";
       card.innerHTML = `
         <div class="card__body">
           <div class="card__name" title="${m.name}">${m.name}</div>
           <div class="card__meta">
-            <span class="card__size">${gb(m.size_bytes)}</span>
-            <span class="dot">&middot;</span>
-            <span class="tag tag--${m.placement}">${m.placement}</span>
+            ${sizeCell}
+            ${placementTag}
             ${visionTag}
           </div>
         </div>`;
 
-      const del = document.createElement("button");
-      del.className = "iconbtn card__del";
-      del.textContent = "Delete";
-      del.title = "Delete model file";
-      del.onclick = async () => {
-        if (!confirm(`Delete ${m.name} from disk?`)) return;
-        try { await invoke("delete_model", { modelId: m.id }); } catch (e) { showError(String(e)); }
-        await refresh();
-      };
+      if (m.local) {
+        const del = document.createElement("button");
+        del.className = "iconbtn card__del";
+        del.textContent = "Delete";
+        del.title = "Delete model file";
+        del.onclick = async () => {
+          if (!confirm(`Delete ${m.name} from disk?`)) return;
+          try { await invoke("delete_model", { modelId: m.id }); } catch (e) { showError(String(e)); }
+          await refresh();
+        };
+        card.appendChild(del);
+      }
 
       const btn = document.createElement("button");
       btn.className = "btn card__action" + (loaded ? " is-stop" : busy ? " is-busy" : "");
-      btn.textContent = loaded ? "Stop" : busy ? "..." : "Load";
+      btn.textContent = loaded
+        ? "Stop"
+        : busy ? "..."
+        : (m.need_download ? "Get & Load" : "Load");
       btn.disabled = busy;
       btn.onclick = async () => {
         try {
@@ -122,7 +137,6 @@ function renderInstalled() {
         await refresh();
         startPolling();
       };
-      card.appendChild(del);
       card.appendChild(btn);
       host.appendChild(card);
     }
