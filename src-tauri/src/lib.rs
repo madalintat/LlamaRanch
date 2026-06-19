@@ -65,10 +65,22 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &quit])?;
 
-            TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("LlamaRanch")
-                .menu(&menu)
+            #[cfg(target_os = "macos")]
+            let tray_icon = tauri::image::Image::from_bytes(include_bytes!(
+                "../icons/tray-glyph.png"
+            ))
+            .expect("tray glyph png");
+            #[cfg(not(target_os = "macos"))]
+            let tray_icon = app.default_window_icon().unwrap().clone();
+
+            let mut tray = TrayIconBuilder::new()
+                .icon(tray_icon)
+                .tooltip("LlamaRanch");
+            #[cfg(target_os = "macos")]
+            {
+                tray = tray.icon_as_template(true);
+            }
+            tray.menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => show_window(app),
                     "quit" => {
