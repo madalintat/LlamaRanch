@@ -55,12 +55,17 @@ pub fn run() {
             commands::delete_model,
         ])
         .setup(|app| {
+            // macOS: menubar-only app — no Dock icon, no Cmd-Tab entry.
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             let open = MenuItem::with_id(app, "open", "Open LlamaRanch", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &quit])?;
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
+                .icon_as_template(true)
                 .tooltip("LlamaRanch")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
