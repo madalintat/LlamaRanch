@@ -23,7 +23,9 @@ pub fn run() {
     let resolved = config::ensure_server_bin(&cfg.server_bin);
     if resolved != cfg.server_bin {
         cfg.server_bin = resolved;
-        let _ = config::save_to(&config::config_path(), &cfg);
+        if let Err(e) = config::save_to(&config::config_path(), &cfg) {
+            eprintln!("llamaranch: failed to persist resolved server_bin: {e}");
+        }
     }
     let shared = SharedServer::new();
 
