@@ -50,7 +50,7 @@ fn to_view(r: server::RouterModel, fs: &[scanner::Model]) -> ModelView {
             name: m.name.clone(),
             local: true,
             id: r.id,
-            vision: r.vision,
+            vision: r.vision || m.mmproj_path.is_some(),
             status: r.status,
             need_download: r.need_download,
         },
@@ -407,5 +407,27 @@ mod tests {
     fn should_list_filters_default() {
         assert!(!should_list("default"));
         assert!(should_list("Qwen3"));
+    }
+
+    #[test]
+    fn to_view_local_vision_from_mmproj() {
+        let r = server::RouterModel {
+            id: "MiniCPM".into(),
+            status: "unloaded".into(),
+            vision: false,
+            need_download: false,
+            hf_repo: None,
+        };
+        let fs = vec![scanner::Model {
+            id: "MiniCPM".into(),
+            name: "MiniCPM".into(),
+            group: "vision".into(),
+            path: "/m/v.gguf".into(),
+            size_bytes: 500_000_000,
+            mmproj_path: Some("/m/mmproj.gguf".into()),
+        }];
+        let v = to_view(r, &fs);
+        assert!(v.vision);
+        assert!(v.local);
     }
 }
