@@ -95,9 +95,11 @@ function renderInstalled() {
       card.className = "card" + (loaded ? " is-serving" : "");
       card.dataset.placement = m.placement;
       const visionTag = m.vision ? `<span class="tag tag--vision">vision</span>` : "";
-      const sizeCell = m.local
+      // Show the size when we know it (local file or resolved HF cache); only a
+      // model the router must still fetch (need_download) reads as "cloud".
+      const sizeCell = m.size_bytes > 0
         ? `<span class="card__size">${gb(m.size_bytes)}</span>`
-        : `<span class="card__size">cloud</span>`;
+        : `<span class="card__size">${m.need_download ? "cloud" : "ready"}</span>`;
       const placementTag = m.placement
         ? `<span class="dot">&middot;</span><span class="tag tag--${m.placement}">${m.placement}</span>`
         : "";

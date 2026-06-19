@@ -40,8 +40,61 @@ fn should_list(id: &str) -> bool {
     id != "default"
 }
 
-/// Merge a router model with filesystem info into a view for the UI.
-fn to_view(r: server::RouterModel, fs: &[scanner::Model]) -> ModelView {
+/// The HuggingFace hub cache directory the router downloads into, honoring the
+/// standard env overrides, else `~/.cache/huggingface/hub`.
+fn hf_hub_dir() -> Option<PathBuf> {
+    if let Some(p) = std::env::var_os("HF_HUB_CACHE") {
+        return Some(PathBuf::from(p));
+    }
+    if let Some(p) = std::env::var_os("HF_HOME") {
+        return Some(PathBuf::from(p).join("hub"));
+    }
+    dirs::home_dir().map(|h| h.join(".cache").join("huggingface").join("hub"))
+}
+
+/// Size of an HF-cached GGUF for a router id like `org/repo:QUANT`, found under
+/// `<hub>/models--org--repo/snapshots/*/`. The quant tag (after `:`) selects the
+/// file; the mmproj projector is skipped. Returns the largest matching weight.
+fn hf_cache_size(hub: &Path, id: &str) -> Option<u64> {
+    let (repo, quant) = match id.rsplit_once(':') {
+        Some((r, q)) => (r, Some(q.to_lowercase())),
+        None => (id, None),
+    };
+    let snapshots = hub
+        .join(format!("models--{}", repo.replace('/', "--")))
+        .join("snapshots");
+    let mut best: Option<u64> = None;
+    for snap in std::fs::read_dir(&snapshots).ok()?.flatten() {
+        let p = snap.path();
+        if !p.is_dir() {
+            continue;
+        }
+        if let Ok(files) = std::fs::read_dir(&p) {
+            for f in files.flatten() {
+                let fp = f.path();
+                let name = match fp.file_name() {
+                    Some(n) => n.to_string_lossy().to_lowercase(),
+                    None => continue,
+                };
+                if !name.ends_with(".gguf") || name.starts_with("mmproj") {
+                    continue;
+                }
+                if let Some(q) = &quant {
+                    if !name.contains(q.as_str()) {
+                        continue;
+                    }
+                }
+                let sz = std::fs::metadata(&fp).map(|m| m.len()).unwrap_or(0);
+                best = Some(best.map_or(sz, |b| b.max(sz)));
+            }
+        }
+    }
+    best
+}
+
+/// Merge a router model with local info into a view for the UI. `cached_size` is
+/// the HF-cache size for a non-local but already-downloaded model (0 if unknown).
+fn to_view(r: server::RouterModel, fs: &[scanner::Model], cached_size: u64) -> ModelView {
     match fs.iter().find(|m| m.id == r.id) {
         Some(m) => ModelView {
             placement: launch::placement_for(m.size_bytes).to_string(),
@@ -54,13 +107,20 @@ fn to_view(r: server::RouterModel, fs: &[scanner::Model]) -> ModelView {
             status: r.status,
             need_download: r.need_download,
         },
+        // Not in our models dir. If the router has it cached (need_download =
+        // false) it is downloaded and usable now; only a true need_download is
+        // "cloud". Show the cached size when we can resolve it.
         None => ModelView {
-            placement: String::new(),
-            size_bytes: 0,
-            group: if r.hf_repo.is_some() || r.need_download {
-                "downloadable".to_string()
+            placement: if cached_size > 0 {
+                launch::placement_for(cached_size).to_string()
             } else {
-                "built-in".to_string()
+                String::new()
+            },
+            size_bytes: cached_size,
+            group: if r.need_download {
+                "available".to_string()
+            } else {
+                "downloaded".to_string()
             },
             name: r.id.clone(),
             local: false,
@@ -76,10 +136,17 @@ fn to_view(r: server::RouterModel, fs: &[scanner::Model]) -> ModelView {
 pub fn list_models(cfg: State<AppConfig>) -> Vec<ModelView> {
     let cfg = cfg_of(&cfg);
     let fs = scanner::scan(Path::new(&cfg.models_dir));
+    let hub = hf_hub_dir();
     server::list_models(cfg.port)
         .into_iter()
         .filter(|r| should_list(&r.id))
-        .map(|r| to_view(r, &fs))
+        .map(|r| {
+            let cached = match (&hub, r.need_download) {
+                (Some(h), false) => hf_cache_size(h, &r.id).unwrap_or(0),
+                _ => 0,
+            };
+            to_view(r, &fs, cached)
+        })
         .collect()
 }
 
@@ -365,7 +432,7 @@ mod tests {
             size_bytes: 2_000_000_000,
             mmproj_path: None,
         }];
-        let v = to_view(r, &fs);
+        let v = to_view(r, &fs, 0);
         assert!(v.local);
         assert_eq!(v.size_bytes, 2_000_000_000);
         assert_eq!(v.group, "chat");
@@ -373,7 +440,7 @@ mod tests {
     }
 
     #[test]
-    fn to_view_remote_hf_model() {
+    fn to_view_cloud_model_needs_download() {
         let r = server::RouterModel {
             id: "ggml-org/gemma:Q4".into(),
             status: "unloaded".into(),
@@ -381,26 +448,31 @@ mod tests {
             need_download: true,
             hf_repo: Some("ggml-org/gemma".into()),
         };
-        let v = to_view(r, &[]);
+        let v = to_view(r, &[], 0);
         assert!(!v.local);
         assert_eq!(v.size_bytes, 0);
-        assert_eq!(v.group, "downloadable");
+        assert_eq!(v.group, "available");
         assert!(v.vision);
         assert!(v.need_download);
     }
 
     #[test]
-    fn to_view_builtin_non_hf() {
+    fn to_view_cached_model_shows_size_and_downloaded() {
+        // need_download = false + not in our dir = downloaded elsewhere (HF cache);
+        // it should report the cached size and the "downloaded" group, not "cloud".
         let r = server::RouterModel {
-            id: "squ11z1/Mythos:Q4".into(),
+            id: "squ11z1/Mythos:Q4_K_M".into(),
             status: "unloaded".into(),
             vision: false,
             need_download: false,
-            hf_repo: None,
+            hf_repo: Some("squ11z1/Mythos".into()),
         };
-        let v = to_view(r, &[]);
+        let v = to_view(r, &[], 1_900_000_000);
         assert!(!v.local);
-        assert_eq!(v.group, "built-in");
+        assert_eq!(v.size_bytes, 1_900_000_000);
+        assert_eq!(v.group, "downloaded");
+        assert!(!v.need_download);
+        assert!(!v.placement.is_empty());
     }
 
     #[test]
@@ -426,8 +498,39 @@ mod tests {
             size_bytes: 500_000_000,
             mmproj_path: Some("/m/mmproj.gguf".into()),
         }];
-        let v = to_view(r, &fs);
+        let v = to_view(r, &fs, 0);
         assert!(v.vision);
         assert!(v.local);
+    }
+
+    #[test]
+    fn hf_cache_size_finds_quant_in_snapshot() {
+        let dir = tempfile::tempdir().unwrap();
+        let hub = dir.path();
+        let snap = hub
+            .join("models--squ11z1--Mythos-nano-GGUF")
+            .join("snapshots")
+            .join("abc123");
+        std::fs::create_dir_all(&snap).unwrap();
+        // a matching weight, a non-matching quant, and an mmproj to skip
+        let f = std::fs::File::create(snap.join("mythos-nano-Q4_K_M.gguf")).unwrap();
+        f.set_len(1_900_000_000).unwrap();
+        std::fs::File::create(snap.join("mythos-nano-Q8_0.gguf"))
+            .unwrap()
+            .set_len(3_000_000_000)
+            .unwrap();
+        std::fs::File::create(snap.join("mmproj-Q4_K_M.gguf"))
+            .unwrap()
+            .set_len(500_000_000)
+            .unwrap();
+
+        let sz = hf_cache_size(hub, "squ11z1/Mythos-nano-GGUF:Q4_K_M");
+        assert_eq!(sz, Some(1_900_000_000));
+    }
+
+    #[test]
+    fn hf_cache_size_none_when_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(hf_cache_size(dir.path(), "nope/missing:Q4_K_M"), None);
     }
 }
