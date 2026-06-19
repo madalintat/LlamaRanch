@@ -32,7 +32,7 @@ companion to ggml-org's macOS app, [Llama](https://github.com/ggml-org/Llama-mac
 |----|-----|
 | **Linux** | **LlamaRanch** (`.deb` / AppImage) |
 | **Windows 10 / 11** | **LlamaRanch** (`.exe` installer) |
-| **macOS** | [**Llama**](https://github.com/ggml-org/Llama-macOS), the original by ggml-org (`brew install --cask llamabarn`) |
+| **macOS** | [**Llama**](https://github.com/ggml-org/Llama-macOS), the original by ggml-org (`brew install --cask llamabarn`); or **LlamaRanch** from source for local development (Apple Silicon) |
 
 ## Install
 
@@ -136,6 +136,22 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
   libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev \
   build-essential curl wget file libssl-dev libxdo-dev patchelf
 ```
+
+### Run on macOS (development)
+
+LlamaRanch runs natively on Apple Silicon for local development. Install a
+`llama-server` first (`brew install llama.cpp`), then:
+
+```sh
+npm install
+npm run tauri dev          # hot-reload dev loop
+npm run tauri build        # unsigned .app/.dmg in src-tauri/target/release/bundle/
+```
+
+The dev build is unsigned, so the first launch needs a one-time
+right-click → Open (Gatekeeper). `llama-server` is auto-detected from
+`/opt/homebrew/bin` (or set `LLAMARANCH_SERVER_BIN`). The app lives in the
+menubar — there is no Dock icon.
 
 ## Roadmap
 
