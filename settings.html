@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LlamaRanch Settings</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="head">
+        <div class="brand" data-tauri-drag-region>
+          <span class="brand__name">Settings</span>
+        </div>
+        <div class="head__drag" data-tauri-drag-region></div>
+        <button class="head__close" id="s-close" title="Close" aria-label="Close">&times;</button>
+      </header>
+
+      <main class="settings-body">
+        <label class="field">Port<input id="s-port" type="number" /></label>
+        <label class="field">Models directory<input id="s-models" type="text" /></label>
+        <label class="field">llama-server binary<input id="s-bin" type="text" /></label>
+        <label class="field">Unload idle model after (seconds, 0 = never)<input id="s-idle" type="number" min="0" /></label>
+        <label class="field">Hugging Face token (for downloads, optional)<input id="s-hf" type="password" placeholder="hf_..." /></label>
+        <label class="check"><input id="s-expose" type="checkbox" /> Expose server to local network</label>
+        <label class="check"><input id="s-autostart" type="checkbox" /> Start LlamaRanch on login</label>
+        <div class="error hidden" id="s-error"></div>
+      </main>
+
+      <footer class="foot">
+        <span class="foot__spacer"></span>
+        <button class="btn btn--quiet" id="s-cancel">Cancel</button>
+        <button class="btn btn--primary" id="s-save">Save</button>
+      </footer>
+    </div>
+    <script type="module" src="/src/settings.ts"></script>
+  </body>
+</html>

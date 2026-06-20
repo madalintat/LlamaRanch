@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { exit, relaunch } from "@tauri-apps/plugin-process";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -9,10 +11,12 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
-import { enable as autoEnable, disable as autoDisable, isEnabled as autoIsEnabled } from "@tauri-apps/plugin-autostart";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
+import "@fontsource/space-grotesk/500.css";
+import "@fontsource/space-grotesk/600.css";
+import "@fontsource/space-grotesk/700.css";
 import "./styles.css";
 import llamaMark from "./assets/llama.svg";
 
@@ -33,6 +37,22 @@ const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const LOADED = (s: string) => s === "loaded" || s === "sleeping";
 const BUSY = (s: string) => s === "loading" || s === "downloading";
+
+// A model's display name strips the "org/" prefix and ":quant" suffix so HF ids
+// (e.g. "ggml-org/gemma-3-4b-it-qat-GGUF:Q4_0") read like "gemma 3 4b it qat".
+const prettyName = (id: string) =>
+  id.split("/").pop()!.split(":")[0].replace(/[-_]/g, " ").replace(/\bGGUF\b/i, "").trim();
+
+// Deterministic "aurora orb" seed from a model id: two hues + an animation
+// period, so every model gets a unique-but-stable animated icon (FNV-1a hash).
+const orbStyle = (id: string) => {
+  let h = 0x811c9dc5;
+  for (const c of id) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0;
+  const h1 = h % 360;
+  const h2 = (h1 + 70 + ((h >>> 8) % 150)) % 360;
+  const dur = 9 + ((h >>> 16) % 10); // 9–18s
+  return `--h1:${h1};--h2:${h2};--dur:${dur}s`;
+};
 
 let models: ModelView[] = [];
 let catalog: CatalogView[] = [];
@@ -74,76 +94,74 @@ function renderInstalled() {
   host.innerHTML = "";
   if (models.length === 0) {
     const msg = router.status === "running"
-      ? "No models. Try the Discover tab."
+      ? "No models yet. Try the Discover tab."
       : "Starting router…";
     host.innerHTML = `<div class="empty">${msg}</div>`;
     return;
   }
-  const groups: Record<string, ModelView[]> = {};
-  for (const m of models) (groups[m.group] ??= []).push(m);
 
-  for (const [group, list] of Object.entries(groups)) {
-    const label = document.createElement("div");
-    label.className = "group__label";
-    label.textContent = group;
-    host.appendChild(label);
+  // One flat list — loaded models first, then alphabetical. No category groups.
+  const list = [...models].sort((a, b) => {
+    const al = LOADED(a.status) ? 0 : 1, bl = LOADED(b.status) ? 0 : 1;
+    return al - bl || prettyName(a.id).localeCompare(prettyName(b.id));
+  });
 
-    for (const m of list) {
-      const loaded = LOADED(m.status);
-      const busy = BUSY(m.status);
-      const card = document.createElement("div");
-      card.className = "card" + (loaded ? " is-serving" : "");
-      card.dataset.placement = m.placement;
-      const visionTag = m.vision ? `<span class="tag tag--vision">vision</span>` : "";
-      // Show the size when we know it (local file or resolved HF cache); only a
-      // model the router must still fetch (need_download) reads as "cloud".
-      const sizeCell = m.size_bytes > 0
-        ? `<span class="card__size">${gb(m.size_bytes)}</span>`
-        : `<span class="card__size">${m.need_download ? "cloud" : "ready"}</span>`;
-      const placementTag = m.placement
-        ? `<span class="dot">&middot;</span><span class="tag tag--${m.placement}">${m.placement}</span>`
-        : "";
-      card.innerHTML = `
-        <div class="card__body">
-          <div class="card__name" title="${esc(m.name)}">${esc(m.name)}</div>
-          <div class="card__meta">
-            ${sizeCell}
-            ${placementTag}
-            ${visionTag}
-          </div>
-        </div>`;
+  for (const m of list) {
+    const loaded = LOADED(m.status);
+    const busy = BUSY(m.status);
+    const name = prettyName(m.name || m.id);
+    const card = document.createElement("div");
+    card.className = "card" + (loaded ? " is-serving" : "");
+    card.dataset.placement = m.placement;
 
-      if (m.local) {
-        const del = document.createElement("button");
-        del.className = "iconbtn card__del";
-        del.textContent = "Delete";
-        del.title = "Delete model file";
-        del.onclick = async () => {
-          if (!confirm(`Delete ${m.name} from disk?`)) return;
-          try { await invoke("delete_model", { modelId: m.id }); } catch (e) { showError(String(e)); }
-          await refresh();
-        };
-        card.appendChild(del);
-      }
+    const visionTag = m.vision ? `<span class="tag tag--vision">vision</span>` : "";
+    // Size when known (local file or resolved HF cache); only a model the router
+    // must still fetch (need_download) reads as "cloud".
+    const sizeCell = m.size_bytes > 0
+      ? `<span class="card__size">${gb(m.size_bytes)}</span>`
+      : `<span class="card__size">${m.need_download ? "cloud" : "ready"}</span>`;
+    const placementTag = m.placement
+      ? `<span class="dot">&middot;</span><span class="tag tag--${m.placement}">${m.placement}</span>`
+      : "";
 
-      const btn = document.createElement("button");
-      btn.className = "btn card__action" + (loaded ? " is-stop" : busy ? " is-busy" : "");
-      btn.textContent = loaded
-        ? "Stop"
-        : busy ? "..."
-        : (m.need_download ? "Get & Load" : "Load");
-      btn.disabled = busy;
-      btn.onclick = async () => {
-        try {
-          if (loaded) await invoke("unload_model", { modelId: m.id });
-          else await invoke("load_model", { modelId: m.id });
-        } catch (e) { showError(String(e)); }
+    card.innerHTML = `
+      <div class="card__logo" style="${orbStyle(m.id)}"></div>
+      <div class="card__body">
+        <div class="card__name" title="${esc(name)}">${esc(name)}</div>
+        <div class="card__meta">
+          ${sizeCell}
+          ${placementTag}
+          ${visionTag}
+        </div>
+      </div>`;
+
+    if (m.local) {
+      const del = document.createElement("button");
+      del.className = "iconbtn card__del";
+      del.textContent = "Delete";
+      del.title = "Delete model file";
+      del.onclick = async () => {
+        if (!confirm(`Delete ${name} from disk?`)) return;
+        try { await invoke("delete_model", { modelId: m.id }); } catch (e) { showError(String(e)); }
         await refresh();
-        startPolling();
       };
-      card.appendChild(btn);
-      host.appendChild(card);
+      card.appendChild(del);
     }
+
+    const btn = document.createElement("button");
+    btn.className = "btn card__action" + (loaded ? " is-stop" : busy ? " is-busy" : "");
+    btn.textContent = loaded ? "Stop" : busy ? "…" : (m.need_download ? "Get & Load" : "Load");
+    btn.disabled = busy;
+    btn.onclick = async () => {
+      try {
+        if (loaded) await invoke("unload_model", { modelId: m.id });
+        else await invoke("load_model", { modelId: m.id });
+      } catch (e) { showError(String(e)); }
+      await refresh();
+      startPolling();
+    };
+    card.appendChild(btn);
+    host.appendChild(card);
   }
 }
 
@@ -198,6 +216,18 @@ function render() {
   $("tab-discover").classList.toggle("is-active", view === "discover");
   if (view === "installed") renderInstalled();
   else renderDiscover();
+  fitWindow();
+}
+
+// Resize the window to hug the panel's content (capped), so it never shows a
+// tall empty box — it just fits, like a native popover.
+let fitRaf = 0;
+function fitWindow() {
+  cancelAnimationFrame(fitRaf);
+  fitRaf = requestAnimationFrame(() => {
+    const h = Math.min(560, Math.max(150, Math.ceil($("app").scrollHeight)));
+    getCurrentWindow().setSize(new LogicalSize(340, h)).catch(() => {});
+  });
 }
 
 function showError(msg: string) {
@@ -260,7 +290,8 @@ async function refresh() {
     invoke<ModelView[]>("list_models"),
     invoke<CatalogView[]>("list_catalog"),
   ]);
-  ($("endpoint") as HTMLElement).textContent = router.endpoint;
+  // Show a clean host:port/v1 (scheme stripped); copying still yields the full URL.
+  ($("endpoint") as HTMLElement).textContent = router.endpoint.replace(/^https?:\/\//, "");
   if (router.status.startsWith("error")) showError(router.status);
   else $("error").classList.add("hidden");
   render();
@@ -286,13 +317,21 @@ function startPolling() {
 
 async function init() {
   (document.getElementById("brand-mark") as HTMLImageElement).src = llamaMark;
-  ($("version") as HTMLElement).textContent = (await invoke<string>("llama_cpp_version")) || "llama.cpp";
+  // Footer: "LlamaRanch <appVersion> · llama.cpp b<build>" — llama_cpp_version
+  // returns a line like "version: 9670 (02810c7aa)"; pull the build number out.
+  const rawVer = (await invoke<string>("llama_cpp_version")) || "";
+  const build = rawVer.match(/\b(\d{3,})\b/)?.[1];
+  const appVer = await getVersion().catch(() => "");
+  ($("version") as HTMLElement).textContent = [
+    appVer ? `LlamaRanch ${appVer}` : "",
+    build ? `llama.cpp b${build}` : rawVer || "llama.cpp",
+  ].filter(Boolean).join("  ·  ");
 
   $("tab-installed").onclick = () => { view = "installed"; render(); };
   $("tab-discover").onclick = () => { view = "discover"; render(); };
 
   $("copy").onclick = async () => {
-    await navigator.clipboard.writeText(($("endpoint") as HTMLElement).textContent || "");
+    await navigator.clipboard.writeText(router.endpoint || "");
     const label = $("copy-label");
     const prev = label.textContent;
     label.textContent = "Copied";
@@ -309,37 +348,13 @@ async function init() {
     }
   };
 
-  const dlg = $("settings") as HTMLDialogElement;
+  // Settings lives in its own window (defined in tauri.conf.json); just reveal it.
   $("settings-btn").onclick = async () => {
-    const cfg = await invoke<any>("get_config");
-    ($("s-port") as HTMLInputElement).value = String(cfg.port);
-    ($("s-models") as HTMLInputElement).value = cfg.models_dir;
-    ($("s-bin") as HTMLInputElement).value = cfg.server_bin;
-    ($("s-idle") as HTMLInputElement).value = String(cfg.sleep_idle_seconds ?? 0);
-    ($("s-hf") as HTMLInputElement).value = cfg.hf_token ?? "";
-    ($("s-expose") as HTMLInputElement).checked = cfg.expose_to_network;
-    try { ($("s-autostart") as HTMLInputElement).checked = await autoIsEnabled(); } catch {}
-    dlg.showModal();
+    const w = await WebviewWindow.getByLabel("settings");
+    if (w) { await w.show(); await w.setFocus(); }
   };
-  dlg.addEventListener("close", async () => {
-    if (dlg.returnValue !== "save") return;
-    try {
-      const want = ($("s-autostart") as HTMLInputElement).checked;
-      if ((await autoIsEnabled()) !== want) want ? await autoEnable() : await autoDisable();
-    } catch {}
-    await invoke("set_config", {
-      newCfg: {
-        port: Number(($("s-port") as HTMLInputElement).value),
-        models_dir: ($("s-models") as HTMLInputElement).value,
-        server_bin: ($("s-bin") as HTMLInputElement).value,
-        sleep_idle_seconds: Number(($("s-idle") as HTMLInputElement).value) || 0,
-        hf_token: ($("s-hf") as HTMLInputElement).value.trim(),
-        expose_to_network: ($("s-expose") as HTMLInputElement).checked,
-      },
-    });
-    await refresh();
-    startPolling();
-  });
+  // The Settings window emits this after saving; refresh the panel to match.
+  await listen("config-changed", async () => { await refresh(); startPolling(); });
 
   await listen<{ id: string; done: number; total: number }>("download:progress", (e) => {
     dl.set(e.payload.id, { done: e.payload.done, total: e.payload.total });
