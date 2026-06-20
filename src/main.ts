@@ -21,6 +21,14 @@ import "./styles.css";
 import { addGlyph, resetGlyphs } from "./glyph";
 import llamaMark from "./assets/llama.svg";
 
+// Tag the platform so CSS can adapt: Linux has no native window vibrancy, so its
+// panel is opaque; macOS (hudWindow) and Windows (acrylic) get a frosted panel.
+document.documentElement.dataset.os = navigator.userAgent.includes("Mac")
+  ? "macos"
+  : navigator.userAgent.includes("Win")
+    ? "windows"
+    : "linux";
+
 type ModelView = {
   id: string; name: string; group: string; size_bytes: number;
   vision: boolean; placement: string; status: string;

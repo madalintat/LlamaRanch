@@ -50,6 +50,20 @@ html, body {
 @keyframes fade { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
 #app { animation: fade 0.18s ease-out; }
 
+/* Per-platform panel backing. Default (above) suits macOS hudWindow vibrancy.
+   Windows acrylic reads lighter, so darken the overlay for readable text.
+   Linux has no native vibrancy → fully opaque dusk (clean, no see-through). */
+[data-os="windows"] #app {
+  background:
+    radial-gradient(120% 90% at 50% -28%, rgba(232, 153, 90, 0.20), transparent 60%),
+    rgba(24, 20, 26, 0.74);
+}
+[data-os="linux"] #app {
+  background:
+    radial-gradient(120% 90% at 50% -28%, rgba(232, 153, 90, 0.16), transparent 60%),
+    #18141a;
+}
+
 /* ---------- header ---------- */
 .head {
   display: flex;

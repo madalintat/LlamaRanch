@@ -14,6 +14,13 @@ import "@fontsource/space-grotesk/600.css";
 import "@fontsource/space-grotesk/700.css";
 import "./styles.css";
 
+// Match the main window: Linux opaque, macOS/Windows frosted.
+document.documentElement.dataset.os = navigator.userAgent.includes("Mac")
+  ? "macos"
+  : navigator.userAgent.includes("Win")
+    ? "windows"
+    : "linux";
+
 const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
 const win = getCurrentWindow();
 

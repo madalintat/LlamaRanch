@@ -27,7 +27,7 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "windowEffects": {
-          "effects": ["hudWindow"],
+          "effects": ["hudWindow", "acrylic"],
           "radius": 14.0
         }
       },
@@ -45,7 +45,7 @@
         "transparent": true,
         "skipTaskbar": true,
         "windowEffects": {
-          "effects": ["hudWindow"],
+          "effects": ["hudWindow", "acrylic"],
           "radius": 14.0
         }
       }
