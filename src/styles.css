@@ -57,11 +57,10 @@ html, body {
   gap: 8px;
   padding: 13px 12px 6px 15px;
 }
-.head__drag { flex: 1; align-self: stretch; cursor: grab; }
-.head__drag:active { cursor: grabbing; }
-.brand { display: flex; align-items: center; gap: 9px; cursor: grab; }
+.head__drag { flex: 1; align-self: stretch; }
+.brand { display: flex; align-items: center; gap: 9px; }
 .brand__mark, .brand__name { pointer-events: none; }
-.brand__mark { width: 20px; height: 20px; border-radius: 6px; }
+.brand__mark { width: 22px; height: 22px; flex: none; border-radius: 6px; }
 .brand__name { font-family: var(--ff-display); font-size: 15px; font-weight: 500; letter-spacing: -0.01em; color: var(--ink); }
 .brand__name b { font-weight: 700; }
 
@@ -168,25 +167,15 @@ html, body {
 }
 .card:hover { background: var(--hover); }
 
-/* generative "aurora orb" — a small living animation, seeded per model id.
-   Two blurred gradient blobs orbit at different speeds over a dark well. */
+/* per-model "alive" glyph — a seeded constellation of breathing dots on a
+   <canvas>, generated in glyph.ts (unique to each model id). */
 .card__logo {
-  flex: none; position: relative; overflow: hidden;
+  flex: none; overflow: hidden;
   width: 30px; height: 30px; border-radius: 9px;
-  background: radial-gradient(circle at 50% 130%, hsl(var(--h1, 30) 45% 22%), #15110f);
+  background: radial-gradient(circle at 50% 120%, #1d1813, #131009);
   box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08);
 }
-.card__logo::before, .card__logo::after {
-  content: ""; position: absolute; width: 150%; height: 150%; left: -25%; top: -25%;
-  border-radius: 50%; filter: blur(5px); mix-blend-mode: screen;
-  animation: orb var(--dur, 12s) linear infinite;
-}
-.card__logo::before { background: radial-gradient(circle at 36% 34%, hsl(var(--h1, 30) 90% 62% / 0.95), transparent 52%); }
-.card__logo::after  {
-  background: radial-gradient(circle at 66% 62%, hsl(var(--h2, 200) 90% 62% / 0.9), transparent 52%);
-  animation-duration: calc(var(--dur, 12s) * 1.5); animation-direction: reverse;
-}
-@keyframes orb { to { transform: rotate(360deg); } }
+.card__logo canvas, canvas.card__logo { display: block; width: 30px; height: 30px; }
 .card.is-serving .card__logo { box-shadow: inset 0 0 0 1px var(--sage), 0 0 10px rgba(134, 192, 106, 0.5); }
 
 .card__body { flex: 1; min-width: 0; }
@@ -266,7 +255,6 @@ html, body {
 .btn--primary:hover { background: #efa56b; }
 
 @media (prefers-reduced-motion: reduce) {
-  #app, .status--starting .status__dot,
-  .card__logo::before, .card__logo::after { animation: none; }
+  #app, .status--starting .status__dot { animation: none; }
   .card, .btn { transition: none; }
 }

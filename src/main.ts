@@ -18,6 +18,7 @@ import "@fontsource/space-grotesk/500.css";
 import "@fontsource/space-grotesk/600.css";
 import "@fontsource/space-grotesk/700.css";
 import "./styles.css";
+import { addGlyph, resetGlyphs } from "./glyph";
 import llamaMark from "./assets/llama.svg";
 
 type ModelView = {
@@ -43,16 +44,6 @@ const BUSY = (s: string) => s === "loading" || s === "downloading";
 const prettyName = (id: string) =>
   id.split("/").pop()!.split(":")[0].replace(/[-_]/g, " ").replace(/\bGGUF\b/i, "").trim();
 
-// Deterministic "aurora orb" seed from a model id: two hues + an animation
-// period, so every model gets a unique-but-stable animated icon (FNV-1a hash).
-const orbStyle = (id: string) => {
-  let h = 0x811c9dc5;
-  for (const c of id) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0;
-  const h1 = h % 360;
-  const h2 = (h1 + 70 + ((h >>> 8) % 150)) % 360;
-  const dur = 9 + ((h >>> 16) % 10); // 9–18s
-  return `--h1:${h1};--h2:${h2};--dur:${dur}s`;
-};
 
 let models: ModelView[] = [];
 let catalog: CatalogView[] = [];
@@ -125,7 +116,7 @@ function renderInstalled() {
       : "";
 
     card.innerHTML = `
-      <div class="card__logo" style="${orbStyle(m.id)}"></div>
+      <canvas class="card__logo"></canvas>
       <div class="card__body">
         <div class="card__name" title="${esc(name)}">${esc(name)}</div>
         <div class="card__meta">
@@ -162,6 +153,7 @@ function renderInstalled() {
     };
     card.appendChild(btn);
     host.appendChild(card);
+    addGlyph(card.querySelector(".card__logo") as HTMLCanvasElement, m.id);
   }
 }
 
@@ -208,6 +200,7 @@ function renderDiscover() {
 
 function render() {
   setHeader();
+  resetGlyphs(); // drop old model glyphs; the active view re-adds its own
   const ready = router.status === "running";
   const webuiBtn = $("webui") as HTMLButtonElement;
   webuiBtn.disabled = !ready;
@@ -221,13 +214,15 @@ function render() {
 
 // Resize the window to hug the panel's content (capped), so it never shows a
 // tall empty box — it just fits, like a native popover.
-let fitRaf = 0;
 function fitWindow() {
-  cancelAnimationFrame(fitRaf);
-  fitRaf = requestAnimationFrame(() => {
-    const h = Math.min(560, Math.max(150, Math.ceil($("app").scrollHeight)));
+  const apply = () => {
+    const h = Math.min(560, Math.max(80, Math.ceil($("app").offsetHeight)));
     getCurrentWindow().setSize(new LogicalSize(340, h)).catch(() => {});
-  });
+  };
+  // Two passes: once after layout, once after fonts/images settle, so the
+  // window always hugs the real content height (never a tall empty box).
+  requestAnimationFrame(apply);
+  setTimeout(apply, 90);
 }
 
 function showError(msg: string) {
