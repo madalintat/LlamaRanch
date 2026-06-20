@@ -27,6 +27,7 @@ async function load() {
   $("s-models").value = cfg.models_dir;
   $("s-bin").value = cfg.server_bin;
   $("s-idle").value = String(cfg.sleep_idle_seconds ?? 0);
+  $("s-models-max").value = String(cfg.models_max ?? 1);
   $("s-hf").value = cfg.hf_token ?? "";
   $("s-expose").checked = cfg.expose_to_network;
   try { $("s-autostart").checked = await autoIsEnabled(); } catch {}
@@ -45,6 +46,7 @@ async function save() {
         models_dir: $("s-models").value,
         server_bin: $("s-bin").value,
         sleep_idle_seconds: Number($("s-idle").value) || 0,
+        models_max: Number($("s-models-max").value) || 1,
         hf_token: $("s-hf").value.trim(),
         expose_to_network: $("s-expose").checked,
       },
