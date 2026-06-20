@@ -60,7 +60,7 @@ pub fn router_args(cfg: &Config, preset_path: &str) -> Vec<String> {
         "--models-preset".into(),
         preset_path.to_string(),
         "--models-max".into(),
-        "1".into(),
+        cfg.models_max.max(1).to_string(),
         "--jinja".into(),
         "--fit".into(),
         "on".into(),
@@ -363,6 +363,7 @@ mod tests {
     #[test]
     fn router_args_core_flags_and_idle() {
         let mut cfg = Config::default();
+        cfg.models_max = 1;
         cfg.sleep_idle_seconds = 300;
         let a = router_args(&cfg, "/tmp/p.ini");
         assert!(a.windows(2).any(|w| w == ["--models-preset", "/tmp/p.ini"]));
@@ -371,6 +372,22 @@ mod tests {
         assert!(a.windows(2).any(|w| w == ["--fit", "on"]));
         assert!(a.windows(2).any(|w| w == ["--host", "127.0.0.1"]));
         assert!(a.windows(2).any(|w| w == ["--sleep-idle-seconds", "300"]));
+    }
+
+    #[test]
+    fn router_args_uses_models_max() {
+        let mut cfg = Config::default();
+        cfg.models_max = 3;
+        let a = router_args(&cfg, "/tmp/p.ini");
+        assert!(a.windows(2).any(|w| w == ["--models-max", "3"]));
+    }
+
+    #[test]
+    fn router_args_floors_models_max_to_one() {
+        let mut cfg = Config::default();
+        cfg.models_max = 0;
+        let a = router_args(&cfg, "/tmp/p.ini");
+        assert!(a.windows(2).any(|w| w == ["--models-max", "1"]));
     }
 
     #[test]
