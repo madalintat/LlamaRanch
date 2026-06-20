@@ -69,14 +69,17 @@ function setHeader() {
     label.textContent = "starting router...";
     return;
   }
-  const active = models.find((m) => LOADED(m.status));
+  const loaded = models.filter((m) => LOADED(m.status));
   const loading = models.find((m) => BUSY(m.status));
-  if (active) {
+  if (loaded.length > 1) {
     el.classList.add("status--running");
-    label.textContent = `serving ${active.name}`;
+    label.textContent = `serving ${loaded.length} models`;
+  } else if (loaded.length === 1) {
+    el.classList.add("status--running");
+    label.textContent = `serving ${prettyName(loaded[0].name || loaded[0].id)}`;
   } else if (loading) {
     el.classList.add("status--starting");
-    label.textContent = "loading...";
+    label.textContent = "loading…";
   } else {
     el.classList.add("status--running");
     label.textContent = "ready";
