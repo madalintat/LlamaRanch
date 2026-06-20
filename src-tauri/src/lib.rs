@@ -120,8 +120,11 @@ pub fn run() {
                     let _ = window.hide();
                     api.prevent_close();
                 }
+                // Popover dismiss — only the main panel hides on blur. (Gating to
+                // "main" keeps a Settings-window blur from stamping the debounce
+                // and swallowing the next tray click.)
                 #[cfg(target_os = "macos")]
-                WindowEvent::Focused(false) => {
+                WindowEvent::Focused(false) if window.label() == "main" => {
                     if let Some(state) = window.app_handle().try_state::<LastHide>() {
                         *state.0.lock().unwrap() = Some(Instant::now());
                     }

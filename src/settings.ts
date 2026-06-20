@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { emit } from "@tauri-apps/api/event";
+import { tagOS, fitWindow } from "./platform";
 import {
   enable as autoEnable,
   disable as autoDisable,
@@ -14,23 +15,11 @@ import "@fontsource/space-grotesk/600.css";
 import "@fontsource/space-grotesk/700.css";
 import "./styles.css";
 
-// Match the main window: Linux opaque, macOS/Windows frosted.
-document.documentElement.dataset.os = navigator.userAgent.includes("Mac")
-  ? "macos"
-  : navigator.userAgent.includes("Win")
-    ? "windows"
-    : "linux";
+tagOS(); // match the main window: Linux opaque, macOS/Windows frosted
 
 const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
 const win = getCurrentWindow();
-
-// Keep this window sized to its content, like the main popover.
-function fit() {
-  requestAnimationFrame(() => {
-    const h = Math.min(620, Math.max(220, Math.ceil(document.getElementById("app")!.scrollHeight)));
-    win.setSize(new LogicalSize(380, h)).catch(() => {});
-  });
-}
+const fit = () => fitWindow(380, 620);
 
 async function load() {
   const cfg = await invoke<any>("get_config");

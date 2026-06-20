@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { exit, relaunch } from "@tauri-apps/plugin-process";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
@@ -20,14 +20,9 @@ import "@fontsource/space-grotesk/700.css";
 import "./styles.css";
 import { addGlyph, resetGlyphs } from "./glyph";
 import llamaMark from "./assets/llama.svg";
+import { tagOS, fitWindow } from "./platform";
 
-// Tag the platform so CSS can adapt: Linux has no native window vibrancy, so its
-// panel is opaque; macOS (hudWindow) and Windows (acrylic) get a frosted panel.
-document.documentElement.dataset.os = navigator.userAgent.includes("Mac")
-  ? "macos"
-  : navigator.userAgent.includes("Win")
-    ? "windows"
-    : "linux";
+tagOS();
 
 type ModelView = {
   id: string; name: string; group: string; size_bytes: number;
@@ -217,21 +212,14 @@ function render() {
   $("tab-discover").classList.toggle("is-active", view === "discover");
   if (view === "installed") renderInstalled();
   else renderDiscover();
-  fitWindow();
+  lastSig = sigOf();
+  fitWindow(340);
 }
 
-// Resize the window to hug the panel's content (capped), so it never shows a
-// tall empty box — it just fits, like a native popover.
-function fitWindow() {
-  const apply = () => {
-    const h = Math.min(560, Math.max(80, Math.ceil($("app").offsetHeight)));
-    getCurrentWindow().setSize(new LogicalSize(340, h)).catch(() => {});
-  };
-  // Two passes: once after layout, once after fonts/images settle, so the
-  // window always hugs the real content height (never a tall empty box).
-  requestAnimationFrame(apply);
-  setTimeout(apply, 90);
-}
+// A cheap signature of what the model list shows, so polling can skip a full
+// re-render (and the glyph teardown) when nothing visible has changed.
+const sigOf = () => router.status + "|" + view + "|" + models.map((x) => x.id + ":" + x.status).join(",");
+let lastSig = "";
 
 function showError(msg: string) {
   const err = $("error");
@@ -309,7 +297,9 @@ function startPolling() {
     ]);
     router = r;
     models = m;
-    render();
+    // Only repaint when something visible changed, so the canvas glyphs aren't
+    // torn down and restarted (flicker) on every idle poll.
+    if (sigOf() !== lastSig) render();
     const settling = r.status !== "running" || m.some((x) => BUSY(x.status));
     if (!settling) {
       clearInterval(pollTimer);

@@ -105,7 +105,7 @@ fn to_view(r: server::RouterModel, fs: &[scanner::Model], cached_size: u64) -> M
             id: r.id,
             vision: r.vision || m.mmproj_path.is_some(),
             status: r.status,
-            need_download: r.need_download,
+            need_download: false, // it's on disk — never "Get & Load"
         },
         // Not in our models dir. If the router has it cached (need_download =
         // false) it is downloaded and usable now; only a true need_download is

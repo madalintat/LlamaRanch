@@ -92,6 +92,8 @@ pub fn stop(state: &mut ServerState) {
         let _ = child.wait();
     }
     state.child = None;
+    // Drop the PID record so a later launch never reclaims a recycled PID.
+    let _ = std::fs::remove_file(router_pid_path());
     state.status = "stopped".into();
 }
 
