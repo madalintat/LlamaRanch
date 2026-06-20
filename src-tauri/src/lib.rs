@@ -12,12 +12,26 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 use tauri::menu::{Menu, MenuItem};
-use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Manager, Runtime, WindowEvent};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Manager, PhysicalPosition, Runtime, WindowEvent};
+
+/// Timestamp of the last hide-on-blur, so a tray click that *caused* the blur
+/// doesn't immediately re-open the window (popover click/blur race).
+#[derive(Default)]
+struct LastHide(std::sync::Mutex<Option<Instant>>);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let cfg = config::load_from(&config::config_path());
+    let mut cfg = config::load_from(&config::config_path());
+    // If the stored llama-server path went missing (or a fresh config picked the
+    // historical default on a brew-only Mac), re-resolve and persist the fix.
+    let resolved = config::ensure_server_bin(&cfg.server_bin);
+    if resolved != cfg.server_bin {
+        cfg.server_bin = resolved;
+        if let Err(e) = config::save_to(&config::config_path(), &cfg) {
+            eprintln!("llamaranch: failed to persist resolved server_bin: {e}");
+        }
+    }
     let shared = SharedServer::new();
 
     tauri::Builder::default()
@@ -32,6 +46,7 @@ pub fn run() {
         .manage(AppConfig(Mutex::new(cfg)))
         .manage(shared)
         .manage(commands::Cancels::default())
+        .manage(LastHide::default())
         .invoke_handler(tauri::generate_handler![
             commands::list_models,
             commands::router_status,
@@ -48,14 +63,30 @@ pub fn run() {
             commands::delete_model,
         ])
         .setup(|app| {
+            // macOS: menubar-only app — no Dock icon, no Cmd-Tab entry.
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             let open = MenuItem::with_id(app, "open", "Open LlamaRanch", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &quit])?;
 
-            TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("LlamaRanch")
-                .menu(&menu)
+            #[cfg(target_os = "macos")]
+            let tray_icon = tauri::image::Image::from_bytes(include_bytes!(
+                "../icons/tray-glyph.png"
+            ))
+            .expect("tray glyph png");
+            #[cfg(not(target_os = "macos"))]
+            let tray_icon = app.default_window_icon().unwrap().clone();
+
+            let mut tray = TrayIconBuilder::new()
+                .icon(tray_icon)
+                .tooltip("LlamaRanch");
+            #[cfg(target_os = "macos")]
+            {
+                tray = tray.icon_as_template(true);
+            }
+            tray.menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => show_window(app),
                     "quit" => {
@@ -66,15 +97,40 @@ pub fn run() {
                     }
                     _ => {}
                 })
+                .show_menu_on_left_click(false)
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        rect,
+                        ..
+                    } = event
+                    {
+                        toggle_popover(tray.app_handle(), rect);
+                    }
+                })
                 .build(app)?;
 
             start_router(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
-                api.prevent_close();
+            match event {
+                WindowEvent::CloseRequested { api, .. } => {
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
+                // Popover dismiss — only the main panel hides on blur. (Gating to
+                // "main" keeps a Settings-window blur from stamping the debounce
+                // and swallowing the next tray click.)
+                #[cfg(target_os = "macos")]
+                WindowEvent::Focused(false) if window.label() == "main" => {
+                    if let Some(state) = window.app_handle().try_state::<LastHide>() {
+                        *state.0.lock().unwrap() = Some(Instant::now());
+                    }
+                    let _ = window.hide();
+                }
+                _ => {}
             }
         })
         .build(tauri::generate_context!())
@@ -160,6 +216,46 @@ pub fn start_router<R: Runtime>(app: &AppHandle<R>) {
             thread::sleep(Duration::from_millis(500));
         }
     });
+}
+
+/// Show the window anchored just below the tray icon described by `rect`.
+/// In Tauri 2.11.3, `Rect.position` and `Rect.size` are `dpi::Position` /
+/// `dpi::Size` enums (not Results), so we match directly on the Physical variants.
+fn show_popover<R: Runtime>(app: &AppHandle<R>, rect: tauri::Rect) {
+    if let Some(win) = app.get_webview_window("main") {
+        let icon = match (rect.position, rect.size) {
+            (tauri::Position::Physical(p), tauri::Size::Physical(s)) => Some((p, s)),
+            _ => None,
+        };
+        if let Some((p, s)) = icon {
+            let win_w = win.outer_size().map(|w| w.width as i32).unwrap_or(420);
+            let x = p.x + (s.width as i32) / 2 - win_w / 2;
+            let y = p.y + s.height as i32;
+            let _ = win.set_position(PhysicalPosition::new(x.max(0), y.max(0)));
+        }
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+}
+
+/// Toggle the popover: hide if visible, else show under the tray icon —
+/// unless a hide-on-blur happened within the debounce window (the click that
+/// caused the blur), in which case do nothing (stay closed).
+fn toggle_popover<R: Runtime>(app: &AppHandle<R>, rect: tauri::Rect) {
+    if let Some(win) = app.get_webview_window("main") {
+        if win.is_visible().unwrap_or(false) {
+            let _ = win.hide();
+            return;
+        }
+    }
+    if let Some(state) = app.try_state::<LastHide>() {
+        if let Some(t) = *state.0.lock().unwrap() {
+            if t.elapsed() < Duration::from_millis(250) {
+                return;
+            }
+        }
+    }
+    show_popover(app, rect);
 }
 
 fn show_window<R: Runtime>(app: &AppHandle<R>) {
