@@ -11,17 +11,43 @@
   },
   "app": {
     "withGlobalTauri": true,
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "LlamaRanch",
-        "width": 420,
-        "height": 640,
-        "minWidth": 360,
-        "minHeight": 480,
-        "resizable": true,
-        "visible": true,
+        "width": 340,
+        "height": 200,
+        "minWidth": 340,
+        "maxWidth": 340,
+        "minHeight": 80,
+        "resizable": false,
+        "visible": false,
         "decorations": false,
-        "center": true
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "windowEffects": {
+          "effects": ["hudWindow", "acrylic"],
+          "radius": 14.0
+        }
+      },
+      {
+        "label": "settings",
+        "title": "Settings",
+        "url": "settings.html",
+        "width": 380,
+        "height": 540,
+        "minWidth": 360,
+        "minHeight": 300,
+        "resizable": false,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "skipTaskbar": true,
+        "windowEffects": {
+          "effects": ["hudWindow", "acrylic"],
+          "radius": 14.0
+        }
       }
     ],
     "security": {
