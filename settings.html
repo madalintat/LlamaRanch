@@ -20,7 +20,7 @@
         <label class="field">Models directory<input id="s-models" type="text" /></label>
         <label class="field">llama-server binary<input id="s-bin" type="text" /></label>
         <label class="field">Unload idle model after (seconds, 0 = never)<input id="s-idle" type="number" min="0" /></label>
-        <label class="field">Max models loaded at once<input id="s-models-max" type="number" min="1" /></label>
+        <label class="field">Max models loaded at once<input id="s-models-max" type="number" min="1" max="16" step="1" /></label>
         <label class="field">Hugging Face token (for downloads, optional)<input id="s-hf" type="password" placeholder="hf_..." /></label>
         <label class="check"><input id="s-expose" type="checkbox" /> Expose server to local network</label>
         <label class="check"><input id="s-autostart" type="checkbox" /> Start LlamaRanch on login</label>
