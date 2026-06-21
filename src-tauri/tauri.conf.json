@@ -48,6 +48,19 @@
           "effects": ["hudWindow", "acrylic"],
           "radius": 14.0
         }
+      },
+      {
+        "label": "chat",
+        "title": "LlamaRanch Chat",
+        "url": "chat.html",
+        "width": 720,
+        "height": 640,
+        "minWidth": 480,
+        "minHeight": 400,
+        "resizable": true,
+        "visible": false,
+        "decorations": true,
+        "transparent": false
       }
     ],
     "security": {

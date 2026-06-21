@@ -40,6 +40,9 @@ pub struct Config {
     /// Per-model configuration overrides.
     #[serde(default)]
     pub model_config: BTreeMap<String, ModelOverride>,
+    /// Small general-purpose model used for turn classification.
+    #[serde(default = "default_general_model")]
+    pub general_model: String,
 }
 
 fn home() -> PathBuf {
@@ -186,6 +189,10 @@ fn default_models_max() -> u32 {
     total_ram_bytes().map(models_max_for_ram).unwrap_or(2)
 }
 
+fn default_general_model() -> String {
+    "qwen3-1.7b".to_string()
+}
+
 impl Default for Config {
     fn default() -> Self {
         Config {
@@ -197,6 +204,7 @@ impl Default for Config {
             hf_token: String::new(),
             models_max: default_models_max(),
             model_config: BTreeMap::new(),
+            general_model: default_general_model(),
         }
     }
 }

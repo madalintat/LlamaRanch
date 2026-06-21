@@ -1,3 +1,4 @@
+mod brain;
 mod catalog;
 mod config;
 mod scanner;
@@ -47,6 +48,7 @@ pub fn run() {
         .manage(AppConfig(Mutex::new(cfg)))
         .manage(shared)
         .manage(commands::Cancels::default())
+        .manage(brain::Sessions::default())
         .manage(LastHide::default())
         .invoke_handler(tauri::generate_handler![
             commands::list_models,
@@ -64,6 +66,9 @@ pub fn run() {
             commands::delete_model,
             commands::model_info,
             commands::set_model_config,
+            brain::chat_new_session,
+            brain::chat_send,
+            brain::chat_cancel,
         ])
         .setup(|app| {
             // macOS: menubar-only app — no Dock icon, no Cmd-Tab entry.
@@ -115,6 +120,14 @@ pub fn run() {
                 .build(app)?;
 
             start_router(app.handle());
+
+            let h = app.handle().clone();
+            std::thread::spawn(move || {
+                let cfg = h.state::<AppConfig>().0.lock().unwrap().clone();
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                let _ = crate::server::load(cfg.port, &cfg.general_model);
+            });
+
             Ok(())
         })
         .on_window_event(|window, event| {

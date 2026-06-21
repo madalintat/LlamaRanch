@@ -470,6 +470,11 @@ async function init() {
     }
   };
 
+  // Chat lives in its own window (defined in tauri.conf.json); just reveal it.
+  $("chat-btn").onclick = async () => {
+    const w = await WebviewWindow.getByLabel("chat");
+    if (w) { await w.show(); await w.setFocus(); }
+  };
   // Settings lives in its own window (defined in tauri.conf.json); just reveal it.
   $("settings-btn").onclick = async () => {
     const w = await WebviewWindow.getByLabel("settings");
