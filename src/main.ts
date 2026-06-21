@@ -55,6 +55,15 @@ type ModelInfo = { native_ctx: number; file_bytes: number; kv_per_token: number;
 
 const CTX_TIERS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
 const tierLabel = (n: number) => (n % 1024 === 0 ? `${n / 1024}k` : String(n));
+
+const ICON = {
+  play: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 6.2c0-.82.9-1.32 1.59-.88l9 5.8a1.05 1.05 0 0 1 0 1.76l-9 5.8c-.7.44-1.59-.06-1.59-.88V6.2z"/></svg>`,
+  stop: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="2.6"/></svg>`,
+  get: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10m0 0 3.5-3.5M12 14l-3.5-3.5M5 19h14"/></svg>`,
+  gear: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.5 7.5 0 0 0 0-2l1.7-1.3-1.8-3.1-2 .8a7.6 7.6 0 0 0-1.7-1l-.3-2.1H9.7l-.3 2.1a7.6 7.6 0 0 0-1.7 1l-2-.8-1.8 3.1L5.6 11a7.5 7.5 0 0 0 0 2l-1.7 1.3 1.8 3.1 2-.8c.5.4 1.1.7 1.7 1l.3 2.1h3.6l.3-2.1c.6-.3 1.2-.6 1.7-1l2 .8 1.8-3.1L19.4 13z"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 7V5h4v2M6 7l1 13h10l1-13"/></svg>`,
+};
+
 // which model's expander is open (survives re-renders so polling won't collapse it)
 let openCfg: string | null = null;
 
@@ -142,50 +151,61 @@ function renderInstalled() {
         </div>
       </div>`;
 
-    if (m.local) {
-      const del = document.createElement("button");
-      del.className = "iconbtn card__del";
-      del.textContent = "Delete";
-      del.title = "Delete model file";
-      del.onclick = async () => {
-        if (!confirm(`Delete ${name} from disk?`)) return;
-        try { await invoke("delete_model", { modelId: m.id }); } catch (e) { showError(String(e)); }
-        await refresh();
-      };
-      card.appendChild(del);
-    }
+    const downloaded = m.local || !m.need_download;
+    const actions = document.createElement("div");
+    actions.className = "card__actions";
 
-    const btn = document.createElement("button");
-    btn.className = "btn card__action" + (loaded ? " is-stop" : busy ? " is-busy" : "");
-    btn.textContent = loaded ? "Stop" : busy ? "…" : (m.need_download ? "Get & Load" : "Load");
-    btn.disabled = busy;
-    btn.onclick = async () => {
-      try {
-        if (loaded) await invoke("unload_model", { modelId: m.id });
-        else await invoke("load_model", { modelId: m.id });
-      } catch (e) { showError(String(e)); }
-      await refresh();
-      startPolling();
+    const iconBtn = (cls: string, svg: string, title: string, onclick: (e: MouseEvent) => void) => {
+      const b = document.createElement("button");
+      b.className = "act " + cls;
+      b.innerHTML = svg;
+      b.title = title;
+      b.onclick = onclick;
+      return b;
     };
-    card.appendChild(btn);
 
-    if (m.local) {
-      const gear = document.createElement("button");
-      gear.className = "iconbtn card__cfg";
-      gear.textContent = "⚙";
-      gear.title = "Configure";
-      gear.onclick = (e) => {
-        e.stopPropagation();
-        openCfg = openCfg === m.id ? null : m.id;
-        render();
-      };
-      card.appendChild(gear);
+    if (downloaded) {
+      actions.appendChild(
+        iconBtn("act--cfg", ICON.gear, "Configure", (e) => {
+          e.stopPropagation();
+          openCfg = openCfg === m.id ? null : m.id;
+          render();
+        }),
+      );
+      actions.appendChild(
+        iconBtn("act--del", ICON.trash, "Delete", async () => {
+          const msg = m.local
+            ? `Delete ${name} from disk?`
+            : `Delete ${name}? This removes it from the shared cache (also used by the Llama app).`;
+          if (!confirm(msg)) return;
+          try { await invoke("delete_model", { modelId: m.id }); } catch (err) { showError(String(err)); }
+          if (openCfg === m.id) openCfg = null;
+          await refresh();
+        }),
+      );
     }
+
+    const primary = iconBtn(
+      "act--primary" + (loaded ? " is-stop" : "") + (busy ? " is-busy" : ""),
+      loaded ? ICON.stop : m.need_download ? ICON.get : ICON.play,
+      loaded ? "Stop" : m.need_download ? "Get & load" : "Load",
+      async () => {
+        try {
+          if (loaded) await invoke("unload_model", { modelId: m.id });
+          else await invoke("load_model", { modelId: m.id });
+        } catch (err) { showError(String(err)); }
+        await refresh();
+        startPolling();
+      },
+    );
+    (primary as HTMLButtonElement).disabled = busy;
+    actions.appendChild(primary);
+    card.appendChild(actions);
+
     host.appendChild(card);
     addGlyph(card.querySelector(".card__logo") as HTMLCanvasElement, m.id);
-    // Open expander: append a SYNC placeholder now; fill it async after render
-    // (keeps renderInstalled synchronous so fitWindow measures correctly).
-    if (m.local && openCfg === m.id) {
+    // Open config expander (any downloaded model); filled async after render.
+    if (downloaded && openCfg === m.id) {
       const ph = document.createElement("div");
       ph.className = "cfg";
       ph.id = "cfg-open";
@@ -210,7 +230,7 @@ function renderDiscover() {
         ${prog ? `<div class="progress"><div class="progress__fill" style="width:${prog.total ? Math.round((prog.done / prog.total) * 100) : 0}%"></div></div>` : ""}
       </div>`;
     const btn = document.createElement("button");
-    btn.className = "btn card__action";
+    btn.className = "btn card__dl-btn";
     if (e.installed) {
       btn.textContent = "Installed";
       btn.disabled = true;

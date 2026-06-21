@@ -214,16 +214,32 @@ html, body {
 .tag--Hybrid { color: var(--cpu); }
 .tag--vision { color: var(--ember); }
 
-.card__action { flex: none; min-width: 56px; text-align: center; }
 .card.is-serving { background: rgba(134, 192, 106, 0.10); }
-.card__action.is-stop { color: var(--rose); border-color: rgba(232, 115, 106, 0.3); }
-.card__action.is-stop:hover { background: rgba(232, 115, 106, 0.1); }
-.card__action.is-busy { color: var(--amber); }
-.card__action:disabled { opacity: 0.55; cursor: default; }
+
+/* per-row action icons (configure / delete / start-stop) */
+.card__actions { display: flex; align-items: center; gap: 3px; flex: none; }
+.act {
+  width: 30px; height: 30px; flex: none; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 0; background: none; cursor: pointer; color: var(--ink-2);
+  border-radius: 9px; transition: background 0.12s, color 0.12s, transform 0.06s, opacity 0.12s;
+}
+.act svg { width: 17px; height: 17px; }
+.act:hover { background: var(--hover); color: var(--ink); }
+.act:active { transform: scale(0.9); }
+.act:disabled { cursor: default; opacity: 0.5; }
+.act--cfg, .act--del { opacity: 0.45; }
+.card:hover .act--cfg, .card:hover .act--del, .act:focus-visible { opacity: 1; }
+.act--del:hover { color: var(--rose); background: rgba(232, 115, 106, 0.13); }
+.act--primary { color: var(--ember); background: rgba(232, 153, 90, 0.13); }
+.act--primary:hover { background: rgba(232, 153, 90, 0.24); color: var(--ember); }
+.act--primary.is-stop { color: var(--sage); background: rgba(134, 192, 106, 0.13); }
+.act--primary.is-stop:hover { background: rgba(134, 192, 106, 0.24); }
 
 .empty { padding: 34px 16px; text-align: center; color: var(--ink-3); font-size: 12px; }
 
 /* discover / catalog */
+.card__dl-btn { flex: none; min-width: 56px; text-align: center; }
 .card--cat { align-items: flex-start; }
 .card__desc { font-size: 11px; color: var(--ink-2); margin-top: 2px; line-height: 1.4; }
 .progress { height: 4px; border-radius: 3px; background: rgba(255, 248, 242, 0.12); margin-top: 7px; overflow: hidden; }
@@ -233,8 +249,6 @@ html, body {
   font-family: var(--ff); font-size: 11px; padding: 4px 6px; border-radius: 6px;
 }
 .iconbtn:hover { color: var(--rose); background: rgba(232, 115, 106, 0.1); }
-.card__del { opacity: 0; transition: opacity 0.12s; }
-.card:hover .card__del, .card__del:focus-visible { opacity: 1; }
 
 /* ---------- footer ---------- */
 .foot {
@@ -277,8 +291,6 @@ html, body {
 }
 
 /* ---------- per-model config expander ---------- */
-.card__cfg { opacity: 0; transition: opacity 0.12s; }
-.card:hover .card__cfg, .card__cfg:focus-visible { opacity: 1; }
 .cfg { margin: 0 8px 8px; padding: 10px; border-radius: 10px; background: rgba(255,248,242,0.05); border: 0.5px solid var(--line); }
 .cfg__label { font-size: 10.5px; color: var(--ink-2); margin-bottom: 6px; }
 .cfg__pills { display: flex; flex-wrap: wrap; gap: 4px; }
