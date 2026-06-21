@@ -91,3 +91,28 @@ pub fn catalog() -> &'static [CatalogEntry] {
 pub fn find(id: &str) -> Option<&'static CatalogEntry> {
     catalog().iter().find(|e| e.id == id)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn catalog_integrity() {
+        let allowed = ["chat", "reasoning", "coding", "vision", "embedding"];
+        let mut ids = HashSet::new();
+        for e in catalog() {
+            assert!(ids.insert(e.id), "duplicate id: {}", e.id);
+            assert!(!e.id.is_empty(), "empty id");
+            assert!(!e.name.is_empty(), "empty name: {}", e.id);
+            assert!(!e.description.is_empty(), "empty description: {}", e.id);
+            assert!(!e.repo.is_empty() && !e.file.is_empty(), "empty repo/file: {}", e.id);
+            assert!(e.approx_gb > 0.0, "approx_gb must be > 0: {}", e.id);
+            assert!(allowed.contains(&e.group), "bad group '{}': {}", e.group, e.id);
+            if e.mmproj.is_some() {
+                assert_eq!(e.group, "vision", "mmproj only on vision: {}", e.id);
+            }
+        }
+        assert!(catalog().len() >= 7);
+    }
+}
