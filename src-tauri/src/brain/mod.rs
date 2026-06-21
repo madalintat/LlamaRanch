@@ -101,16 +101,8 @@ pub struct StepResult {
     pub tool_calls: Vec<ToolCall>,
 }
 
-/// Streams a completion from a model. Synchronous (ureq); calls `on_token` per chunk.
+/// Tool-aware step: stream content via on_token, return content + any tool calls.
 pub trait ChatBackend {
-    fn stream(
-        &self,
-        model_id: &str,
-        messages: &[Message],
-        on_token: &mut dyn FnMut(String),
-    ) -> Result<Usage, String>;
-
-    /// Tool-aware step: stream content via on_token, return content + any tool calls.
     fn step(
         &self,
         model_id: &str,
@@ -137,6 +129,8 @@ pub enum BrainEvent {
     Token { text: String },
     Done { usage: Usage },
     Error { message: String },
+    ToolCall { name: String, args: String },
+    ToolResult { name: String, ok: bool, preview: String },
 }
 
 /// In-memory conversation history per session. (Persistence is Phase 5.)
@@ -146,7 +140,7 @@ pub struct Sessions {
     pub next: std::sync::atomic::AtomicUsize,
 }
 
-/// Run one chat turn: route → resolve → ensure-loaded → stream. Emits events via `emit`.
+/// Run one chat turn: route → resolve → ensure-loaded → tool loop. Emits events via `emit`.
 /// Pure of Tauri/threads so it is unit-testable with mocked deps.
 #[allow(clippy::too_many_arguments)]
 pub fn run_turn<E: FnMut(BrainEvent)>(
@@ -159,6 +153,7 @@ pub fn run_turn<E: FnMut(BrainEvent)>(
     history: &mut Vec<Message>,
     ctx: TurnContext,
     override_model: Option<String>,
+    registry: &tools::ToolRegistry,
     mut emit: E,
 ) {
     history.push(Message { role: "user".into(), content: ctx.text.clone() });
@@ -196,18 +191,47 @@ pub fn run_turn<E: FnMut(BrainEvent)>(
         return;
     }
 
-    let mut answer = String::new();
-    let mut on_token = |piece: String| {
-        answer.push_str(&piece);
-        emit(BrainEvent::Token { text: piece });
-    };
-    match backend.stream(&model_id, history, &mut on_token) {
-        Ok(usage) => {
-            history.push(Message { role: "assistant".into(), content: answer });
-            emit(BrainEvent::Done { usage });
+    // Build the wire message array from typed history.
+    let mut wire: Vec<serde_json::Value> = history
+        .iter()
+        .map(|m| serde_json::json!({ "role": m.role, "content": m.content }))
+        .collect();
+    let tool_defs = registry.openai_tools();
+    const MAX_ITER: usize = 8;
+
+    for _ in 0..MAX_ITER {
+        let mut on_token = |piece: String| emit(BrainEvent::Token { text: piece });
+        let stepres = match backend.step(&model_id, &wire, &tool_defs, &mut on_token) {
+            Ok(s) => s,
+            Err(e) => { emit(BrainEvent::Error { message: e }); return; }
+        };
+        if stepres.tool_calls.is_empty() {
+            history.push(Message { role: "assistant".into(), content: stepres.content });
+            emit(BrainEvent::Done { usage: Usage::default() });
+            return;
         }
-        Err(e) => emit(BrainEvent::Error { message: e }),
+        // assistant turn carrying the tool calls (OpenAI shape)
+        wire.push(serde_json::json!({
+            "role": "assistant",
+            "content": stepres.content,
+            "tool_calls": stepres.tool_calls.iter().map(|tc| serde_json::json!({
+                "id": tc.id, "type": "function",
+                "function": { "name": tc.name, "arguments": tc.arguments }
+            })).collect::<Vec<_>>()
+        }));
+        for tc in &stepres.tool_calls {
+            emit(BrainEvent::ToolCall { name: tc.name.clone(), args: tc.arguments.clone() });
+            let result = registry.run(&tc.name, &tc.arguments);
+            let ok = !result.starts_with("error:");
+            let preview: String = result.chars().take(200).collect();
+            emit(BrainEvent::ToolResult { name: tc.name.clone(), ok, preview });
+            wire.push(serde_json::json!({
+                "role": "tool", "tool_call_id": tc.id, "content": result
+            }));
+        }
     }
+    // Hit the iteration cap.
+    emit(BrainEvent::Done { usage: Usage::default() });
 }
 
 use crate::commands::AppConfig;
@@ -308,6 +332,7 @@ pub fn chat_send<R: Runtime>(
             pool: pool_state.inner(),
         };
         let chat_backend = RouterChatBackend { port };
+        let registry = tools::ToolRegistry::with_defaults();
 
         let sessions = app.state::<Sessions>();
         let mut history = sessions.map.lock().unwrap().get(&session_id).cloned().unwrap_or_default();
@@ -317,6 +342,7 @@ pub fn chat_send<R: Runtime>(
         let sid = session_id.clone();
         run_turn(&router, &resolver, &lifecycle, &chat_backend, &installed, &loaded, &mut history, ctx,
             explicit_model,
+            &registry,
             move |ev| {
                 let _ = app2.emit("chat:event", serde_json::json!({ "session": sid, "event": ev }));
             });
@@ -342,11 +368,6 @@ mod tests {
     impl Lifecycle for OkLifecycle { fn ensure_loaded(&self, _m: &str) -> Result<(), String> { Ok(()) } }
     struct EchoBackend;
     impl ChatBackend for EchoBackend {
-        fn stream(&self, _m: &str, _h: &[Message], on: &mut dyn FnMut(String)) -> Result<Usage, String> {
-            on("Hi".into());
-            on("!".into());
-            Ok(Usage { prompt_tokens: 1, completion_tokens: 2 })
-        }
         fn step(&self, _m: &str, _msgs: &[serde_json::Value], _tools: &serde_json::Value,
                 on: &mut dyn FnMut(String)) -> Result<StepResult, String> {
             on("Hi".into());
@@ -356,9 +377,6 @@ mod tests {
     }
     struct FailBackend;
     impl ChatBackend for FailBackend {
-        fn stream(&self, _m: &str, _h: &[Message], _on: &mut dyn FnMut(String)) -> Result<Usage, String> {
-            Err("boom".into())
-        }
         fn step(&self, _m: &str, _msgs: &[serde_json::Value], _tools: &serde_json::Value,
                 _on: &mut dyn FnMut(String)) -> Result<StepResult, String> {
             Err("boom".into())
@@ -374,6 +392,8 @@ mod tests {
         )
     }
 
+    fn reg() -> tools::ToolRegistry { tools::ToolRegistry::with_defaults() }
+
     #[test]
     fn happy_path_emits_routed_tokens_done() {
         let (router, resolver, life, models) = deps();
@@ -381,7 +401,7 @@ mod tests {
         let mut evs = vec![];
         run_turn(&router, &resolver, &life, &EchoBackend, &models, &[], &mut hist,
             TurnContext { text: "hello".into(), has_image: false, explicit_group: None },
-            None,
+            None, &reg(),
             |e| evs.push(e));
         assert!(matches!(evs[0], BrainEvent::Routed { .. }));
         assert_eq!(evs[1], BrainEvent::Token { text: "Hi".into() });
@@ -397,7 +417,7 @@ mod tests {
         let mut evs = vec![];
         run_turn(&router, &resolver, &life, &FailBackend, &models, &[], &mut hist,
             TurnContext { text: "hi".into(), has_image: false, explicit_group: None },
-            None,
+            None, &reg(),
             |e| evs.push(e));
         assert!(matches!(evs.last().unwrap(), BrainEvent::Error { .. }));
     }
@@ -409,7 +429,7 @@ mod tests {
         let mut evs = vec![];
         run_turn(&router, &resolver, &life, &EchoBackend, &[], &[], &mut hist,
             TurnContext { text: "hi".into(), has_image: false, explicit_group: None },
-            None,
+            None, &reg(),
             |e| evs.push(e));
         assert_eq!(evs, vec![BrainEvent::Error { message: "no model installed".into() }]);
     }
@@ -422,7 +442,7 @@ mod tests {
         // models has [{id:"gen", group:"chat"}]; pin it explicitly
         run_turn(&router, &resolver, &life, &EchoBackend, &models, &[], &mut hist,
             TurnContext { text: "anything".into(), has_image: false, explicit_group: None },
-            Some("gen".to_string()),
+            Some("gen".to_string()), &reg(),
             |e| evs.push(e));
         match &evs[0] {
             BrainEvent::Routed { model_id, reason, .. } => {
@@ -431,5 +451,35 @@ mod tests {
             }
             other => panic!("expected Routed, got {other:?}"),
         }
+    }
+
+    struct ToolThenAnswer { calls: std::cell::Cell<u32> }
+    impl ChatBackend for ToolThenAnswer {
+        fn step(&self, _m: &str, _msgs: &[serde_json::Value], _tools: &serde_json::Value,
+                _on: &mut dyn FnMut(String)) -> Result<StepResult, String> {
+            if self.calls.get() == 0 {
+                self.calls.set(1);
+                Ok(StepResult { content: String::new(), tool_calls: vec![
+                    ToolCall { id: "1".into(), name: "calculate".into(), arguments: r#"{"expression":"6*7"}"#.into() }
+                ]})
+            } else {
+                Ok(StepResult { content: "The answer is 42.".into(), tool_calls: vec![] })
+            }
+        }
+    }
+
+    #[test]
+    fn tool_loop_runs_tool_then_answers() {
+        let (router, resolver, life, models) = deps();
+        let mut hist = vec![];
+        let mut evs = vec![];
+        run_turn(&router, &resolver, &life, &ToolThenAnswer { calls: std::cell::Cell::new(0) },
+            &models, &[], &mut hist,
+            TurnContext { text: "what is 6*7".into(), has_image: false, explicit_group: None },
+            None, &reg(), |e| evs.push(e));
+        assert!(evs.iter().any(|e| matches!(e, BrainEvent::ToolCall { name, .. } if name == "calculate")));
+        assert!(evs.iter().any(|e| matches!(e, BrainEvent::ToolResult { ok: true, .. })));
+        assert!(matches!(evs.last().unwrap(), BrainEvent::Done { .. }));
+        assert_eq!(hist.last().unwrap().content, "The answer is 42.");
     }
 }
