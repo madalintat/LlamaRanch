@@ -64,9 +64,8 @@ pub fn preset_for(models: &[Model], overrides: &BTreeMap<String, ModelOverride>)
     }
     // Overrides for models not in our folder (HF-cached): the router merges a
     // custom `hf-repo` section with its own cached preset and honors our keys.
-    let local_ids: std::collections::HashSet<&str> = models.iter().map(|m| m.id.as_str()).collect();
     for (id, o) in overrides {
-        if local_ids.contains(id.as_str()) {
+        if models.iter().any(|m| m.id == *id) {
             continue;
         }
         s.push_str(&format!("[{id}]\n"));
@@ -547,6 +546,7 @@ mod tests {
         // local model: plain section + override, NO hf-repo line
         assert!(ini.contains("[Local]\nmodel = /m/l.gguf\nctx-size = 4096\n"));
         assert!(!ini.contains("[Local]\nmodel = /m/l.gguf\nhf-repo"));
+        assert!(!ini.contains("hf-repo = Local"));
         // cached override: hf-repo section
         assert!(ini.contains("[org/repo:Q4]\nhf-repo = org/repo:Q4\nctx-size = 8192\n"));
     }
