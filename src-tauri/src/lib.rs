@@ -1,3 +1,4 @@
+mod brain;
 mod catalog;
 mod config;
 mod scanner;
