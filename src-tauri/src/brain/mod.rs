@@ -106,7 +106,10 @@ pub enum BrainEvent {
 
 /// In-memory conversation history per session. (Persistence is Phase 5.)
 #[derive(Default)]
-pub struct Sessions(pub Mutex<HashMap<String, Vec<Message>>>);
+pub struct Sessions {
+    pub map: Mutex<HashMap<String, Vec<Message>>>,
+    pub next: std::sync::atomic::AtomicUsize,
+}
 
 /// Run one chat turn: route → resolve → ensure-loaded → stream. Emits events via `emit`.
 /// Pure of Tauri/threads so it is unit-testable with mocked deps.
@@ -220,10 +223,9 @@ fn classify_once(port: u16, model: &str, text: &str) -> Option<String> {
 
 #[tauri::command]
 pub fn chat_new_session(sessions: State<Sessions>) -> String {
-    // monotonic, no RNG (Date/random unavailable in our constraints): count-based id
-    let mut map = sessions.0.lock().unwrap();
-    let id = format!("s{}", map.len() + 1);
-    map.insert(id.clone(), Vec::new());
+    let n = sessions.next.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+    let id = format!("s{n}");
+    sessions.map.lock().unwrap().insert(id.clone(), Vec::new());
     id
 }
 
@@ -242,9 +244,10 @@ pub fn chat_send<R: Runtime>(
     app: AppHandle<R>,
     cfg: State<AppConfig>,
 ) {
-    let port = cfg.0.lock().unwrap().port;
-    let models_dir = cfg.0.lock().unwrap().models_dir.clone();
-    let general = cfg.0.lock().unwrap().general_model.clone();
+    let (port, models_dir, general) = {
+        let c = cfg.0.lock().unwrap();
+        (c.port, c.models_dir.clone(), c.general_model.clone())
+    };
 
     std::thread::spawn(move || {
         let installed: Vec<ModelLite> = scanner::scan(Path::new(&models_dir))
@@ -266,7 +269,7 @@ pub fn chat_send<R: Runtime>(
         let chat_backend = RouterChatBackend { port };
 
         let sessions = app.state::<Sessions>();
-        let mut history = sessions.0.lock().unwrap().get(&session_id).cloned().unwrap_or_default();
+        let mut history = sessions.map.lock().unwrap().get(&session_id).cloned().unwrap_or_default();
 
         let ctx = TurnContext { text: message, has_image, explicit_group };
         let app2 = app.clone();
@@ -275,7 +278,10 @@ pub fn chat_send<R: Runtime>(
             let _ = app2.emit("chat:event", serde_json::json!({ "session": sid, "event": ev }));
         });
 
-        sessions.0.lock().unwrap().insert(session_id, history);
+        // NOTE: concurrent sends to the SAME session would clobber the slower
+        // turn's history (read-then-write). The UI disables send while streaming
+        // to prevent this in Phase 1; durable per-session locking is Phase 5.
+        sessions.map.lock().unwrap().insert(session_id, history);
     });
 }
 
