@@ -1,7 +1,8 @@
 name: build
 
-# Builds LlamaRanch on Linux and Windows (Tauri can't cross-compile). On a v*
-# tag the signed installers + updater latest.json are attached to one GitHub
+# Builds LlamaRanch on Linux and Windows, x86_64 and arm64 (Tauri can't
+# cross-compile, so each target builds on its own native runner). On a v* tag
+# the signed installers + updater latest.json are attached to one GitHub
 # Release; on manual runs they are uploaded as workflow artifacts.
 on:
   push:
@@ -43,8 +44,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: ubuntu-24.04
-          - platform: windows-latest
+          - platform: ubuntu-24.04      # Linux x86_64
+          - platform: ubuntu-24.04-arm  # Linux arm64
+          - platform: windows-latest    # Windows x86_64
+          - platform: windows-11-arm    # Windows on Arm (arm64)
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +60,7 @@ jobs:
           workspaces: src-tauri
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-24.04'
+        if: startsWith(matrix.platform, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install -y \
