@@ -12,8 +12,11 @@ const log = document.getElementById("log") as HTMLDivElement;
 const input = document.getElementById("input") as HTMLTextAreaElement;
 const send = document.getElementById("send") as HTMLButtonElement;
 const form = document.getElementById("composer") as HTMLFormElement;
+const modelPick = document.getElementById("model-pick") as HTMLSelectElement;
 
 type PoolView = { resident: { id: string; status: string; pinned: boolean }[]; active: string | null };
+
+type ModelView = { id: string; name: string; group: string; local: boolean; need_download: boolean };
 
 async function refreshPool() {
   try {
@@ -29,6 +32,20 @@ async function refreshPool() {
     }
   } catch {
     /* router not ready yet — leave the strip empty */
+  }
+}
+
+async function loadPicker() {
+  try {
+    const models = await invoke<ModelView[]>("list_models");
+    for (const m of models.filter((x) => x.local || !x.need_download)) {
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = m.name;
+      modelPick.appendChild(opt);
+    }
+  } catch {
+    /* leave just "Auto" */
   }
 }
 
@@ -53,6 +70,7 @@ async function init() {
   try {
     session = await invoke<string>("chat_new_session");
     refreshPool();
+    loadPicker();
     await listen<{ session: string; event: BrainEvent }>("chat:event", ({ payload }) => {
       if (payload.session !== session) return;
       const ev = payload.event;
@@ -84,9 +102,10 @@ form.addEventListener("submit", async (e) => {
   if (!text) return;
   bubble("user", text);
   input.value = "";
+  const picked = modelPick.value || null;
   setStreaming(true);
   try {
-    await invoke("chat_send", { sessionId: session, message: text, hasImage: false, explicitGroup: null });
+    await invoke("chat_send", { sessionId: session, message: text, hasImage: false, explicitGroup: null, explicitModel: picked });
   } catch (err) {
     bubble("error", String(err));
     setStreaming(false);
