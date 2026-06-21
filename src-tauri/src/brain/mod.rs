@@ -1,5 +1,6 @@
 //! The harness brain: routes each chat turn to the best local expert model.
 pub mod backend;
+pub mod pool;
 pub mod resolver;
 pub mod router;
 
