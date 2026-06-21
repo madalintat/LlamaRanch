@@ -43,6 +43,9 @@ pub struct Config {
     /// Small general-purpose model used for turn classification.
     #[serde(default = "default_general_model")]
     pub general_model: String,
+    /// Small embedding model used by the router's fast-path gate.
+    #[serde(default = "default_embedding_model")]
+    pub embedding_model: String,
 }
 
 fn home() -> PathBuf {
@@ -193,6 +196,10 @@ fn default_general_model() -> String {
     "qwen3-1.7b".to_string()
 }
 
+fn default_embedding_model() -> String {
+    "nomic-embed-1.5".to_string()
+}
+
 impl Default for Config {
     fn default() -> Self {
         Config {
@@ -205,6 +212,7 @@ impl Default for Config {
             models_max: default_models_max(),
             model_config: BTreeMap::new(),
             general_model: default_general_model(),
+            embedding_model: default_embedding_model(),
         }
     }
 }

@@ -1,5 +1,6 @@
 //! The harness brain: routes each chat turn to the best local expert model.
 pub mod backend;
+pub mod gate;
 pub mod pool;
 pub mod resolver;
 pub mod router;
@@ -195,13 +196,6 @@ use router::DefaultRouter;
 use std::path::Path;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
-/// Embedding gate calling the router's /v1/embeddings. Phase 1: returns None
-/// (defer to classifier) so routing works before centroids are trained.
-struct RouterGate;
-impl EmbeddingGate for RouterGate {
-    fn category(&self, _text: &str) -> Option<(Category, f32)> { None }
-}
-
 /// Classifier using the small general model via a single, non-streamed call.
 struct RouterClassifier { port: u16, model: String }
 impl Classifier for RouterClassifier {
@@ -259,9 +253,9 @@ pub fn chat_send<R: Runtime>(
     app: AppHandle<R>,
     cfg: State<AppConfig>,
 ) {
-    let (port, models_dir, general, models_max) = {
+    let (port, models_dir, general, models_max, embedding_model) = {
         let c = cfg.0.lock().unwrap();
-        (c.port, c.models_dir.clone(), c.general_model.clone(), c.models_max)
+        (c.port, c.models_dir.clone(), c.general_model.clone(), c.models_max, c.embedding_model.clone())
     };
 
     std::thread::spawn(move || {
@@ -276,7 +270,7 @@ pub fn chat_send<R: Runtime>(
             .collect();
 
         let router = DefaultRouter {
-            gate: RouterGate,
+            gate: gate::EmbedGate::new(port, embedding_model),
             classifier: RouterClassifier { port, model: general.clone() },
         };
         let resolver = DefaultResolver;
