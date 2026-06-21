@@ -4,6 +4,7 @@ pub mod gate;
 pub mod pool;
 pub mod resolver;
 pub mod router;
+pub mod tools;
 
 use serde::{Deserialize, Serialize};
 
