@@ -53,10 +53,10 @@ fn hf_hub_dir() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".cache").join("huggingface").join("hub"))
 }
 
-/// Size of an HF-cached GGUF for a router id like `org/repo:QUANT`, found under
-/// `<hub>/models--org--repo/snapshots/*/`. The quant tag (after `:`) selects the
-/// file; the mmproj projector is skipped. Returns the largest matching weight.
-fn hf_cache_size(hub: &Path, id: &str) -> Option<u64> {
+/// Path of the HF-cached GGUF for a router id like `org/repo:QUANT`, found under
+/// `<hub>/models--org--repo/snapshots/*/`. Quant tag selects the file; mmproj is
+/// skipped. Returns the largest matching weight file.
+fn hf_cache_file(hub: &Path, id: &str) -> Option<PathBuf> {
     let (repo, quant) = match id.rsplit_once(':') {
         Some((r, q)) => (r, Some(q.to_lowercase())),
         None => (id, None),
@@ -64,7 +64,7 @@ fn hf_cache_size(hub: &Path, id: &str) -> Option<u64> {
     let snapshots = hub
         .join(format!("models--{}", repo.replace('/', "--")))
         .join("snapshots");
-    let mut best: Option<u64> = None;
+    let mut best: Option<(u64, PathBuf)> = None;
     for snap in std::fs::read_dir(&snapshots).ok()?.flatten() {
         let p = snap.path();
         if !p.is_dir() {
@@ -86,11 +86,43 @@ fn hf_cache_size(hub: &Path, id: &str) -> Option<u64> {
                     }
                 }
                 let sz = std::fs::metadata(&fp).map(|m| m.len()).unwrap_or(0);
-                best = Some(best.map_or(sz, |b| b.max(sz)));
+                if best.as_ref().map_or(true, |(b, _)| sz > *b) {
+                    best = Some((sz, fp));
+                }
             }
         }
     }
-    best
+    best.map(|(_, p)| p)
+}
+
+fn hf_cache_size(hub: &Path, id: &str) -> Option<u64> {
+    hf_cache_file(hub, id)
+        .and_then(|p| std::fs::metadata(p).ok())
+        .map(|m| m.len())
+}
+
+/// A downloaded model's on-disk gguf: local models dir or the HF cache.
+struct Resolved {
+    path: PathBuf,
+    file_bytes: u64,
+    local: bool,
+}
+
+fn resolve_model(cfg: &Config, id: &str) -> Option<Resolved> {
+    if let Some(m) = scanner::scan(Path::new(&cfg.models_dir))
+        .into_iter()
+        .find(|m| m.id == id)
+    {
+        return Some(Resolved {
+            path: PathBuf::from(&m.path),
+            file_bytes: m.size_bytes,
+            local: true,
+        });
+    }
+    let hub = hf_hub_dir()?;
+    let path = hf_cache_file(&hub, id)?;
+    let file_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+    Some(Resolved { path, file_bytes, local: false })
 }
 
 /// Merge a router model with local info into a view for the UI. `cached_size` is
@@ -581,5 +613,33 @@ mod tests {
     fn hf_cache_size_none_when_absent() {
         let dir = tempfile::tempdir().unwrap();
         assert_eq!(hf_cache_size(dir.path(), "nope/missing:Q4_K_M"), None);
+    }
+
+    #[test]
+    fn hf_cache_file_returns_matching_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let hub = dir.path();
+        let snap = hub.join("models--squ11z1--Mythos-nano-GGUF").join("snapshots").join("abc");
+        std::fs::create_dir_all(&snap).unwrap();
+        let want = snap.join("mythos-nano-Q4_K_M.gguf");
+        std::fs::File::create(&want).unwrap().set_len(1_900_000_000).unwrap();
+        std::fs::File::create(snap.join("mmproj-Q4_K_M.gguf")).unwrap().set_len(5).unwrap();
+        let got = hf_cache_file(hub, "squ11z1/Mythos-nano-GGUF:Q4_K_M").unwrap();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn resolve_model_local_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let models = dir.path().join("chat");
+        std::fs::create_dir_all(&models).unwrap();
+        let f = models.join("MyModel.gguf");
+        std::fs::File::create(&f).unwrap().set_len(2_000_000_000).unwrap();
+        let mut cfg = Config::default();
+        cfg.models_dir = dir.path().to_string_lossy().into_owned();
+        let r = resolve_model(&cfg, "MyModel").unwrap();
+        assert!(r.local);
+        assert_eq!(r.path, f);
+        assert_eq!(r.file_bytes, 2_000_000_000);
     }
 }
