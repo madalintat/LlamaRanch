@@ -39,8 +39,9 @@ jobs:
   build:
     needs: [create-release]
     # run on tags (create-release succeeded) and on manual runs (it was skipped),
-    # but not if create-release actually failed
-    if: ${{ needs.create-release.result == 'success' || needs.create-release.result == 'skipped' }}
+    # but not if create-release actually failed. !cancelled() is required so a
+    # skipped dependency doesn't auto-skip this job on manual (workflow_dispatch) runs.
+    if: ${{ !cancelled() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped') }}
     strategy:
       fail-fast: false
       matrix:
