@@ -120,6 +120,14 @@ pub fn run() {
                 .build(app)?;
 
             start_router(app.handle());
+
+            let h = app.handle().clone();
+            std::thread::spawn(move || {
+                let cfg = h.state::<AppConfig>().0.lock().unwrap().clone();
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                let _ = crate::server::load(cfg.port, &cfg.general_model);
+            });
+
             Ok(())
         })
         .on_window_event(|window, event| {
