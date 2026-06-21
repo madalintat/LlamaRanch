@@ -88,6 +88,19 @@ pub struct Usage {
     pub completion_tokens: u32,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ToolCall {
+    pub id: String,
+    pub name: String,
+    pub arguments: String, // JSON string
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct StepResult {
+    pub content: String,
+    pub tool_calls: Vec<ToolCall>,
+}
+
 /// Streams a completion from a model. Synchronous (ureq); calls `on_token` per chunk.
 pub trait ChatBackend {
     fn stream(
@@ -96,6 +109,15 @@ pub trait ChatBackend {
         messages: &[Message],
         on_token: &mut dyn FnMut(String),
     ) -> Result<Usage, String>;
+
+    /// Tool-aware step: stream content via on_token, return content + any tool calls.
+    fn step(
+        &self,
+        model_id: &str,
+        messages: &[serde_json::Value],
+        tools: &serde_json::Value,
+        on_token: &mut dyn FnMut(String),
+    ) -> Result<StepResult, String>;
 }
 
 /// Ensures a model is loaded and ready before inference.
@@ -325,10 +347,20 @@ mod tests {
             on("!".into());
             Ok(Usage { prompt_tokens: 1, completion_tokens: 2 })
         }
+        fn step(&self, _m: &str, _msgs: &[serde_json::Value], _tools: &serde_json::Value,
+                on: &mut dyn FnMut(String)) -> Result<StepResult, String> {
+            on("Hi".into());
+            on("!".into());
+            Ok(StepResult { content: "Hi!".into(), tool_calls: vec![] })
+        }
     }
     struct FailBackend;
     impl ChatBackend for FailBackend {
         fn stream(&self, _m: &str, _h: &[Message], _on: &mut dyn FnMut(String)) -> Result<Usage, String> {
+            Err("boom".into())
+        }
+        fn step(&self, _m: &str, _msgs: &[serde_json::Value], _tools: &serde_json::Value,
+                _on: &mut dyn FnMut(String)) -> Result<StepResult, String> {
             Err("boom".into())
         }
     }
