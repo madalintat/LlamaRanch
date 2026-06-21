@@ -1,3 +1,4 @@
 import "./brand/theme.ts";
 import { mountDither } from "./dither.ts";
-mountDither();
+// Retain instance reference to avoid stacked loops under HMR.
+export const _dither = mountDither();

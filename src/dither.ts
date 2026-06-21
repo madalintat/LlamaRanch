@@ -6,6 +6,13 @@
 type ImgEntry = { img: HTMLImageElement; ready: boolean };
 type ImgCache = Record<string, ImgEntry>;
 
+const BAYER = [
+  [0, 8, 2, 10],
+  [12, 4, 14, 6],
+  [3, 11, 1, 9],
+  [15, 7, 13, 5],
+];
+
 // Augment HTMLCanvasElement with the transient per-canvas fields used at runtime.
 interface DitherCanvas extends HTMLCanvasElement {
   _lum?: Float32Array;
@@ -16,6 +23,7 @@ export class Dither {
   private t0 = 0;
   private imgCache: ImgCache = {};
   private animated: DitherCanvas[] = [];
+  private counters: Element[] = [];
   private reduce = false;
   private _last = 0;
   private _frame = 0;
@@ -30,6 +38,9 @@ export class Dither {
     this._t = window.setTimeout(() => {
       this.renderStatic();
       this.collectAnimated();
+      if (this.reduce) {
+        this.animated.forEach((cv) => this.draw(cv, 0));
+      }
     }, 160);
     this._r = () => {
       this.renderStatic();
@@ -70,6 +81,7 @@ export class Dither {
         "canvas[data-glyph]"
       ) as NodeListOf<DitherCanvas>),
     ].filter((cv) => this.isAnimated(cv.dataset.glyph));
+    this.counters = [...document.querySelectorAll("[data-counter]")];
   }
 
   private renderStatic(): void {
@@ -105,8 +117,12 @@ export class Dither {
       const t = (now - this.t0) / 1000;
       if ((this._frame = (this._frame || 0) + 1) % 26 === 0) this.sweep();
       (this.animated || []).forEach((cv) => {
-        if (cv.dataset.glyph === "photo" && this._frame % 3 !== 0) return;
-        this.draw(cv, t);
+        try {
+          if (cv.dataset.glyph === "photo" && this._frame % 3 !== 0) return;
+          this.draw(cv, t);
+        } catch {
+          // skip this canvas this frame
+        }
       });
       this.tickCounters(t);
     }
@@ -114,23 +130,20 @@ export class Dither {
   }
 
   private tickCounters(t: number): void {
-    document
-      .querySelectorAll("[data-counter]")
-      .forEach((el, i) => {
-        const base = parseFloat(
-          (el as HTMLElement).dataset.counter ?? "0"
-        );
-        const ph = i * 1.7;
-        const v =
-          base +
-          3 * Math.sin(t * 1.6 + ph) +
-          1.6 * Math.sin(t * 4.3 + ph);
-        el.textContent = String(Math.max(0, Math.round(v)));
-      });
+    this.counters.forEach((el, i) => {
+      const base = parseFloat(
+        (el as HTMLElement).dataset.counter ?? "0"
+      );
+      const ph = i * 1.7;
+      const v =
+        base +
+        3 * Math.sin(t * 1.6 + ph) +
+        1.6 * Math.sin(t * 4.3 + ph);
+      el.textContent = String(Math.max(0, Math.round(v)));
+    });
   }
 
   private getImg(src: string): ImgEntry {
-    if (!this.imgCache) this.imgCache = {};
     let e = this.imgCache[src];
     if (!e) {
       e = { img: new Image(), ready: false };
@@ -159,7 +172,8 @@ export class Dither {
     const oc = document.createElement("canvas");
     oc.width = cols;
     oc.height = rows;
-    const o = oc.getContext("2d") as CanvasRenderingContext2D;
+    const o = oc.getContext("2d");
+    if (!o) return new Float32Array(cols * rows);
     const iw = img.naturalWidth,
       ih = img.naturalHeight;
     if (crop) {
@@ -215,12 +229,6 @@ export class Dither {
     }
     const lum = cv._lum as Float32Array;
     const fade = cv.dataset.fade;
-    const bayer = [
-      [0, 8, 2, 10],
-      [12, 4, 14, 6],
-      [3, 11, 1, 9],
-      [15, 7, 13, 5],
-    ];
     ctx.fillStyle = cv.dataset.color || "#1b1a13";
     const sweepY = (t * 0.05) % 1.25;
     for (let gy = 0; gy < rows; gy++) {
@@ -240,7 +248,7 @@ export class Dither {
           d *= Math.max(0, 1 - (dx * dx + dy * dy) * 0.62);
         }
         if (d <= 0) continue;
-        const th = (bayer[gy & 3][gx & 3] + 0.5) / 16;
+        const th = (BAYER[gy & 3][gx & 3] + 0.5) / 16;
         if (d > th)
           ctx.fillRect(
             Math.round(gx * cell + cell / 2 - s / 2),
@@ -371,12 +379,6 @@ export class Dither {
     const cell = parseFloat(cv.dataset.cell || "3");
     const color = cv.dataset.color || "#15140f";
     const s = Math.max(1, cell - 1);
-    const bayer = [
-      [0, 8, 2, 10],
-      [12, 4, 14, 6],
-      [3, 11, 1, 9],
-      [15, 7, 13, 5],
-    ];
     const dens = this.densityFn(
       cv.dataset.glyph,
       seed,
@@ -394,7 +396,7 @@ export class Dither {
           ny = (py / h) * 2 - 1;
         const d = dens(nx, ny);
         if (d <= 0) continue;
-        const th = (bayer[gy & 3][gx & 3] + 0.5) / 16;
+        const th = (BAYER[gy & 3][gx & 3] + 0.5) / 16;
         if (d > th)
           ctx.fillRect(
             Math.round(px - s / 2),
