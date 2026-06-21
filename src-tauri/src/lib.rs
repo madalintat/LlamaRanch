@@ -4,6 +4,7 @@ mod scanner;
 mod launch;
 mod server;
 mod commands;
+mod gguf;
 
 use commands::AppConfig;
 use server::SharedServer;
@@ -61,6 +62,8 @@ pub fn run() {
             commands::download_model,
             commands::cancel_download,
             commands::delete_model,
+            commands::model_info,
+            commands::set_model_config,
         ])
         .setup(|app| {
             // macOS: menubar-only app — no Dock icon, no Cmd-Tab entry.
@@ -161,7 +164,7 @@ pub fn start_router<R: Runtime>(app: &AppHandle<R>) {
     if let Some(parent) = preset_path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(&preset_path, server::preset_for(&models));
+    let _ = std::fs::write(&preset_path, server::preset_for(&models, &cfg.model_config));
 
     // Capture the generation of the router we just started; if another
     // start_router runs later (settings change, download, delete), `generation`

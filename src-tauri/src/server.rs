@@ -1,6 +1,7 @@
-use crate::config::{self, Config};
+use crate::config::{self, Config, ModelOverride};
 use crate::scanner::Model;
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
 use std::process::{Child, Command};
@@ -32,9 +33,23 @@ impl SharedServer {
     }
 }
 
+/// Render the set override keys for one model section (router preset key names).
+fn override_lines(o: &ModelOverride) -> String {
+    let mut s = String::new();
+    if let Some(v) = o.ctx_size { s.push_str(&format!("ctx-size = {v}\n")); }
+    if let Some(v) = o.temp { s.push_str(&format!("temp = {v}\n")); }
+    if let Some(v) = o.top_p { s.push_str(&format!("top-p = {v}\n")); }
+    if let Some(v) = o.top_k { s.push_str(&format!("top-k = {v}\n")); }
+    if let Some(v) = o.min_p { s.push_str(&format!("min-p = {v}\n")); }
+    if let Some(v) = o.repeat_penalty { s.push_str(&format!("repeat-penalty = {v}\n")); }
+    if let Some(v) = o.presence_penalty { s.push_str(&format!("presence-penalty = {v}\n")); }
+    if let Some(v) = o.frequency_penalty { s.push_str(&format!("frequency-penalty = {v}\n")); }
+    s
+}
+
 /// Render a router preset (.ini) listing each model as its own section, pairing
 /// vision models with their mmproj. Section name = model id.
-pub fn preset_for(models: &[Model]) -> String {
+pub fn preset_for(models: &[Model], overrides: &BTreeMap<String, ModelOverride>) -> String {
     let mut s = String::from("version = 1\n\n");
     for m in models {
         s.push_str(&format!("[{}]\n", m.id));
@@ -42,6 +57,20 @@ pub fn preset_for(models: &[Model]) -> String {
         if let Some(mm) = &m.mmproj_path {
             s.push_str(&format!("mmproj = {mm}\n"));
         }
+        if let Some(o) = overrides.get(&m.id) {
+            s.push_str(&override_lines(o));
+        }
+        s.push('\n');
+    }
+    // Overrides for models not in our folder (HF-cached): the router merges a
+    // custom `hf-repo` section with its own cached preset and honors our keys.
+    for (id, o) in overrides {
+        if models.iter().any(|m| m.id == *id) {
+            continue;
+        }
+        s.push_str(&format!("[{id}]\n"));
+        s.push_str(&format!("hf-repo = {id}\n"));
+        s.push_str(&override_lines(o));
         s.push('\n');
     }
     s
@@ -355,9 +384,35 @@ mod tests {
                 mmproj_path: Some("/m/vision/mmproj.gguf".into()),
             },
         ];
-        let ini = preset_for(&models);
+        let ini = preset_for(&models, &std::collections::BTreeMap::new());
         assert!(ini.contains("[Qwen3-4B]\nmodel = /m/chat/q.gguf\n"));
         assert!(ini.contains("[MiniCPM]\nmodel = /m/vision/v.gguf\nmmproj = /m/vision/mmproj.gguf\n"));
+    }
+
+    #[test]
+    fn override_lines_emits_only_set_keys() {
+        use crate::config::ModelOverride;
+        let o = ModelOverride { ctx_size: Some(8192), temp: Some(0.7), top_k: Some(40), ..Default::default() };
+        let s = override_lines(&o);
+        assert!(s.contains("ctx-size = 8192\n"));
+        assert!(s.contains("temp = 0.7\n"));
+        assert!(s.contains("top-k = 40\n"));
+        assert!(!s.contains("top-p"));
+        assert!(!s.contains("min-p"));
+    }
+
+    #[test]
+    fn preset_includes_configured_override() {
+        use crate::config::ModelOverride;
+        use std::collections::BTreeMap;
+        let models = vec![Model {
+            id: "Qwen3".into(), name: "Qwen3".into(), group: "chat".into(),
+            path: "/m/q.gguf".into(), size_bytes: 2_000_000_000, mmproj_path: None,
+        }];
+        let mut ov = BTreeMap::new();
+        ov.insert("Qwen3".to_string(), ModelOverride { ctx_size: Some(4096), ..Default::default() });
+        let ini = preset_for(&models, &ov);
+        assert!(ini.contains("[Qwen3]\nmodel = /m/q.gguf\nctx-size = 4096\n"));
     }
 
     #[test]
@@ -474,5 +529,25 @@ mod tests {
     fn hf_repo_none_when_absent() {
         let args = vec!["--jinja".to_string(), "--fit".to_string(), "on".to_string()];
         assert_eq!(hf_repo_from_args(&args), None);
+    }
+
+    #[test]
+    fn preset_emits_hf_repo_section_for_cached_override() {
+        use crate::config::ModelOverride;
+        use std::collections::BTreeMap;
+        let models = vec![Model {
+            id: "Local".into(), name: "Local".into(), group: "chat".into(),
+            path: "/m/l.gguf".into(), size_bytes: 2_000_000_000, mmproj_path: None,
+        }];
+        let mut ov = BTreeMap::new();
+        ov.insert("Local".to_string(), ModelOverride { ctx_size: Some(4096), ..Default::default() });
+        ov.insert("org/repo:Q4".to_string(), ModelOverride { ctx_size: Some(8192), ..Default::default() });
+        let ini = preset_for(&models, &ov);
+        // local model: plain section + override, NO hf-repo line
+        assert!(ini.contains("[Local]\nmodel = /m/l.gguf\nctx-size = 4096\n"));
+        assert!(!ini.contains("[Local]\nmodel = /m/l.gguf\nhf-repo"));
+        assert!(!ini.contains("hf-repo = Local"));
+        // cached override: hf-repo section
+        assert!(ini.contains("[org/repo:Q4]\nhf-repo = org/repo:Q4\nctx-size = 8192\n"));
     }
 }
