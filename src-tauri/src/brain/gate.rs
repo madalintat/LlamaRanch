@@ -5,6 +5,10 @@ use super::{Category, EmbeddingGate};
 use std::sync::Mutex;
 use std::time::Duration;
 
+/// Managed state that holds the centroid cache across turns.
+#[derive(Default)]
+pub struct GateCache(pub Mutex<Option<Vec<(Category, Vec<f32>)>>>);
+
 /// Cosine similarity of two equal-length vectors. 0.0 on length mismatch or zero norm.
 pub fn cosine(a: &[f32], b: &[f32]) -> f32 {
     if a.len() != b.len() || a.is_empty() {
@@ -51,19 +55,20 @@ const SEEDS: &[(Category, &[&str])] = &[
 ];
 
 /// Embedding-similarity gate. Lazily builds centroids; degrades to None on any failure.
-pub struct EmbedGate {
+/// Borrows a `GateCache` from managed app state so the cache persists across turns.
+pub struct EmbedGate<'a> {
     port: u16,
     model: String,
-    centroids: Mutex<Option<Vec<(Category, Vec<f32>)>>>,
+    cache: &'a GateCache,
 }
 
-impl EmbedGate {
-    pub fn new(port: u16, model: String) -> Self {
-        EmbedGate { port, model, centroids: Mutex::new(None) }
+impl<'a> EmbedGate<'a> {
+    pub fn new(port: u16, model: String, cache: &'a GateCache) -> Self {
+        EmbedGate { port, model, cache }
     }
 
     fn ensure_centroids(&self) -> Option<Vec<(Category, Vec<f32>)>> {
-        if let Some(c) = self.centroids.lock().unwrap().clone() {
+        if let Some(c) = self.cache.0.lock().unwrap().clone() {
             return Some(c);
         }
         // Make sure the embedding model is resident (best-effort).
@@ -93,7 +98,7 @@ impl EmbedGate {
             }
             built.push((*cat, acc));
         }
-        *self.centroids.lock().unwrap() = Some(built.clone());
+        *self.cache.0.lock().unwrap() = Some(built.clone());
         Some(built)
     }
 
@@ -111,7 +116,7 @@ impl EmbedGate {
     }
 }
 
-impl EmbeddingGate for EmbedGate {
+impl EmbeddingGate for EmbedGate<'_> {
     fn category(&self, text: &str) -> Option<(Category, f32)> {
         let centroids = self.ensure_centroids()?;
         let q = self.embed(text)?;

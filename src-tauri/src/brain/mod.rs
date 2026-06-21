@@ -269,8 +269,9 @@ pub fn chat_send<R: Runtime>(
             .map(|m| m.id)
             .collect();
 
+        let gate_state = app.state::<gate::GateCache>();
         let router = DefaultRouter {
-            gate: gate::EmbedGate::new(port, embedding_model),
+            gate: gate::EmbedGate::new(port, embedding_model, gate_state.inner()),
             classifier: RouterClassifier { port, model: general.clone() },
         };
         let resolver = DefaultResolver;
