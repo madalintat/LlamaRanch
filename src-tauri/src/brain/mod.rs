@@ -257,7 +257,7 @@ pub fn chat_send<R: Runtime>(
             .collect();
         let loaded: Vec<String> = server::list_models(port)
             .into_iter()
-            .filter(|m| m.status == "loaded")
+            .filter(|m| m.status == "loaded" || m.status == "sleeping")
             .map(|m| m.id)
             .collect();
 
@@ -268,9 +268,10 @@ pub fn chat_send<R: Runtime>(
         let resolver = DefaultResolver;
         let capacity = (models_max as usize).saturating_sub(1).max(1);
         let pool_state = app.state::<pool::Pool>();
+        let pinned = if models_max <= 1 { Vec::new() } else { vec![general.clone()] };
         let lifecycle = pool::PoolLifecycle {
             port,
-            pinned: vec![general.clone()],
+            pinned,
             capacity,
             pool: pool_state.inner(),
         };

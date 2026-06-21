@@ -60,10 +60,14 @@ use crate::server;
 use serde::Serialize;
 use tauri::State;
 
+fn is_resident(status: &str) -> bool {
+    status == "loaded" || status == "sleeping"
+}
+
 fn resident_ids(port: u16) -> Vec<String> {
     server::list_models(port)
         .into_iter()
-        .filter(|m| m.status == "loaded" || m.status == "sleeping")
+        .filter(|m| is_resident(&m.status))
         .map(|m| m.id)
         .collect()
 }
@@ -80,6 +84,10 @@ pub struct PoolLifecycle<'a> {
 impl Lifecycle for PoolLifecycle<'_> {
     fn ensure_loaded(&self, target: &str) -> Result<(), String> {
         let resident = resident_ids(self.port);
+        if resident.iter().any(|r| r == target) {
+            self.pool.touch(target);
+            return Ok(());
+        }
         for id in plan_eviction(target, &resident, &self.pinned, self.capacity, &self.pool.order()) {
             let _ = server::unload(self.port, &id); // best-effort
         }
@@ -110,7 +118,7 @@ pub fn model_pool(cfg: State<AppConfig>, pool: State<Pool>) -> PoolView {
     };
     let resident = server::list_models(port)
         .into_iter()
-        .filter(|m| m.status == "loaded" || m.status == "sleeping")
+        .filter(|m| is_resident(&m.status))
         .map(|m| PoolEntry { pinned: m.id == general, id: m.id, status: m.status })
         .collect();
     let active = pool.order().into_iter().next();
