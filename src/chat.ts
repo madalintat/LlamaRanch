@@ -30,25 +30,29 @@ function bubble(role: string, text = ""): HTMLDivElement {
 }
 
 async function init() {
-  session = await invoke<string>("chat_new_session");
-  await listen<{ session: string; event: BrainEvent }>("chat:event", ({ payload }) => {
-    if (payload.session !== session) return;
-    const ev = payload.event;
-    if (ev.kind === "routed") {
-      bubble("trace", `routed to ${ev.model_id} · ${ev.category} — ${ev.reason}`);
-      current = bubble("assistant");
-    } else if (ev.kind === "token" && current) {
-      current.textContent += ev.text;
-      log.scrollTop = log.scrollHeight;
-    } else if (ev.kind === "done") {
-      current = null;
-      setStreaming(false);
-    } else if (ev.kind === "error") {
-      bubble("error", ev.message);
-      current = null;
-      setStreaming(false);
-    }
-  });
+  try {
+    session = await invoke<string>("chat_new_session");
+    await listen<{ session: string; event: BrainEvent }>("chat:event", ({ payload }) => {
+      if (payload.session !== session) return;
+      const ev = payload.event;
+      if (ev.kind === "routed") {
+        bubble("trace", `routed to ${ev.model_id} · ${ev.category} — ${ev.reason}`);
+        current = bubble("assistant");
+      } else if (ev.kind === "token" && current) {
+        current.textContent += ev.text;
+        log.scrollTop = log.scrollHeight;
+      } else if (ev.kind === "done") {
+        current = null;
+        setStreaming(false);
+      } else if (ev.kind === "error") {
+        bubble("error", ev.message);
+        current = null;
+        setStreaming(false);
+      }
+    });
+  } catch (err) {
+    bubble("error", `chat init failed: ${String(err)}`);
+  }
 }
 
 form.addEventListener("submit", async (e) => {
