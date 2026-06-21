@@ -62,6 +62,8 @@ pub fn run() {
             commands::download_model,
             commands::cancel_download,
             commands::delete_model,
+            commands::model_info,
+            commands::set_model_config,
         ])
         .setup(|app| {
             // macOS: menubar-only app — no Dock icon, no Cmd-Tab entry.

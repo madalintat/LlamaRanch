@@ -184,6 +184,7 @@ pub fn kv_bytes_per_token(info: &GgufInfo) -> u64 {
 }
 
 /// Rough runtime memory: weights (≈ file size) + KV cache for `ctx` tokens.
+#[allow(dead_code)]
 pub fn est_mem_bytes(file_bytes: u64, kv_per_token: u64, ctx: u32) -> u64 {
     file_bytes + ctx as u64 * kv_per_token
 }

@@ -1,5 +1,6 @@
 use crate::catalog;
-use crate::config::{self, Config};
+use crate::config::{self, Config, ModelOverride};
+use crate::gguf;
 use crate::launch;
 use crate::scanner;
 use crate::server::{self, SharedServer};
@@ -392,6 +393,54 @@ pub fn delete_model(model_id: String, app: AppHandle, cfg: State<AppConfig>) -> 
         if parent != Path::new(&dir) {
             let _ = std::fs::remove_dir(parent);
         }
+    }
+    crate::start_router(&app);
+    Ok(())
+}
+
+#[derive(Serialize)]
+pub struct ModelInfoView {
+    pub native_ctx: u32,
+    pub file_bytes: u64,
+    pub kv_per_token: u64,
+    pub r#override: ModelOverride,
+}
+
+#[tauri::command]
+pub fn model_info(model_id: String, cfg: State<AppConfig>) -> ModelInfoView {
+    let c = cfg_of(&cfg);
+    let m = scanner::scan(Path::new(&c.models_dir))
+        .into_iter()
+        .find(|m| m.id == model_id);
+    let r#override = c.model_config.get(&model_id).cloned().unwrap_or_default();
+    let (native_ctx, file_bytes, kv_per_token) = match m {
+        Some(m) => {
+            let file_bytes = m.size_bytes;
+            match gguf::read_info(Path::new(&m.path)) {
+                Some(info) => (info.n_ctx_train, file_bytes, gguf::kv_bytes_per_token(&info)),
+                None => (0, file_bytes, 0),
+            }
+        }
+        None => (0, 0, 0),
+    };
+    ModelInfoView { native_ctx, file_bytes, kv_per_token, r#override }
+}
+
+#[tauri::command]
+pub fn set_model_config(
+    model_id: String,
+    r#override: ModelOverride,
+    cfg: State<AppConfig>,
+    app: AppHandle,
+) -> Result<(), String> {
+    {
+        let mut c = cfg.0.lock().unwrap();
+        if r#override == ModelOverride::default() {
+            c.model_config.remove(&model_id);
+        } else {
+            c.model_config.insert(model_id, r#override);
+        }
+        config::save_to(&config::config_path(), &c).map_err(|e| e.to_string())?;
     }
     crate::start_router(&app);
     Ok(())
