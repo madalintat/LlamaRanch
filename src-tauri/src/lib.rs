@@ -4,6 +4,7 @@ mod scanner;
 mod launch;
 mod server;
 mod commands;
+mod gguf;
 
 use commands::AppConfig;
 use server::SharedServer;
