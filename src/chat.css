@@ -7,6 +7,7 @@ body { margin: 0; font: 14px/1.5 -apple-system, system-ui, sans-serif; backgroun
 .msg--assistant { align-self: flex-start; background: #221d18; }
 .msg--trace { align-self: center; font-size: 12px; opacity: 0.6; background: none; padding: 2px 8px; }
 .msg--error { align-self: stretch; background: rgba(232,115,106,0.15); color: #e8736a; }
+.msg--tool { align-self: stretch; background: #1b2118; color: #9fb98a; font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
 .composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #2a241d; }
 .composer textarea { flex: 1; resize: none; background: #1b1611; color: inherit; border: 1px solid #3a2f24; border-radius: 10px; padding: 8px 10px; font: inherit; }
 .composer button { padding: 0 16px; border: 0; border-radius: 10px; background: #e8995a; color: #1a140d; font-weight: 600; cursor: pointer; }

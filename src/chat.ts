@@ -5,7 +5,9 @@ type BrainEvent =
   | { kind: "routed"; model_id: string; category: string; reason: string }
   | { kind: "token"; text: string }
   | { kind: "done"; usage: { prompt_tokens: number; completion_tokens: number } }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string }
+  | { kind: "tool_call"; name: string; args: string }
+  | { kind: "tool_result"; name: string; ok: boolean; preview: string };
 
 const pool = document.getElementById("pool") as HTMLDivElement;
 const log = document.getElementById("log") as HTMLDivElement;
@@ -76,9 +78,15 @@ async function init() {
       const ev = payload.event;
       if (ev.kind === "routed") {
         bubble("trace", `routed to ${ev.model_id} · ${ev.category} — ${ev.reason}`);
-        current = bubble("assistant");
         refreshPool();
-      } else if (ev.kind === "token" && current) {
+      } else if (ev.kind === "tool_call") {
+        bubble("tool", `🔧 ${ev.name}(${ev.args})`);
+        current = null;
+      } else if (ev.kind === "tool_result") {
+        const el = bubble("tool", `${ev.ok ? "✓" : "✗"} ${ev.name} → ${ev.preview}`);
+        if (!ev.ok) el.classList.add("msg--error");
+      } else if (ev.kind === "token") {
+        if (!current) current = bubble("assistant");
         current.textContent += ev.text;
         log.scrollTop = log.scrollHeight;
       } else if (ev.kind === "done") {
