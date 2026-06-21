@@ -183,11 +183,6 @@ pub fn kv_bytes_per_token(info: &GgufInfo) -> u64 {
     4 * info.n_layers as u64 * info.n_kv_heads as u64 * info.head_dim as u64
 }
 
-/// Rough runtime memory: weights (≈ file size) + KV cache for `ctx` tokens.
-#[allow(dead_code)]
-pub fn est_mem_bytes(file_bytes: u64, kv_per_token: u64, ctx: u32) -> u64 {
-    file_bytes + ctx as u64 * kv_per_token
-}
 
 #[cfg(test)]
 mod tests {
@@ -246,11 +241,9 @@ mod tests {
     }
 
     #[test]
-    fn kv_and_mem_math() {
+    fn kv_bytes_per_token_math() {
         let info = GgufInfo { n_layers: 4, n_ctx_train: 2048, n_kv_heads: 2, head_dim: 8 };
         // 4 * 4 * 2 * 8 = 256 bytes/token
         assert_eq!(kv_bytes_per_token(&info), 256);
-        // 1000 + 10*256 = 3560
-        assert_eq!(est_mem_bytes(1000, 256, 10), 3560);
     }
 }
