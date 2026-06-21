@@ -1,5 +1,6 @@
 //! The harness brain: routes each chat turn to the best local expert model.
 pub mod backend;
+pub mod gate;
 pub mod pool;
 pub mod resolver;
 pub mod router;
@@ -23,6 +24,16 @@ impl Category {
             Category::Code => "coding",
             Category::Reasoning => "reasoning",
             Category::Vision => "vision",
+        }
+    }
+
+    /// Inverse of `group()`: catalog group string → category (default General).
+    pub fn from_group(group: &str) -> Category {
+        match group {
+            "coding" => Category::Code,
+            "reasoning" => Category::Reasoning,
+            "vision" => Category::Vision,
+            _ => Category::General,
         }
     }
 }
@@ -124,35 +135,38 @@ pub fn run_turn<E: FnMut(BrainEvent)>(
     loaded: &[String],
     history: &mut Vec<Message>,
     ctx: TurnContext,
+    override_model: Option<String>,
     mut emit: E,
 ) {
     history.push(Message { role: "user".into(), content: ctx.text.clone() });
 
-    let mut decision = router.route(&ctx);
-    let model_id = match resolver.resolve(decision.category, installed, loaded) {
-        Some(id) => id,
-        None => {
-            // fall back to a general model so a turn is never stranded
-            match resolver.resolve(Category::General, installed, loaded) {
-                Some(id) => {
-                    decision.reason =
-                        format!("no {} model installed — using general", decision.category.group());
-                    decision.category = Category::General;
-                    id
-                }
+    // Decide (category, reason, model_id) — either a pinned override or routing.
+    let (category, reason, model_id) = if let Some(id) = override_model {
+        let cat = installed
+            .iter()
+            .find(|m| m.id == id)
+            .map(|m| Category::from_group(&m.group))
+            .unwrap_or(Category::General);
+        (cat, format!("you picked {id}"), id)
+    } else {
+        let decision = router.route(&ctx);
+        match resolver.resolve(decision.category, installed, loaded) {
+            Some(id) => (decision.category, decision.reason, id),
+            None => match resolver.resolve(Category::General, installed, loaded) {
+                Some(id) => (
+                    Category::General,
+                    format!("no {} model installed — using general", decision.category.group()),
+                    id,
+                ),
                 None => {
                     emit(BrainEvent::Error { message: "no model installed".into() });
                     return;
                 }
-            }
+            },
         }
     };
 
-    emit(BrainEvent::Routed {
-        model_id: model_id.clone(),
-        category: decision.category,
-        reason: decision.reason,
-    });
+    emit(BrainEvent::Routed { model_id: model_id.clone(), category, reason });
 
     if let Err(e) = lifecycle.ensure_loaded(&model_id) {
         emit(BrainEvent::Error { message: format!("could not load {model_id}: {e}") });
@@ -181,13 +195,6 @@ use resolver::DefaultResolver;
 use router::DefaultRouter;
 use std::path::Path;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
-
-/// Embedding gate calling the router's /v1/embeddings. Phase 1: returns None
-/// (defer to classifier) so routing works before centroids are trained.
-struct RouterGate;
-impl EmbeddingGate for RouterGate {
-    fn category(&self, _text: &str) -> Option<(Category, f32)> { None }
-}
 
 /// Classifier using the small general model via a single, non-streamed call.
 struct RouterClassifier { port: u16, model: String }
@@ -242,12 +249,13 @@ pub fn chat_send<R: Runtime>(
     message: String,
     has_image: bool,
     explicit_group: Option<String>,
+    explicit_model: Option<String>,
     app: AppHandle<R>,
     cfg: State<AppConfig>,
 ) {
-    let (port, models_dir, general, models_max) = {
+    let (port, models_dir, general, models_max, embedding_model) = {
         let c = cfg.0.lock().unwrap();
-        (c.port, c.models_dir.clone(), c.general_model.clone(), c.models_max)
+        (c.port, c.models_dir.clone(), c.general_model.clone(), c.models_max, c.embedding_model.clone())
     };
 
     std::thread::spawn(move || {
@@ -261,8 +269,9 @@ pub fn chat_send<R: Runtime>(
             .map(|m| m.id)
             .collect();
 
+        let gate_state = app.state::<gate::GateCache>();
         let router = DefaultRouter {
-            gate: RouterGate,
+            gate: gate::EmbedGate::new(port, embedding_model, gate_state.inner()),
             classifier: RouterClassifier { port, model: general.clone() },
         };
         let resolver = DefaultResolver;
@@ -283,9 +292,11 @@ pub fn chat_send<R: Runtime>(
         let ctx = TurnContext { text: message, has_image, explicit_group };
         let app2 = app.clone();
         let sid = session_id.clone();
-        run_turn(&router, &resolver, &lifecycle, &chat_backend, &installed, &loaded, &mut history, ctx, move |ev| {
-            let _ = app2.emit("chat:event", serde_json::json!({ "session": sid, "event": ev }));
-        });
+        run_turn(&router, &resolver, &lifecycle, &chat_backend, &installed, &loaded, &mut history, ctx,
+            explicit_model,
+            move |ev| {
+                let _ = app2.emit("chat:event", serde_json::json!({ "session": sid, "event": ev }));
+            });
 
         // NOTE: concurrent sends to the SAME session would clobber the slower
         // turn's history (read-then-write). The UI disables send while streaming
@@ -337,6 +348,7 @@ mod tests {
         let mut evs = vec![];
         run_turn(&router, &resolver, &life, &EchoBackend, &models, &[], &mut hist,
             TurnContext { text: "hello".into(), has_image: false, explicit_group: None },
+            None,
             |e| evs.push(e));
         assert!(matches!(evs[0], BrainEvent::Routed { .. }));
         assert_eq!(evs[1], BrainEvent::Token { text: "Hi".into() });
@@ -352,6 +364,7 @@ mod tests {
         let mut evs = vec![];
         run_turn(&router, &resolver, &life, &FailBackend, &models, &[], &mut hist,
             TurnContext { text: "hi".into(), has_image: false, explicit_group: None },
+            None,
             |e| evs.push(e));
         assert!(matches!(evs.last().unwrap(), BrainEvent::Error { .. }));
     }
@@ -363,7 +376,27 @@ mod tests {
         let mut evs = vec![];
         run_turn(&router, &resolver, &life, &EchoBackend, &[], &[], &mut hist,
             TurnContext { text: "hi".into(), has_image: false, explicit_group: None },
+            None,
             |e| evs.push(e));
         assert_eq!(evs, vec![BrainEvent::Error { message: "no model installed".into() }]);
+    }
+
+    #[test]
+    fn override_model_bypasses_routing() {
+        let (router, resolver, life, models) = deps();
+        let mut hist = vec![];
+        let mut evs = vec![];
+        // models has [{id:"gen", group:"chat"}]; pin it explicitly
+        run_turn(&router, &resolver, &life, &EchoBackend, &models, &[], &mut hist,
+            TurnContext { text: "anything".into(), has_image: false, explicit_group: None },
+            Some("gen".to_string()),
+            |e| evs.push(e));
+        match &evs[0] {
+            BrainEvent::Routed { model_id, reason, .. } => {
+                assert_eq!(model_id, "gen");
+                assert!(reason.contains("you picked"));
+            }
+            other => panic!("expected Routed, got {other:?}"),
+        }
     }
 }

@@ -50,6 +50,7 @@ pub fn run() {
         .manage(commands::Cancels::default())
         .manage(brain::Sessions::default())
         .manage(brain::pool::Pool::default())
+        .manage(brain::gate::GateCache::default())
         .manage(LastHide::default())
         .invoke_handler(tauri::generate_handler![
             commands::list_models,
