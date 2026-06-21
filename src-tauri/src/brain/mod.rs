@@ -1,5 +1,6 @@
 //! The harness brain: routes each chat turn to the best local expert model.
 pub mod resolver;
+pub mod router;
 
 use serde::{Deserialize, Serialize};
 
@@ -42,4 +43,27 @@ pub struct ModelLite {
 pub struct RouteDecision {
     pub category: Category,
     pub reason: String,
+}
+
+/// Everything known about an incoming turn before routing.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TurnContext {
+    pub text: String,
+    pub has_image: bool,
+    pub explicit_group: Option<String>, // user pinned a model → its catalog group
+}
+
+/// Fast embedding-similarity gate. Returns a category + confidence, or None to defer.
+pub trait EmbeddingGate {
+    fn category(&self, text: &str) -> Option<(Category, f32)>;
+}
+
+/// Tiny-model fallback classifier for ambiguous text.
+pub trait Classifier {
+    fn classify(&self, text: &str) -> Category;
+}
+
+/// Decides the category for a turn.
+pub trait Router {
+    fn route(&self, ctx: &TurnContext) -> RouteDecision;
 }
