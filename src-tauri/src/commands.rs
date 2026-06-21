@@ -106,6 +106,7 @@ struct Resolved {
     path: PathBuf,
     file_bytes: u64,
     local: bool,
+    mmproj_path: Option<PathBuf>,
 }
 
 fn resolve_model(cfg: &Config, id: &str) -> Option<Resolved> {
@@ -117,21 +118,13 @@ fn resolve_model(cfg: &Config, id: &str) -> Option<Resolved> {
             path: PathBuf::from(&m.path),
             file_bytes: m.size_bytes,
             local: true,
+            mmproj_path: m.mmproj_path.as_ref().map(PathBuf::from),
         });
     }
     let hub = hf_hub_dir()?;
     let path = hf_cache_file(&hub, id)?;
     let file_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-    Some(Resolved { path, file_bytes, local: false })
-}
-
-/// The `models--org--repo` cache directory containing `file`, if any.
-fn cache_repo_dir(file: &Path) -> Option<&Path> {
-    file.ancestors().find(|p| {
-        p.file_name()
-            .and_then(|n| n.to_str())
-            .map_or(false, |n| n.starts_with("models--"))
-    })
+    Some(Resolved { path, file_bytes, local: false, mmproj_path: None })
 }
 
 /// Merge a router model with local info into a view for the UI. `cached_size` is
@@ -413,6 +406,38 @@ fn download_file(
     Ok(())
 }
 
+/// Remove a model's on-disk files. Local: the gguf (+ mmproj, + empty subdir).
+/// Cached: ONLY this quant's gguf symlink and the blob it points to, then prune
+/// the snapshot dir if it becomes empty — never the whole repo (other quants).
+fn remove_model_files(c: &Config, r: &Resolved) -> Result<(), String> {
+    if r.local {
+        std::fs::remove_file(&r.path).map_err(|e| e.to_string())?;
+        if let Some(mm) = &r.mmproj_path {
+            let _ = std::fs::remove_file(mm);
+        }
+        if let Some(parent) = r.path.parent() {
+            if parent != Path::new(&c.models_dir) {
+                let _ = std::fs::remove_dir(parent);
+            }
+        }
+        Ok(())
+    } else {
+        // Resolve and remove the blob the snapshot symlink points to (frees the
+        // disk), then the symlink itself. read_link gives a path relative to the
+        // snapshot dir (e.g. ../../blobs/<sha>); the OS resolves the `..` parts.
+        if let Ok(target) = std::fs::read_link(&r.path) {
+            if let Some(snap) = r.path.parent() {
+                let _ = std::fs::remove_file(snap.join(&target));
+            }
+        }
+        std::fs::remove_file(&r.path).map_err(|e| e.to_string())?;
+        if let Some(snap) = r.path.parent() {
+            let _ = std::fs::remove_dir(snap); // best-effort; only if now empty
+        }
+        Ok(())
+    }
+}
+
 #[tauri::command]
 pub fn delete_model(model_id: String, app: AppHandle, cfg: State<AppConfig>) -> Result<(), String> {
     let c = cfg_of(&cfg);
@@ -420,36 +445,21 @@ pub fn delete_model(model_id: String, app: AppHandle, cfg: State<AppConfig>) -> 
         resolve_model(&c, &model_id).ok_or_else(|| "only downloaded models can be deleted".to_string())?;
     let _ = server::unload(c.port, &model_id);
 
-    if resolved.local {
-        // capture mmproj before removing the main file
-        let m = scanner::scan(Path::new(&c.models_dir))
-            .into_iter()
-            .find(|m| m.id == model_id);
-        std::fs::remove_file(&resolved.path).map_err(|e| e.to_string())?;
-        if let Some(m) = m {
-            if let Some(mm) = &m.mmproj_path {
-                let _ = std::fs::remove_file(mm);
-            }
-        }
-        if let Some(parent) = resolved.path.parent() {
-            if parent != Path::new(&c.models_dir) {
-                let _ = std::fs::remove_dir(parent);
-            }
-        }
-    } else {
-        let repo = cache_repo_dir(&resolved.path)
-            .ok_or_else(|| "could not locate cache directory".to_string())?;
-        std::fs::remove_dir_all(repo).map_err(|e| e.to_string())?;
-    }
+    let removed = remove_model_files(&c, &resolved);
 
-    // drop any saved override for the now-gone model
-    {
+    // Drop the override only if the files actually went away.
+    let save = if removed.is_ok() {
         let mut cc = cfg.0.lock().unwrap();
         cc.model_config.remove(&model_id);
-        let _ = config::save_to(&config::config_path(), &cc);
-    }
+        config::save_to(&config::config_path(), &cc).map_err(|e| e.to_string())
+    } else {
+        Ok(())
+    };
+
+    // Always restart so a partial failure never leaves the model unloaded.
     crate::start_router(&app);
-    Ok(())
+    removed?;
+    save
 }
 
 #[derive(Serialize)]
@@ -659,13 +669,4 @@ mod tests {
         assert_eq!(r.file_bytes, 2_000_000_000);
     }
 
-    #[test]
-    fn cache_repo_dir_finds_models_dir() {
-        let p = Path::new("/h/.cache/huggingface/hub/models--org--repo/snapshots/abc/x.gguf");
-        assert_eq!(
-            cache_repo_dir(p).unwrap(),
-            Path::new("/h/.cache/huggingface/hub/models--org--repo")
-        );
-        assert_eq!(cache_repo_dir(Path::new("/tmp/m/x.gguf")), None);
-    }
 }
