@@ -1,5 +1,6 @@
 import "../assets/fonts/fonts.css";
 import "./tokens.css";
+import "./components.css";
 
 export type Theme = "light" | "dark" | "system";
 
