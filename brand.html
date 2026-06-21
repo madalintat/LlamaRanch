@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LlamaRanch · Brand Style Guide</title>
+  <script type="module" src="/src/brand.ts"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     BRAND STYLE GUIDE — warm paper bg, 1240 px column
+     ═══════════════════════════════════════════════════════════ -->
+<div style="min-width:100%; width:max-content; min-height:100vh; box-sizing:border-box; padding:0; background:var(--paper); color:var(--ink);">
+<div style="width:1240px; padding:54px 60px 90px;">
+
+  <!-- ── MASTHEAD ────────────────────────────────────────────── -->
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; padding-bottom:22px; border-bottom:1px solid var(--ink);">
+    <div style="display:flex; align-items:center; gap:18px;">
+      <img src="/src/assets/llama.svg" alt="LlamaRanch" width="54" height="54" style="border-radius:11px; display:block;" />
+      <div>
+        <div style="font-size:26px; font-weight:600; letter-spacing:-.02em; line-height:1;">Llama<span style="font-weight:400;">Ranch</span></div>
+        <div class="mono" style="font-size:11px; letter-spacing:.04em; color:var(--muted); margin-top:7px;">a quiet ranch for your local models</div>
+      </div>
+    </div>
+    <div style="display:flex; gap:30px; font-size:10.5px; letter-spacing:.08em; color:var(--muted); text-transform:uppercase; padding-top:4px;" class="mono">
+      <div><div style="color:var(--faint);">design system</div><div style="color:var(--ink); margin-top:4px;">rev 1.0</div></div>
+      <div><div style="color:var(--faint);">endpoint</div><div style="color:var(--ink); margin-top:4px;">127.0.0.1:2276</div></div>
+      <div><div style="color:var(--faint);">licence</div><div style="color:var(--ink); margin-top:4px;">MIT</div></div>
+    </div>
+  </div>
+
+  <!-- ── Dither material band under masthead ───────────────── -->
+  <div class="hairline" style="height:30px; border-bottom:1px solid var(--line); display:flex; align-items:center;">
+    <canvas data-glyph="band" data-seed="2" data-cell="3" data-color="#bdb9ad" style="width:1120px; height:30px;"></canvas>
+  </div>
+
+  <!-- ── Section heading ───────────────────────────────────── -->
+  <div style="display:flex; align-items:baseline; justify-content:space-between; margin:40px 0 26px;">
+    <div style="max-width:30ch;">
+      <div class="label" style="margin-bottom:14px;">parts catalog · P-01 through P-12</div>
+      <h1 class="serif" style="font-weight:400; font-size:42px; line-height:1.05; letter-spacing:-.01em; margin:0;">Components.<br/>Tokens. Done.</h1>
+    </div>
+    <p style="font-size:14px; line-height:1.6; color:var(--muted); max-width:38ch; margin:0; padding-bottom:4px;">
+      Pure black on warm paper, monospace part-numbers, square status LEDs, and dither used only as material — in the chrome and behind the running model.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       PARTS CATALOG
+       ══════════════════════════════════════════════════════════ -->
+
+  <!-- ── P-01 · Buttons ────────────────────────────────────── -->
+  <div style="display:flex; align-items:center; gap:16px; margin:32px 0 18px;">
+    <span class="label">P-01 · buttons</span>
+    <span style="flex:1; height:1px; background:var(--line);"></span>
+  </div>
+  <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding-bottom:28px; border-bottom:1px solid var(--line-2);">
+    <button class="btn btn--primary">Primary</button>
+    <button class="btn btn--ghost">Ghost</button>
+    <button class="ubtn">copy</button>
+    <button class="ubtn">load</button>
+    <button class="ubtn">stop</button>
+    <button class="ubtn">get</button>
+    <button class="ubtn ubtn--bordered">webui</button>
+  </div>
+
+  <!-- ── P-02 · Toggles ────────────────────────────────────── -->
+  <div style="display:flex; align-items:center; gap:16px; margin:28px 0 18px;">
+    <span class="label">P-02 · toggles</span>
+    <span style="flex:1; height:1px; background:var(--line);"></span>
+  </div>
+  <div style="display:flex; align-items:center; gap:20px; padding-bottom:28px; border-bottom:1px solid var(--line-2);">
+    <div class="toggle toggle--on"></div>
+    <div class="toggle toggle--off"></div>
+    <div class="mono" style="font-size:11px; color:var(--muted);">on · off</div>
+  </div>
+
+  <!-- ── P-03 · Tabs ───────────────────────────────────────── -->
+  <div style="display:flex; align-items:center; gap:16px; margin:28px 0 18px;">
+    <span class="label">P-03 · tabs</span>
+    <span style="flex:1; height:1px; background:var(--line);"></span>
+  </div>
+  <div style="padding-bottom:28px; border-bottom:1px solid var(--line-2);">
+    <div class="tabs">
+      <button class="tab tab--active">installed</button>
+      <button class="tab">discover</button>
+      <button class="tab">settings</button>
+    </div>
+  </div>
+
+  <!-- ── P-04 · Status LEDs ────────────────────────────────── -->
+  <div style="display:flex; align-items:center; gap:16px; margin:28px 0 18px;">
+    <span class="label">P-04 · status leds</span>
+    <span style="flex:1; height:1px; background:var(--line);"></span>
+  </div>
+  <div style="display:flex; align-items:center; gap:20px; padding-bottom:28px; border-bottom:1px solid var(--line-2);">
+    <div class="led led--on"></div>
+    <div class="led led--idle"></div>
+    <div class="led led--cloud"></div>
+    <div class="led led--sm"></div>
+    <div class="mono" style="font-size:11px; color:var(--muted);">running · idle · cloud · sm pulse</div>
+  </div>
+
+  <!-- ── P-05 · Input field ────────────────────────────────── -->
+  <div style="display:flex; align-items:center; gap:16px; margin:28px 0 18px;">
+    <span class="label">P-05 · input field</span>
+    <span style="flex:1; height:1px; background:var(--line);"></span>
+  </div>
+  <div style="padding-bottom:28px; border-bottom:1px solid var(--line-2); max-width:360px;">
+    <div class="field" style="display:flex; align-items:center; gap:0;">
+      <span>gem</span><span class="caret"></span><span style="color:var(--faint-2);">&nbsp;switch model…</span>
+    </div>
+  </div>
+
+  <!-- ── P-06 · Slider ─────────────────────────────────────── -->
+  <div style="display:flex; align-items:center; gap:16px; margin:28px 0 18px;">
+    <span class="label">P-06 · slider</span>
+    <span style="flex:1; height:1px; background:var(--line);"></span>
+  </div>
+  <div style="padding-bottom:28px; border-bottom:1px solid var(--line-2); max-width:360px;">
+    <div class="slider">
+      <div class="slider__fill" style="width:60%;"></div>
+      <div class="slider__knob" style="left:60%;"></div>
+    </div>
+  </div>
+
+  <!-- ── P-07 · Tags ───────────────────────────────────────── -->
+  <div style="display:flex; align-items:center; gap:16px; margin:28px 0 18px;">
+    <span class="label">P-07 · tags</span>
+    <span style="flex:1; height:1px; background:var(--line);"></span>
+  </div>
+  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-bottom:28px; border-bottom:1px solid var(--line-2);">
+    <span class="tag">LOCAL</span>
+    <span class="tag">ONLINE</span>
+    <span class="tag">VISION</span>
+    <span class="tag">GPU</span>
+    <span class="tag">CODE</span>
+  </div>
+
+  <!-- ── P-08 · LCD panel ──────────────────────────────────── -->
+  <div style="display:flex; align-items:center; gap:16px; margin:28px 0 18px;">
+    <span class="label">P-08 · lcd panel</span>
+    <span style="flex:1; height:1px; background:var(--line);"></span>
+  </div>
+  <div style="padding-bottom:28px; border-bottom:1px solid var(--line-2); max-width:360px;">
+    <div class="lcd" style="height:124px; padding:13px 14px;">
+      <canvas data-glyph="scope" data-seed="6" data-cell="2.1" data-color="#c9c5b9" style="position:absolute; inset:0; width:100%; height:100%; opacity:.55;"></canvas>
+      <div style="position:relative; display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+          <div class="label" style="color:var(--lcd-mut); font-size:8.5px;">SERVING</div>
+          <div style="color:var(--lcd-ink); font-size:16px; font-weight:600; letter-spacing:-.01em; margin-top:4px;">gemma 3 4b</div>
+        </div>
+        <span class="mono" style="font-size:8.5px; letter-spacing:.1em; color:var(--lcd-ink); display:inline-flex; align-items:center; gap:5px;">
+          LIVE <span style="width:6px; height:6px; background:var(--lcd-ink); animation:ledPulse 1.8s ease-in-out infinite;"></span>
+        </span>
+      </div>
+      <div style="position:absolute; left:14px; right:14px; bottom:12px; display:flex; justify-content:space-between;" class="meta">
+        <span><span data-counter="41">41</span> TOK/S</span><span>32K CTX</span><span>2.4/8.0 GB</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── P-09 · Model row ──────────────────────────────────── -->
+  <div style="display:flex; align-items:center; gap:16px; margin:28px 0 18px;">
+    <span class="label">P-09 · model row</span>
+    <span style="flex:1; height:1px; background:var(--line);"></span>
+  </div>
+  <div style="padding-bottom:28px; border-bottom:1px solid var(--line-2); max-width:480px; display:flex; flex-direction:column; gap:0;">
+    <!-- serving row -->
+    <div style="position:relative; display:flex; align-items:center; gap:13px; padding:13px 15px; border:1px solid var(--line-3); border-radius:7px 7px 0 0; overflow:hidden;">
+      <canvas data-glyph="scan" data-seed="3" data-cell="2.4" data-color="#ddd9cd" style="position:absolute; inset:0; width:100%; height:100%;"></canvas>
+      <span class="partno" style="position:relative;">01</span>
+      <div style="position:relative; flex:1; min-width:0;">
+        <div style="font-size:13.5px; font-weight:600;">gemma 3 4b it qat</div>
+        <div class="meta" style="margin-top:3px;">2.4 GB / GPU / VISION</div>
+      </div>
+      <button class="ubtn" style="position:relative;">stop</button>
+      <div class="led led--on" style="position:relative;"></div>
+    </div>
+    <!-- idle row -->
+    <div style="display:flex; align-items:center; gap:13px; padding:13px 15px; border:1px solid var(--line-3); border-top:none;">
+      <span class="partno">02</span>
+      <div style="flex:1; min-width:0;">
+        <div style="font-size:13.5px; font-weight:500;">qwen3 4b</div>
+        <div class="meta" style="margin-top:3px;">2.4 GB</div>
+      </div>
+      <button class="ubtn">load</button>
+      <div class="led led--idle"></div>
+    </div>
+    <!-- cloud row -->
+    <div style="display:flex; align-items:center; gap:13px; padding:13px 15px; border:1px solid var(--line-3); border-top:none; border-radius:0 0 7px 7px;">
+      <span class="partno">03</span>
+      <div style="flex:1; min-width:0;">
+        <div style="font-size:13.5px; font-weight:500;">llama 3.2 3b</div>
+        <div class="meta" style="margin-top:3px;">CLOUD / 1.9 GB</div>
+      </div>
+      <button class="ubtn">get</button>
+      <div class="led led--cloud"></div>
+    </div>
+  </div>
+
+  <!-- ── P-10 · Tool chips ─────────────────────────────────── -->
+  <div style="display:flex; align-items:center; gap:16px; margin:28px 0 18px;">
+    <span class="label">P-10 · tool chips</span>
+    <span style="flex:1; height:1px; background:var(--line);"></span>
+  </div>
+  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-bottom:28px; border-bottom:1px solid var(--line-2);">
+    <span class="chip chip--on">file_read</span>
+    <span class="chip chip--on">web_search</span>
+    <span class="chip">bash</span>
+    <span class="chip">code_exec</span>
+    <span class="chip">memory</span>
+  </div>
+
+  <!-- ── P-11 · Dither material band ──────────────────────── -->
+  <div style="display:flex; align-items:center; gap:16px; margin:28px 0 18px;">
+    <span class="label">P-11 · dither material band</span>
+    <span style="flex:1; height:1px; background:var(--line);"></span>
+  </div>
+  <div style="padding-bottom:28px; border-bottom:1px solid var(--line-2); display:flex; flex-direction:column; gap:10px; max-width:720px;">
+    <!-- band: thin hairline -->
+    <div class="hairline" style="border-top:1px solid var(--line-2); border-bottom:1px solid var(--line-2);">
+      <canvas data-glyph="band" data-seed="9" data-cell="2.4" data-color="#c4c0b4" style="width:720px; height:14px;"></canvas>
+    </div>
+    <!-- wall: material fill -->
+    <div style="position:relative; height:80px; border-radius:7px; overflow:hidden; border:1px solid var(--line);">
+      <canvas data-glyph="wall" data-seed="5" data-cell="4" data-color="#cbc7bb" style="position:absolute; inset:0; width:100%; height:100%;"></canvas>
+    </div>
+  </div>
+
+  <!-- ── P-12 · Endpoint ───────────────────────────────────── -->
+  <div style="display:flex; align-items:center; gap:16px; margin:28px 0 18px;">
+    <span class="label">P-12 · endpoint</span>
+    <span style="flex:1; height:1px; background:var(--line);"></span>
+  </div>
+  <div style="padding-bottom:40px; border-bottom:1px solid var(--line);">
+    <div class="endpoint">
+      <div class="led led--sm"></div>
+      127.0.0.1:2276/v1
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════════
+       POPOVER MOCKS
+       ══════════════════════════════════════════════════════════ -->
+
+  <div style="display:flex; align-items:center; gap:16px; margin:50px 0 30px;">
+    <span class="label">popover mocks · light &amp; dark</span>
+    <span style="flex:1; height:1px; background:var(--line);"></span>
+  </div>
+
+  <div style="display:flex; gap:26px; align-items:flex-start;">
+
+    <!-- ── LIGHT POPOVER ─────────────────────────────────────── -->
+    <div style="flex:none; width:380px;">
+      <div class="label" style="margin-bottom:12px;">light · default</div>
+
+      <!-- hero dither bg -->
+      <div style="position:relative; border:1px solid var(--line); border-radius:6px; overflow:hidden; background:var(--panel-2); padding:48px 0; display:flex; justify-content:center; margin-bottom:20px;">
+        <canvas data-glyph="wall" data-seed="5" data-cell="4" data-color="#cbc7bb" style="position:absolute; inset:0; width:100%; height:100%;"></canvas>
+
+        <!-- Popover card -->
+        <div style="position:relative; width:340px; background:var(--panel); border:1px solid var(--line-4); border-radius:14px; box-shadow:0 26px 60px rgba(30,28,20,.22); overflow:hidden;">
+
+          <!-- head -->
+          <div style="display:flex; align-items:center; gap:10px; padding:14px 15px 12px;">
+            <img src="/src/assets/llama.svg" alt="" width="22" height="22" style="border-radius:6px; display:block;" />
+            <span style="font-size:15px; font-weight:600; letter-spacing:-.01em;">Llama<span style="font-weight:400;">Ranch</span></span>
+            <span style="flex:1;"></span>
+            <span style="display:inline-flex; align-items:center; gap:7px; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink);" class="mono">
+              <span class="led led--sm"></span>running
+            </span>
+            <span style="width:22px; height:22px; display:flex; align-items:center; justify-content:center; color:var(--faint); font-size:16px; margin-left:2px;">&times;</span>
+          </div>
+
+          <!-- dither hairline -->
+          <div class="hairline" style="border-top:1px solid var(--line-2); border-bottom:1px solid var(--line-2);">
+            <canvas data-glyph="band" data-seed="9" data-cell="2.4" data-color="#c4c0b4" style="width:360px; height:14px;"></canvas>
+          </div>
+
+          <!-- endpoint -->
+          <div style="display:flex; align-items:center; gap:10px; padding:12px 15px;">
+            <span class="endpoint" style="flex:1;">127.0.0.1:2276/v1</span>
+            <button class="ubtn">copy</button>
+            <button class="ubtn ubtn--bordered">webui</button>
+          </div>
+
+          <!-- tabs -->
+          <div class="tabs" style="padding:0 16px; margin:0;">
+            <button class="tab tab--active">installed</button>
+            <button class="tab">discover</button>
+          </div>
+
+          <!-- model list -->
+          <div>
+            <!-- serving -->
+            <div style="position:relative; display:flex; align-items:center; gap:13px; padding:13px 15px; border-bottom:1px solid var(--line-3); overflow:hidden;">
+              <canvas data-glyph="scan" data-seed="3" data-cell="2.4" data-color="#ddd9cd" style="position:absolute; inset:0; width:100%; height:100%;"></canvas>
+              <span class="partno" style="position:relative;">01</span>
+              <div style="position:relative; flex:1; min-width:0;">
+                <div style="font-size:13.5px; font-weight:600;">gemma 3 4b it qat</div>
+                <div class="meta" style="margin-top:3px;">2.4 GB / GPU / VISION</div>
+              </div>
+              <button class="ubtn" style="position:relative;">stop</button>
+              <div class="led led--on" style="position:relative;"></div>
+            </div>
+            <!-- idle -->
+            <div style="display:flex; align-items:center; gap:13px; padding:13px 15px; border-bottom:1px solid var(--line-3);">
+              <span class="partno">02</span>
+              <div style="flex:1; min-width:0;">
+                <div style="font-size:13.5px; font-weight:500;">qwen3 4b</div>
+                <div class="meta" style="margin-top:3px;">2.4 GB</div>
+              </div>
+              <button class="ubtn">load</button>
+              <div class="led led--idle"></div>
+            </div>
+            <!-- idle 2 -->
+            <div style="display:flex; align-items:center; gap:13px; padding:13px 15px; border-bottom:1px solid var(--line-3);">
+              <span class="partno">03</span>
+              <div style="flex:1; min-width:0;">
+                <div style="font-size:13.5px; font-weight:500;">qwen2.5 coder 7b</div>
+                <div class="meta" style="margin-top:3px;">4.7 GB</div>
+              </div>
+              <button class="ubtn">load</button>
+              <div class="led led--idle"></div>
+            </div>
+            <!-- cloud -->
+            <div style="display:flex; align-items:center; gap:13px; padding:13px 15px;">
+              <span class="partno">04</span>
+              <div style="flex:1; min-width:0;">
+                <div style="font-size:13.5px; font-weight:500;">llama 3.2 3b</div>
+                <div class="meta" style="margin-top:3px;">CLOUD / 1.9 GB</div>
+              </div>
+              <button class="ubtn">get</button>
+              <div class="led led--cloud"></div>
+            </div>
+          </div>
+
+          <!-- foot -->
+          <div style="display:flex; align-items:center; gap:8px; padding:11px 15px; border-top:1px solid var(--line-2); background:var(--foot);">
+            <span class="mono" style="font-size:9.5px; letter-spacing:.04em; color:var(--faint);">LLAMARANCH 1.0 · LLAMA.CPP b9670</span>
+            <span style="flex:1;"></span>
+            <button class="ubtn">settings</button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DARK POPOVER ──────────────────────────────────────── -->
+    <div style="flex:none; width:380px;">
+      <div class="label" style="margin-bottom:12px;">dark · same system</div>
+
+      <!-- dark wrapper applies dark tokens -->
+      <div data-theme="dark" style="border-radius:6px;">
+        <div style="position:relative; border:1px solid #2f2d26; border-radius:6px; overflow:hidden; background:#16150f; padding:48px 0; display:flex; justify-content:center;">
+          <canvas data-glyph="wall" data-seed="7" data-cell="4" data-color="#252420" style="position:absolute; inset:0; width:100%; height:100%;"></canvas>
+
+          <!-- Popover card -->
+          <div style="position:relative; width:340px; background:#1a1915; border:1px solid #2f2d26; border-radius:14px; box-shadow:0 22px 50px rgba(0,0,0,.34); overflow:hidden; color:#ece9df;">
+
+            <!-- head -->
+            <div style="display:flex; align-items:center; gap:10px; padding:14px 15px 12px;">
+              <img src="/src/assets/llama.svg" alt="" width="22" height="22" style="border-radius:6px; display:block;" />
+              <span style="font-size:15px; font-weight:600; letter-spacing:-.01em;">Llama<span style="font-weight:400;">Ranch</span></span>
+              <span style="flex:1;"></span>
+              <span style="display:inline-flex; align-items:center; gap:7px; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:#ece9df;" class="mono">
+                <span style="width:7px; height:7px; background:#ece9df; animation:ledPulse 1.8s ease-in-out infinite; display:inline-block;"></span>running
+              </span>
+              <span style="width:22px; height:22px; display:flex; align-items:center; justify-content:center; color:#6a685e; font-size:16px; margin-left:2px;">&times;</span>
+            </div>
+
+            <!-- dither hairline -->
+            <div style="height:14px; border-top:1px solid #262420; border-bottom:1px solid #262420; overflow:hidden;">
+              <canvas data-glyph="band" data-seed="9" data-cell="2.4" data-color="#3a382f" style="width:360px; height:14px;"></canvas>
+            </div>
+
+            <!-- endpoint -->
+            <div style="display:flex; align-items:center; gap:10px; padding:12px 15px;">
+              <span class="mono" style="flex:1; font-size:11px; color:#ece9df;">127.0.0.1:2276/v1</span>
+              <span class="mono" style="font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:#94918a;">copy</span>
+              <span class="mono" style="font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:#ece9df; border:1px solid #3a382f; border-radius:5px; padding:4px 8px;">webui</span>
+            </div>
+
+            <!-- tabs -->
+            <div style="display:flex; gap:20px; padding:0 16px; border-bottom:1px solid #262420;">
+              <span class="mono" style="font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:#ece9df; padding-bottom:10px; border-bottom:1.5px solid #ece9df;">installed</span>
+              <span class="mono" style="font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:#6a685e; padding-bottom:10px;">discover</span>
+            </div>
+
+            <!-- model list -->
+            <div>
+              <!-- serving -->
+              <div style="position:relative; display:flex; align-items:center; gap:13px; padding:13px 15px; border-bottom:1px solid #232119; overflow:hidden;">
+                <canvas data-glyph="scan" data-seed="3" data-cell="2.4" data-color="#33312a" style="position:absolute; inset:0; width:100%; height:100%;"></canvas>
+                <span class="mono" style="position:relative; font-size:11px; color:#6a685e;">01</span>
+                <div style="position:relative; flex:1; min-width:0;">
+                  <div style="font-size:13.5px; font-weight:600;">gemma 3 4b it qat</div>
+                  <div class="mono" style="font-size:10px; letter-spacing:.04em; color:#94918a; margin-top:3px;">2.4 GB / GPU / VISION</div>
+                </div>
+                <span class="mono" style="position:relative; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:#94918a;">stop</span>
+                <span style="position:relative; width:15px; height:15px; background:#ece9df; flex:none;"></span>
+              </div>
+              <!-- idle -->
+              <div style="display:flex; align-items:center; gap:13px; padding:13px 15px; border-bottom:1px solid #232119;">
+                <span class="mono" style="font-size:11px; color:#6a685e;">02</span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:13.5px; font-weight:500;">qwen3 4b</div>
+                  <div class="mono" style="font-size:10px; letter-spacing:.04em; color:#94918a; margin-top:3px;">2.4 GB</div>
+                </div>
+                <span class="mono" style="font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:#94918a;">load</span>
+                <span style="width:15px; height:15px; border:1.5px solid #ece9df; flex:none;"></span>
+              </div>
+              <!-- idle 2 -->
+              <div style="display:flex; align-items:center; gap:13px; padding:13px 15px; border-bottom:1px solid #232119;">
+                <span class="mono" style="font-size:11px; color:#6a685e;">03</span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:13.5px; font-weight:500;">qwen2.5 coder 7b</div>
+                  <div class="mono" style="font-size:10px; letter-spacing:.04em; color:#94918a; margin-top:3px;">4.7 GB</div>
+                </div>
+                <span class="mono" style="font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:#94918a;">load</span>
+                <span style="width:15px; height:15px; border:1.5px solid #ece9df; flex:none;"></span>
+              </div>
+              <!-- cloud -->
+              <div style="display:flex; align-items:center; gap:13px; padding:13px 15px;">
+                <span class="mono" style="font-size:11px; color:#6a685e;">04</span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:13.5px; font-weight:500;">llama 3.2 3b</div>
+                  <div class="mono" style="font-size:10px; letter-spacing:.04em; color:#6a685e; margin-top:3px;">CLOUD / 1.9 GB</div>
+                </div>
+                <span class="mono" style="font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:#94918a;">get</span>
+                <span style="width:15px; height:15px; border:1.5px dashed #ece9df; flex:none;"></span>
+              </div>
+            </div>
+
+            <!-- foot -->
+            <div style="display:flex; align-items:center; gap:8px; padding:11px 15px; border-top:1px solid #262420; background:#16150f;">
+              <span class="mono" style="font-size:9.5px; letter-spacing:.04em; color:#6a685e;">LLAMARANCH 1.0 · LLAMA.CPP b9670</span>
+              <span style="flex:1;"></span>
+              <span class="mono" style="font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:#94918a;">settings</span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <!-- end popover mocks -->
+
+</div><!-- end inner column -->
+</div><!-- end outer wrapper -->
+
+</body>
+</html>

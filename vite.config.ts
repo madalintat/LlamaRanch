@@ -11,7 +11,7 @@ export default defineConfig(async () => ({
   // 0. multi-page: the main popover and a separate Settings window
   build: {
     rollupOptions: {
-      input: { main: "index.html", settings: "settings.html", chat: "chat.html" },
+      input: { main: "index.html", settings: "settings.html", chat: "chat.html", brand: "brand.html" },
     },
   },
   // 1. prevent Vite from obscuring rust errors
