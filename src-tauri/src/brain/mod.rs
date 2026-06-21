@@ -156,8 +156,6 @@ pub fn run_turn<E: FnMut(BrainEvent)>(
     registry: &tools::ToolRegistry,
     mut emit: E,
 ) {
-    history.push(Message { role: "user".into(), content: ctx.text.clone() });
-
     // Decide (category, reason, model_id) — either a pinned override or routing.
     let (category, reason, model_id) = if let Some(id) = override_model {
         let cat = installed
@@ -191,14 +189,16 @@ pub fn run_turn<E: FnMut(BrainEvent)>(
         return;
     }
 
-    // Build the wire message array from typed history.
+    // Build the wire message array from existing history, then append the new user turn.
     let mut wire: Vec<serde_json::Value> = history
         .iter()
         .map(|m| serde_json::json!({ "role": m.role, "content": m.content }))
         .collect();
+    wire.push(serde_json::json!({ "role": "user", "content": ctx.text }));
     let tool_defs = registry.openai_tools();
     const MAX_ITER: usize = 8;
 
+    let mut last_content = String::new();
     for _ in 0..MAX_ITER {
         let mut on_token = |piece: String| emit(BrainEvent::Token { text: piece });
         let stepres = match backend.step(&model_id, &wire, &tool_defs, &mut on_token) {
@@ -206,10 +206,13 @@ pub fn run_turn<E: FnMut(BrainEvent)>(
             Err(e) => { emit(BrainEvent::Error { message: e }); return; }
         };
         if stepres.tool_calls.is_empty() {
+            // Clean finish: commit user + assistant as a pair.
+            history.push(Message { role: "user".into(), content: ctx.text });
             history.push(Message { role: "assistant".into(), content: stepres.content });
             emit(BrainEvent::Done { usage: Usage::default() });
             return;
         }
+        last_content = stepres.content.clone();
         // assistant turn carrying the tool calls (OpenAI shape)
         wire.push(serde_json::json!({
             "role": "assistant",
@@ -221,16 +224,25 @@ pub fn run_turn<E: FnMut(BrainEvent)>(
         }));
         for tc in &stepres.tool_calls {
             emit(BrainEvent::ToolCall { name: tc.name.clone(), args: tc.arguments.clone() });
-            let result = registry.run(&tc.name, &tc.arguments);
-            let ok = !result.starts_with("error:");
-            let preview: String = result.chars().take(200).collect();
+            let (ok, text) = match registry.run(&tc.name, &tc.arguments) {
+                Ok(s) => (true, s),
+                Err(e) => (false, format!("error: {e}")),
+            };
+            let preview: String = text.chars().take(200).collect();
             emit(BrainEvent::ToolResult { name: tc.name.clone(), ok, preview });
             wire.push(serde_json::json!({
-                "role": "tool", "tool_call_id": tc.id, "content": result
+                "role": "tool", "tool_call_id": tc.id, "content": text
             }));
         }
     }
-    // Hit the iteration cap.
+    // Hit the iteration cap: commit user + a synthetic assistant message.
+    let assistant_content = if last_content.is_empty() {
+        "(stopped after 8 tool steps)".into()
+    } else {
+        last_content
+    };
+    history.push(Message { role: "user".into(), content: ctx.text });
+    history.push(Message { role: "assistant".into(), content: assistant_content });
     emit(BrainEvent::Done { usage: Usage::default() });
 }
 

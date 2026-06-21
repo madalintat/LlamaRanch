@@ -28,10 +28,10 @@ pub fn aggregate_tool_calls(fragments: &[serde_json::Value]) -> Vec<ToolCall> {
             }
         }
     }
-    acc.into_values()
-        .filter(|(_, name, _)| !name.is_empty())
-        .map(|(id, name, args)| ToolCall {
-            id,
+    acc.into_iter()
+        .filter(|(_, (_, name, _))| !name.is_empty())
+        .map(|(idx, (id, name, args))| ToolCall {
+            id: if id.is_empty() { format!("call_{idx}") } else { id },
             name,
             arguments: if args.is_empty() { "{}".into() } else { args },
         })

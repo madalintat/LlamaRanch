@@ -29,15 +29,12 @@ impl ToolRegistry {
                 .collect(),
         )
     }
-    /// Dispatch by name; parse `args_json` (a JSON string); return result or error TEXT (never panic).
-    pub fn run(&self, name: &str, args_json: &str) -> String {
+    /// Dispatch by name; parse `args_json` (a JSON string); return Ok(result) or Err(message).
+    pub fn run(&self, name: &str, args_json: &str) -> Result<String, String> {
         let args: Value = serde_json::from_str(args_json).unwrap_or(Value::Null);
         match self.tools.iter().find(|t| t.name() == name) {
-            Some(t) => match t.run(&args) {
-                Ok(s) => s,
-                Err(e) => format!("error: {e}"),
-            },
-            None => format!("error: unknown tool '{name}'"),
+            Some(t) => t.run(&args),
+            None => Err(format!("unknown tool '{name}'")),
         }
     }
 }
@@ -188,8 +185,8 @@ mod tests {
         let names: Vec<&str> = tools.as_array().unwrap().iter()
             .map(|t| t["function"]["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"get_time") && names.contains(&"calculate"));
-        assert_eq!(r.run("calculate", r#"{"expression":"6*7"}"#), "42");
-        assert!(r.run("calculate", r#"{"expression":"1/0"}"#).starts_with("error:"));
-        assert!(r.run("nope", "{}").starts_with("error: unknown tool"));
+        assert_eq!(r.run("calculate", r#"{"expression":"6*7"}"#).unwrap(), "42");
+        assert!(r.run("calculate", r#"{"expression":"1/0"}"#).is_err());
+        assert!(r.run("nope", "{}").is_err());
     }
 }
