@@ -45,7 +45,7 @@ impl ToolRegistry {
 struct Clock;
 impl Tool for Clock {
     fn name(&self) -> &str { "get_time" }
-    fn description(&self) -> &str { "Get the current local date and time as an ISO-8601 string." }
+    fn description(&self) -> &str { "Get the current time as seconds since the Unix epoch (UTC)." }
     fn parameters(&self) -> Value { json!({ "type": "object", "properties": {} }) }
     fn run(&self, _args: &Value) -> Result<String, String> {
         // std-only local time: seconds since epoch (UTC). Good enough for the model.
@@ -71,7 +71,7 @@ impl Tool for Calculator {
         let expr = args.get("expression").and_then(|v| v.as_str()).ok_or("missing 'expression'")?;
         eval_expr(expr).map(|n| {
             // print integers without a trailing .0
-            if n.fract() == 0.0 { format!("{}", n as i64) } else { format!("{n}") }
+            if n.fract() == 0.0 { format!("{:.0}", n) } else { format!("{n}") }
         })
     }
 }
