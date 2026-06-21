@@ -86,7 +86,7 @@ fn hf_cache_file(hub: &Path, id: &str) -> Option<PathBuf> {
                     }
                 }
                 let sz = std::fs::metadata(&fp).map(|m| m.len()).unwrap_or(0);
-                if best.as_ref().map_or(true, |(b, _)| sz > *b) {
+                if best.as_ref().is_none_or(|(b, _)| sz > *b) {
                     best = Some((sz, fp));
                 }
             }
@@ -661,8 +661,10 @@ mod tests {
         std::fs::create_dir_all(&models).unwrap();
         let f = models.join("MyModel.gguf");
         std::fs::File::create(&f).unwrap().set_len(2_000_000_000).unwrap();
-        let mut cfg = Config::default();
-        cfg.models_dir = dir.path().to_string_lossy().into_owned();
+        let cfg = Config {
+            models_dir: dir.path().to_string_lossy().into_owned(),
+            ..Default::default()
+        };
         let r = resolve_model(&cfg, "MyModel").unwrap();
         assert!(r.local);
         assert_eq!(r.path, f);
