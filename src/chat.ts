@@ -58,7 +58,12 @@ form.addEventListener("submit", async (e) => {
   bubble("user", text);
   input.value = "";
   setStreaming(true);
-  await invoke("chat_send", { sessionId: session, message: text, hasImage: false, explicitGroup: null });
+  try {
+    await invoke("chat_send", { sessionId: session, message: text, hasImage: false, explicitGroup: null });
+  } catch (err) {
+    bubble("error", String(err));
+    setStreaming(false);
+  }
 });
 
 init();
