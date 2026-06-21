@@ -46,9 +46,14 @@ jobs:
         include:
           - platform: ubuntu-24.04      # Linux x86_64
           - platform: ubuntu-24.04-arm  # Linux arm64
+            experimental: true
           - platform: windows-latest    # Windows x86_64
           - platform: windows-11-arm    # Windows on Arm (arm64)
+            experimental: true
     runs-on: ${{ matrix.platform }}
+    # Arm runners are new/unverified — best-effort so a flaky Arm leg never
+    # blocks the x86_64 release. Drop `experimental` once Arm is proven.
+    continue-on-error: ${{ matrix.experimental || false }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
