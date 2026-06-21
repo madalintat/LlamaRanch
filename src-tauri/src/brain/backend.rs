@@ -1,4 +1,4 @@
-use super::{ChatBackend, Lifecycle, Message, Usage};
+use super::{ChatBackend, Message, Usage};
 use std::io::{BufRead, BufReader};
 use std::time::Duration;
 
@@ -63,18 +63,5 @@ impl ChatBackend for RouterChatBackend {
             }
         }
         Ok(Usage { prompt_tokens: 0, completion_tokens: completion })
-    }
-}
-
-/// Loads a model via the router and waits briefly for readiness.
-#[allow(dead_code)]
-pub struct RouterLifecycle {
-    pub port: u16,
-}
-
-impl Lifecycle for RouterLifecycle {
-    fn ensure_loaded(&self, model_id: &str) -> Result<(), String> {
-        // server::load is idempotent: loading an already-loaded model is a no-op.
-        crate::server::load(self.port, model_id)
     }
 }
