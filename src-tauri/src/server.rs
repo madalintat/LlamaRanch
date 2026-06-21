@@ -62,6 +62,18 @@ pub fn preset_for(models: &[Model], overrides: &BTreeMap<String, ModelOverride>)
         }
         s.push('\n');
     }
+    // Overrides for models not in our folder (HF-cached): the router merges a
+    // custom `hf-repo` section with its own cached preset and honors our keys.
+    let local_ids: std::collections::HashSet<&str> = models.iter().map(|m| m.id.as_str()).collect();
+    for (id, o) in overrides {
+        if local_ids.contains(id.as_str()) {
+            continue;
+        }
+        s.push_str(&format!("[{id}]\n"));
+        s.push_str(&format!("hf-repo = {id}\n"));
+        s.push_str(&override_lines(o));
+        s.push('\n');
+    }
     s
 }
 
@@ -518,5 +530,24 @@ mod tests {
     fn hf_repo_none_when_absent() {
         let args = vec!["--jinja".to_string(), "--fit".to_string(), "on".to_string()];
         assert_eq!(hf_repo_from_args(&args), None);
+    }
+
+    #[test]
+    fn preset_emits_hf_repo_section_for_cached_override() {
+        use crate::config::ModelOverride;
+        use std::collections::BTreeMap;
+        let models = vec![Model {
+            id: "Local".into(), name: "Local".into(), group: "chat".into(),
+            path: "/m/l.gguf".into(), size_bytes: 2_000_000_000, mmproj_path: None,
+        }];
+        let mut ov = BTreeMap::new();
+        ov.insert("Local".to_string(), ModelOverride { ctx_size: Some(4096), ..Default::default() });
+        ov.insert("org/repo:Q4".to_string(), ModelOverride { ctx_size: Some(8192), ..Default::default() });
+        let ini = preset_for(&models, &ov);
+        // local model: plain section + override, NO hf-repo line
+        assert!(ini.contains("[Local]\nmodel = /m/l.gguf\nctx-size = 4096\n"));
+        assert!(!ini.contains("[Local]\nmodel = /m/l.gguf\nhf-repo"));
+        // cached override: hf-repo section
+        assert!(ini.contains("[org/repo:Q4]\nhf-repo = org/repo:Q4\nctx-size = 8192\n"));
     }
 }
