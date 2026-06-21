@@ -84,7 +84,7 @@ async function init() {
         current = null;
       } else if (ev.kind === "tool_result") {
         const el = bubble("tool", `${ev.ok ? "✓" : "✗"} ${ev.name} → ${ev.preview}`);
-        el.classList.add(ev.ok ? "tool" : "error");
+        if (!ev.ok) el.classList.add("msg--error");
       } else if (ev.kind === "token") {
         if (!current) current = bubble("assistant");
         current.textContent += ev.text;
