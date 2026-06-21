@@ -13,6 +13,9 @@ pub struct Config {
     /// Hugging Face access token, passed to the router for downloads (optional).
     #[serde(default)]
     pub hf_token: String,
+    /// Max models the router keeps loaded at once (hardware-aware default).
+    #[serde(default = "default_models_max")]
+    pub models_max: u32,
 }
 
 fn home() -> PathBuf {
@@ -108,6 +111,57 @@ fn default_server_bin() -> String {
     discover_server_bin()
 }
 
+/// Total physical RAM in bytes, per-OS, std only. None if detection fails.
+fn total_ram_bytes() -> Option<u64> {
+    #[cfg(target_os = "macos")]
+    {
+        let out = std::process::Command::new("sysctl")
+            .args(["-n", "hw.memsize"])
+            .output()
+            .ok()?;
+        String::from_utf8_lossy(&out.stdout).trim().parse().ok()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let txt = std::fs::read_to_string("/proc/meminfo").ok()?;
+        for line in txt.lines() {
+            if let Some(rest) = line.strip_prefix("MemTotal:") {
+                let kb: u64 = rest.trim().trim_end_matches("kB").trim().parse().ok()?;
+                return Some(kb * 1024);
+            }
+        }
+        None
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let out = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory",
+            ])
+            .output()
+            .ok()?;
+        String::from_utf8_lossy(&out.stdout).trim().parse().ok()
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        None
+    }
+}
+
+/// How many models to keep resident by default, from total RAM:
+/// clamp(GB / 10, 1, 4). The router's `--fit` still sizes each load to memory.
+fn models_max_for_ram(bytes: u64) -> u32 {
+    let gb = bytes / 1_000_000_000;
+    (gb / 10).clamp(1, 4) as u32
+}
+
+/// Hardware-aware default; falls back to 2 when RAM can't be detected.
+fn default_models_max() -> u32 {
+    total_ram_bytes().map(models_max_for_ram).unwrap_or(2)
+}
+
 impl Default for Config {
     fn default() -> Self {
         Config {
@@ -117,6 +171,7 @@ impl Default for Config {
             expose_to_network: false,
             sleep_idle_seconds: 0,
             hf_token: String::new(),
+            models_max: default_models_max(),
         }
     }
 }
@@ -211,5 +266,27 @@ mod tests {
         let current = PathBuf::from("/old/llama-server");
         let cands = vec![PathBuf::from("/opt/homebrew/bin/llama-server")];
         assert_eq!(reconcile(&current, &cands, &|_| false), current);
+    }
+
+    #[test]
+    fn models_max_scales_with_ram() {
+        assert_eq!(models_max_for_ram(8_000_000_000), 1);
+        assert_eq!(models_max_for_ram(24_000_000_000), 2);
+        assert_eq!(models_max_for_ram(32_000_000_000), 3);
+        assert_eq!(models_max_for_ram(40_000_000_000), 4);
+        assert_eq!(models_max_for_ram(128_000_000_000), 4);
+    }
+
+    #[test]
+    fn models_max_floor_is_one() {
+        assert_eq!(models_max_for_ram(2_000_000_000), 1);
+        assert_eq!(models_max_for_ram(0), 1);
+    }
+
+    #[test]
+    fn missing_models_max_uses_default() {
+        let json = r#"{"port":2276,"models_dir":"/m","server_bin":"/b","expose_to_network":false}"#;
+        let cfg: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.models_max, default_models_max());
     }
 }
