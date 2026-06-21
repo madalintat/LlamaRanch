@@ -1,5 +1,26 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct ModelOverride {
+    #[serde(default)]
+    pub ctx_size: Option<u32>,
+    #[serde(default)]
+    pub temp: Option<f32>,
+    #[serde(default)]
+    pub top_p: Option<f32>,
+    #[serde(default)]
+    pub top_k: Option<u32>,
+    #[serde(default)]
+    pub min_p: Option<f32>,
+    #[serde(default)]
+    pub repeat_penalty: Option<f32>,
+    #[serde(default)]
+    pub presence_penalty: Option<f32>,
+    #[serde(default)]
+    pub frequency_penalty: Option<f32>,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Config {
@@ -16,6 +37,9 @@ pub struct Config {
     /// Max models the router keeps loaded at once (hardware-aware default).
     #[serde(default = "default_models_max")]
     pub models_max: u32,
+    /// Per-model configuration overrides.
+    #[serde(default)]
+    pub model_config: BTreeMap<String, ModelOverride>,
 }
 
 fn home() -> PathBuf {
@@ -172,6 +196,7 @@ impl Default for Config {
             sleep_idle_seconds: 0,
             hf_token: String::new(),
             models_max: default_models_max(),
+            model_config: BTreeMap::new(),
         }
     }
 }
@@ -288,5 +313,25 @@ mod tests {
         let json = r#"{"port":2276,"models_dir":"/m","server_bin":"/b","expose_to_network":false}"#;
         let cfg: Config = serde_json::from_str(json).unwrap();
         assert_eq!(cfg.models_max, default_models_max());
+    }
+
+    #[test]
+    fn model_config_roundtrips() {
+        let mut cfg = Config::default();
+        cfg.model_config.insert(
+            "Qwen3".into(),
+            ModelOverride { ctx_size: Some(8192), temp: Some(0.7), ..Default::default() },
+        );
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("config.json");
+        save_to(&p, &cfg).unwrap();
+        assert_eq!(load_from(&p), cfg);
+    }
+
+    #[test]
+    fn missing_model_config_is_empty() {
+        let json = r#"{"port":2276,"models_dir":"/m","server_bin":"/b","expose_to_network":false}"#;
+        let cfg: Config = serde_json::from_str(json).unwrap();
+        assert!(cfg.model_config.is_empty());
     }
 }

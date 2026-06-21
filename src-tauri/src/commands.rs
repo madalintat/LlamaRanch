@@ -1,5 +1,6 @@
 use crate::catalog;
-use crate::config::{self, Config};
+use crate::config::{self, Config, ModelOverride};
+use crate::gguf;
 use crate::launch;
 use crate::scanner;
 use crate::server::{self, SharedServer};
@@ -52,10 +53,10 @@ fn hf_hub_dir() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".cache").join("huggingface").join("hub"))
 }
 
-/// Size of an HF-cached GGUF for a router id like `org/repo:QUANT`, found under
-/// `<hub>/models--org--repo/snapshots/*/`. The quant tag (after `:`) selects the
-/// file; the mmproj projector is skipped. Returns the largest matching weight.
-fn hf_cache_size(hub: &Path, id: &str) -> Option<u64> {
+/// Path of the HF-cached GGUF for a router id like `org/repo:QUANT`, found under
+/// `<hub>/models--org--repo/snapshots/*/`. Quant tag selects the file; mmproj is
+/// skipped. Returns the largest matching weight file.
+fn hf_cache_file(hub: &Path, id: &str) -> Option<PathBuf> {
     let (repo, quant) = match id.rsplit_once(':') {
         Some((r, q)) => (r, Some(q.to_lowercase())),
         None => (id, None),
@@ -63,7 +64,7 @@ fn hf_cache_size(hub: &Path, id: &str) -> Option<u64> {
     let snapshots = hub
         .join(format!("models--{}", repo.replace('/', "--")))
         .join("snapshots");
-    let mut best: Option<u64> = None;
+    let mut best: Option<(u64, PathBuf)> = None;
     for snap in std::fs::read_dir(&snapshots).ok()?.flatten() {
         let p = snap.path();
         if !p.is_dir() {
@@ -85,11 +86,45 @@ fn hf_cache_size(hub: &Path, id: &str) -> Option<u64> {
                     }
                 }
                 let sz = std::fs::metadata(&fp).map(|m| m.len()).unwrap_or(0);
-                best = Some(best.map_or(sz, |b| b.max(sz)));
+                if best.as_ref().is_none_or(|(b, _)| sz > *b) {
+                    best = Some((sz, fp));
+                }
             }
         }
     }
-    best
+    best.map(|(_, p)| p)
+}
+
+fn hf_cache_size(hub: &Path, id: &str) -> Option<u64> {
+    hf_cache_file(hub, id)
+        .and_then(|p| std::fs::metadata(p).ok())
+        .map(|m| m.len())
+}
+
+/// A downloaded model's on-disk gguf: local models dir or the HF cache.
+struct Resolved {
+    path: PathBuf,
+    file_bytes: u64,
+    local: bool,
+    mmproj_path: Option<PathBuf>,
+}
+
+fn resolve_model(cfg: &Config, id: &str) -> Option<Resolved> {
+    if let Some(m) = scanner::scan(Path::new(&cfg.models_dir))
+        .into_iter()
+        .find(|m| m.id == id)
+    {
+        return Some(Resolved {
+            path: PathBuf::from(&m.path),
+            file_bytes: m.size_bytes,
+            local: true,
+            mmproj_path: m.mmproj_path.as_ref().map(PathBuf::from),
+        });
+    }
+    let hub = hf_hub_dir()?;
+    let path = hf_cache_file(&hub, id)?;
+    let file_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+    Some(Resolved { path, file_bytes, local: false, mmproj_path: None })
 }
 
 /// Merge a router model with local info into a view for the UI. `cached_size` is
@@ -371,27 +406,99 @@ fn download_file(
     Ok(())
 }
 
+/// Remove a model's on-disk files. Local: the gguf (+ mmproj, + empty subdir).
+/// Cached: ONLY this quant's gguf symlink and the blob it points to, then prune
+/// the snapshot dir if it becomes empty — never the whole repo (other quants).
+fn remove_model_files(c: &Config, r: &Resolved) -> Result<(), String> {
+    if r.local {
+        std::fs::remove_file(&r.path).map_err(|e| e.to_string())?;
+        if let Some(mm) = &r.mmproj_path {
+            let _ = std::fs::remove_file(mm);
+        }
+        if let Some(parent) = r.path.parent() {
+            if parent != Path::new(&c.models_dir) {
+                let _ = std::fs::remove_dir(parent);
+            }
+        }
+        Ok(())
+    } else {
+        // Resolve and remove the blob the snapshot symlink points to (frees the
+        // disk), then the symlink itself. read_link gives a path relative to the
+        // snapshot dir (e.g. ../../blobs/<sha>); the OS resolves the `..` parts.
+        if let Ok(target) = std::fs::read_link(&r.path) {
+            if let Some(snap) = r.path.parent() {
+                let _ = std::fs::remove_file(snap.join(&target));
+            }
+        }
+        std::fs::remove_file(&r.path).map_err(|e| e.to_string())?;
+        if let Some(snap) = r.path.parent() {
+            let _ = std::fs::remove_dir(snap); // best-effort; only if now empty
+        }
+        Ok(())
+    }
+}
+
 #[tauri::command]
 pub fn delete_model(model_id: String, app: AppHandle, cfg: State<AppConfig>) -> Result<(), String> {
-    let dir = cfg.0.lock().unwrap().models_dir.clone();
-    let model = scanner::scan(Path::new(&dir))
-        .into_iter()
-        .find(|m| m.id == model_id)
-        .ok_or_else(|| "only downloaded models can be deleted".to_string())?;
-    // unload it from the router first so we don't yank the file from a running model
-    let port = cfg.0.lock().unwrap().port;
-    let _ = server::unload(port, &model_id);
+    let c = cfg_of(&cfg);
+    let resolved =
+        resolve_model(&c, &model_id).ok_or_else(|| "only downloaded models can be deleted".to_string())?;
+    let _ = server::unload(c.port, &model_id);
 
-    let path = PathBuf::from(&model.path);
-    std::fs::remove_file(&path).map_err(|e| e.to_string())?;
-    if let Some(mm) = &model.mmproj_path {
-        let _ = std::fs::remove_file(mm);
-    }
-    // remove the model's own subdirectory if it's now empty (vision installs)
-    if let Some(parent) = path.parent() {
-        if parent != Path::new(&dir) {
-            let _ = std::fs::remove_dir(parent);
+    let removed = remove_model_files(&c, &resolved);
+
+    // Drop the override only if the files actually went away.
+    let save = if removed.is_ok() {
+        let mut cc = cfg.0.lock().unwrap();
+        cc.model_config.remove(&model_id);
+        config::save_to(&config::config_path(), &cc).map_err(|e| e.to_string())
+    } else {
+        Ok(())
+    };
+
+    // Always restart so a partial failure never leaves the model unloaded.
+    crate::start_router(&app);
+    removed?;
+    save
+}
+
+#[derive(Serialize)]
+pub struct ModelInfoView {
+    pub native_ctx: u32,
+    pub file_bytes: u64,
+    pub kv_per_token: u64,
+    pub r#override: ModelOverride,
+}
+
+#[tauri::command]
+pub fn model_info(model_id: String, cfg: State<AppConfig>) -> ModelInfoView {
+    let c = cfg_of(&cfg);
+    let r#override = c.model_config.get(&model_id).cloned().unwrap_or_default();
+    let (native_ctx, file_bytes, kv_per_token) = match resolve_model(&c, &model_id) {
+        Some(r) => match gguf::read_info(&r.path) {
+            Some(info) => (info.n_ctx_train, r.file_bytes, gguf::kv_bytes_per_token(&info)),
+            None => (0, r.file_bytes, 0),
+        },
+        None => (0, 0, 0),
+    };
+    ModelInfoView { native_ctx, file_bytes, kv_per_token, r#override }
+}
+
+#[tauri::command]
+pub fn set_model_config(
+    model_id: String,
+    r#override: ModelOverride,
+    cfg: State<AppConfig>,
+    app: AppHandle,
+) -> Result<(), String> {
+    {
+        let mut c = cfg.0.lock().unwrap();
+        if r#override == ModelOverride::default() {
+            c.model_config.remove(&model_id);
+        } else {
+            c.model_config.insert(model_id, r#override);
         }
+        config::save_to(&config::config_path(), &c).map_err(|e| e.to_string())?;
     }
     crate::start_router(&app);
     Ok(())
@@ -533,4 +640,35 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         assert_eq!(hf_cache_size(dir.path(), "nope/missing:Q4_K_M"), None);
     }
+
+    #[test]
+    fn hf_cache_file_returns_matching_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let hub = dir.path();
+        let snap = hub.join("models--squ11z1--Mythos-nano-GGUF").join("snapshots").join("abc");
+        std::fs::create_dir_all(&snap).unwrap();
+        let want = snap.join("mythos-nano-Q4_K_M.gguf");
+        std::fs::File::create(&want).unwrap().set_len(1_900_000_000).unwrap();
+        std::fs::File::create(snap.join("mmproj-Q4_K_M.gguf")).unwrap().set_len(5).unwrap();
+        let got = hf_cache_file(hub, "squ11z1/Mythos-nano-GGUF:Q4_K_M").unwrap();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn resolve_model_local_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let models = dir.path().join("chat");
+        std::fs::create_dir_all(&models).unwrap();
+        let f = models.join("MyModel.gguf");
+        std::fs::File::create(&f).unwrap().set_len(2_000_000_000).unwrap();
+        let cfg = Config {
+            models_dir: dir.path().to_string_lossy().into_owned(),
+            ..Default::default()
+        };
+        let r = resolve_model(&cfg, "MyModel").unwrap();
+        assert!(r.local);
+        assert_eq!(r.path, f);
+        assert_eq!(r.file_bytes, 2_000_000_000);
+    }
+
 }
