@@ -7,10 +7,30 @@ type BrainEvent =
   | { kind: "done"; usage: { prompt_tokens: number; completion_tokens: number } }
   | { kind: "error"; message: string };
 
+const pool = document.getElementById("pool") as HTMLDivElement;
 const log = document.getElementById("log") as HTMLDivElement;
 const input = document.getElementById("input") as HTMLTextAreaElement;
 const send = document.getElementById("send") as HTMLButtonElement;
 const form = document.getElementById("composer") as HTMLFormElement;
+
+type PoolView = { resident: { id: string; status: string; pinned: boolean }[]; active: string | null };
+
+async function refreshPool() {
+  try {
+    const view = await invoke<PoolView>("model_pool");
+    pool.innerHTML = "";
+    for (const m of view.resident) {
+      const dot = document.createElement("span");
+      dot.className = "pooldot";
+      if (m.id === view.active) dot.classList.add("active");
+      if (m.pinned) dot.classList.add("pinned");
+      dot.textContent = `● ${m.id}`;
+      pool.appendChild(dot);
+    }
+  } catch {
+    /* router not ready yet — leave the strip empty */
+  }
+}
 
 let session = "";
 let current: HTMLDivElement | null = null; // the streaming assistant bubble
@@ -32,18 +52,21 @@ function bubble(role: string, text = ""): HTMLDivElement {
 async function init() {
   try {
     session = await invoke<string>("chat_new_session");
+    refreshPool();
     await listen<{ session: string; event: BrainEvent }>("chat:event", ({ payload }) => {
       if (payload.session !== session) return;
       const ev = payload.event;
       if (ev.kind === "routed") {
         bubble("trace", `routed to ${ev.model_id} · ${ev.category} — ${ev.reason}`);
         current = bubble("assistant");
+        refreshPool();
       } else if (ev.kind === "token" && current) {
         current.textContent += ev.text;
         log.scrollTop = log.scrollHeight;
       } else if (ev.kind === "done") {
         current = null;
         setStreaming(false);
+        refreshPool();
       } else if (ev.kind === "error") {
         bubble("error", ev.message);
         current = null;

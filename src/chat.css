@@ -12,3 +12,7 @@ body { margin: 0; font: 14px/1.5 -apple-system, system-ui, sans-serif; backgroun
 .composer button { padding: 0 16px; border: 0; border-radius: 10px; background: #e8995a; color: #1a140d; font-weight: 600; cursor: pointer; }
 .composer button:disabled { opacity: 0.45; cursor: not-allowed; }
 .composer textarea:disabled { opacity: 0.45; }
+.pool { display: flex; gap: 10px; padding: 6px 12px; border-bottom: 1px solid #2a241d; font-size: 12px; color: #8a8178; flex-wrap: wrap; }
+.pooldot { opacity: 0.7; }
+.pooldot.active { color: #e8995a; opacity: 1; font-weight: 600; }
+.pooldot.pinned { color: #86c06a; }
