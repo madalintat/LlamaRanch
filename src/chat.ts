@@ -78,11 +78,9 @@ async function init() {
       const ev = payload.event;
       if (ev.kind === "routed") {
         bubble("trace", `routed to ${ev.model_id} · ${ev.category} — ${ev.reason}`);
-        current = bubble("assistant");
         refreshPool();
       } else if (ev.kind === "tool_call") {
-        const el = bubble("tool", `🔧 ${ev.name}(${ev.args})`);
-        el.classList.add("tool");
+        bubble("tool", `🔧 ${ev.name}(${ev.args})`);
         current = null;
       } else if (ev.kind === "tool_result") {
         const el = bubble("tool", `${ev.ok ? "✓" : "✗"} ${ev.name} → ${ev.preview}`);
