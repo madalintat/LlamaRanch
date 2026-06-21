@@ -1,4 +1,5 @@
 //! The harness brain: routes each chat turn to the best local expert model.
+pub mod backend;
 pub mod resolver;
 pub mod router;
 
@@ -66,4 +67,25 @@ pub trait Classifier {
 /// Decides the category for a turn.
 pub trait Router {
     fn route(&self, ctx: &TurnContext) -> RouteDecision;
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Usage {
+    pub prompt_tokens: u32,
+    pub completion_tokens: u32,
+}
+
+/// Streams a completion from a model. Synchronous (ureq); calls `on_token` per chunk.
+pub trait ChatBackend {
+    fn stream(
+        &self,
+        model_id: &str,
+        messages: &[Message],
+        on_token: &mut dyn FnMut(String),
+    ) -> Result<Usage, String>;
+}
+
+/// Ensures a model is loaded and ready before inference.
+pub trait Lifecycle {
+    fn ensure_loaded(&self, model_id: &str) -> Result<(), String>;
 }
