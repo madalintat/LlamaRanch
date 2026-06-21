@@ -5,9 +5,11 @@ use super::{Category, EmbeddingGate};
 use std::sync::Mutex;
 use std::time::Duration;
 
+type Centroids = Vec<(Category, Vec<f32>)>;
+
 /// Managed state that holds the centroid cache across turns.
 #[derive(Default)]
-pub struct GateCache(pub Mutex<Option<Vec<(Category, Vec<f32>)>>>);
+pub struct GateCache(pub Mutex<Option<Centroids>>);
 
 /// Cosine similarity of two equal-length vectors. 0.0 on length mismatch or zero norm.
 pub fn cosine(a: &[f32], b: &[f32]) -> f32 {
@@ -33,7 +35,7 @@ pub fn best_centroid(query: &[f32], centroids: &[(Category, Vec<f32>)]) -> Optio
     let mut best: Option<(Category, f32)> = None;
     for (cat, c) in centroids {
         let s = cosine(query, c);
-        if best.as_ref().map_or(true, |(_, bs)| s > *bs) {
+        if best.as_ref().is_none_or(|(_, bs)| s > *bs) {
             best = Some((*cat, s));
         }
     }
@@ -67,7 +69,7 @@ impl<'a> EmbedGate<'a> {
         EmbedGate { port, model, cache }
     }
 
-    fn ensure_centroids(&self) -> Option<Vec<(Category, Vec<f32>)>> {
+    fn ensure_centroids(&self) -> Option<Centroids> {
         if let Some(c) = self.cache.0.lock().unwrap().clone() {
             return Some(c);
         }
