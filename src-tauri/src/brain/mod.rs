@@ -176,7 +176,7 @@ pub fn run_turn<E: FnMut(BrainEvent)>(
 use crate::commands::AppConfig;
 use crate::scanner;
 use crate::server;
-use backend::{RouterChatBackend, RouterLifecycle};
+use backend::RouterChatBackend;
 use resolver::DefaultResolver;
 use router::DefaultRouter;
 use std::path::Path;
@@ -245,9 +245,9 @@ pub fn chat_send<R: Runtime>(
     app: AppHandle<R>,
     cfg: State<AppConfig>,
 ) {
-    let (port, models_dir, general) = {
+    let (port, models_dir, general, models_max) = {
         let c = cfg.0.lock().unwrap();
-        (c.port, c.models_dir.clone(), c.general_model.clone())
+        (c.port, c.models_dir.clone(), c.general_model.clone(), c.models_max)
     };
 
     std::thread::spawn(move || {
@@ -263,10 +263,17 @@ pub fn chat_send<R: Runtime>(
 
         let router = DefaultRouter {
             gate: RouterGate,
-            classifier: RouterClassifier { port, model: general },
+            classifier: RouterClassifier { port, model: general.clone() },
         };
         let resolver = DefaultResolver;
-        let lifecycle = RouterLifecycle { port };
+        let capacity = (models_max as usize).saturating_sub(1).max(1);
+        let pool_state = app.state::<pool::Pool>();
+        let lifecycle = pool::PoolLifecycle {
+            port,
+            pinned: vec![general.clone()],
+            capacity,
+            pool: pool_state.inner(),
+        };
         let chat_backend = RouterChatBackend { port };
 
         let sessions = app.state::<Sessions>();

@@ -67,6 +67,7 @@ impl ChatBackend for RouterChatBackend {
 }
 
 /// Loads a model via the router and waits briefly for readiness.
+#[allow(dead_code)]
 pub struct RouterLifecycle {
     pub port: u16,
 }

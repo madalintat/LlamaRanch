@@ -49,6 +49,7 @@ pub fn run() {
         .manage(shared)
         .manage(commands::Cancels::default())
         .manage(brain::Sessions::default())
+        .manage(brain::pool::Pool::default())
         .manage(LastHide::default())
         .invoke_handler(tauri::generate_handler![
             commands::list_models,
@@ -69,6 +70,7 @@ pub fn run() {
             brain::chat_new_session,
             brain::chat_send,
             brain::chat_cancel,
+            brain::pool::model_pool,
         ])
         .setup(|app| {
             // macOS: menubar-only app — no Dock icon, no Cmd-Tab entry.

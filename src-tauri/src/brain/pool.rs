@@ -54,6 +54,69 @@ impl Pool {
     }
 }
 
+use crate::brain::Lifecycle;
+use crate::commands::AppConfig;
+use crate::server;
+use serde::Serialize;
+use tauri::State;
+
+fn resident_ids(port: u16) -> Vec<String> {
+    server::list_models(port)
+        .into_iter()
+        .filter(|m| m.status == "loaded" || m.status == "sleeping")
+        .map(|m| m.id)
+        .collect()
+}
+
+/// Routing-aware Lifecycle: evict the LRU non-pinned expert when at capacity,
+/// then load the target and mark it most-recently-used.
+pub struct PoolLifecycle<'a> {
+    pub port: u16,
+    pub pinned: Vec<String>,
+    pub capacity: usize,
+    pub pool: &'a Pool,
+}
+
+impl Lifecycle for PoolLifecycle<'_> {
+    fn ensure_loaded(&self, target: &str) -> Result<(), String> {
+        let resident = resident_ids(self.port);
+        for id in plan_eviction(target, &resident, &self.pinned, self.capacity, &self.pool.order()) {
+            let _ = server::unload(self.port, &id); // best-effort
+        }
+        server::load(self.port, target)?;
+        self.pool.touch(target);
+        Ok(())
+    }
+}
+
+#[derive(Serialize)]
+pub struct PoolEntry {
+    pub id: String,
+    pub status: String,
+    pub pinned: bool,
+}
+
+#[derive(Serialize)]
+pub struct PoolView {
+    pub resident: Vec<PoolEntry>,
+    pub active: Option<String>,
+}
+
+#[tauri::command]
+pub fn model_pool(cfg: State<AppConfig>, pool: State<Pool>) -> PoolView {
+    let (port, general) = {
+        let c = cfg.0.lock().unwrap();
+        (c.port, c.general_model.clone())
+    };
+    let resident = server::list_models(port)
+        .into_iter()
+        .filter(|m| m.status == "loaded" || m.status == "sleeping")
+        .map(|m| PoolEntry { pinned: m.id == general, id: m.id, status: m.status })
+        .collect();
+    let active = pool.order().into_iter().next();
+    PoolView { resident, active }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
