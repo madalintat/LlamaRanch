@@ -125,6 +125,15 @@ fn resolve_model(cfg: &Config, id: &str) -> Option<Resolved> {
     Some(Resolved { path, file_bytes, local: false })
 }
 
+/// The `models--org--repo` cache directory containing `file`, if any.
+fn cache_repo_dir(file: &Path) -> Option<&Path> {
+    file.ancestors().find(|p| {
+        p.file_name()
+            .and_then(|n| n.to_str())
+            .map_or(false, |n| n.starts_with("models--"))
+    })
+}
+
 /// Merge a router model with local info into a view for the UI. `cached_size` is
 /// the HF-cache size for a non-local but already-downloaded model (0 if unknown).
 fn to_view(r: server::RouterModel, fs: &[scanner::Model], cached_size: u64) -> ModelView {
@@ -406,25 +415,38 @@ fn download_file(
 
 #[tauri::command]
 pub fn delete_model(model_id: String, app: AppHandle, cfg: State<AppConfig>) -> Result<(), String> {
-    let dir = cfg.0.lock().unwrap().models_dir.clone();
-    let model = scanner::scan(Path::new(&dir))
-        .into_iter()
-        .find(|m| m.id == model_id)
-        .ok_or_else(|| "only downloaded models can be deleted".to_string())?;
-    // unload it from the router first so we don't yank the file from a running model
-    let port = cfg.0.lock().unwrap().port;
-    let _ = server::unload(port, &model_id);
+    let c = cfg_of(&cfg);
+    let resolved =
+        resolve_model(&c, &model_id).ok_or_else(|| "only downloaded models can be deleted".to_string())?;
+    let _ = server::unload(c.port, &model_id);
 
-    let path = PathBuf::from(&model.path);
-    std::fs::remove_file(&path).map_err(|e| e.to_string())?;
-    if let Some(mm) = &model.mmproj_path {
-        let _ = std::fs::remove_file(mm);
-    }
-    // remove the model's own subdirectory if it's now empty (vision installs)
-    if let Some(parent) = path.parent() {
-        if parent != Path::new(&dir) {
-            let _ = std::fs::remove_dir(parent);
+    if resolved.local {
+        // capture mmproj before removing the main file
+        let m = scanner::scan(Path::new(&c.models_dir))
+            .into_iter()
+            .find(|m| m.id == model_id);
+        std::fs::remove_file(&resolved.path).map_err(|e| e.to_string())?;
+        if let Some(m) = m {
+            if let Some(mm) = &m.mmproj_path {
+                let _ = std::fs::remove_file(mm);
+            }
         }
+        if let Some(parent) = resolved.path.parent() {
+            if parent != Path::new(&c.models_dir) {
+                let _ = std::fs::remove_dir(parent);
+            }
+        }
+    } else {
+        let repo = cache_repo_dir(&resolved.path)
+            .ok_or_else(|| "could not locate cache directory".to_string())?;
+        std::fs::remove_dir_all(repo).map_err(|e| e.to_string())?;
+    }
+
+    // drop any saved override for the now-gone model
+    {
+        let mut cc = cfg.0.lock().unwrap();
+        cc.model_config.remove(&model_id);
+        let _ = config::save_to(&config::config_path(), &cc);
     }
     crate::start_router(&app);
     Ok(())
@@ -441,18 +463,12 @@ pub struct ModelInfoView {
 #[tauri::command]
 pub fn model_info(model_id: String, cfg: State<AppConfig>) -> ModelInfoView {
     let c = cfg_of(&cfg);
-    let m = scanner::scan(Path::new(&c.models_dir))
-        .into_iter()
-        .find(|m| m.id == model_id);
     let r#override = c.model_config.get(&model_id).cloned().unwrap_or_default();
-    let (native_ctx, file_bytes, kv_per_token) = match m {
-        Some(m) => {
-            let file_bytes = m.size_bytes;
-            match gguf::read_info(Path::new(&m.path)) {
-                Some(info) => (info.n_ctx_train, file_bytes, gguf::kv_bytes_per_token(&info)),
-                None => (0, file_bytes, 0),
-            }
-        }
+    let (native_ctx, file_bytes, kv_per_token) = match resolve_model(&c, &model_id) {
+        Some(r) => match gguf::read_info(&r.path) {
+            Some(info) => (info.n_ctx_train, r.file_bytes, gguf::kv_bytes_per_token(&info)),
+            None => (0, r.file_bytes, 0),
+        },
         None => (0, 0, 0),
     };
     ModelInfoView { native_ctx, file_bytes, kv_per_token, r#override }
@@ -641,5 +657,15 @@ mod tests {
         assert!(r.local);
         assert_eq!(r.path, f);
         assert_eq!(r.file_bytes, 2_000_000_000);
+    }
+
+    #[test]
+    fn cache_repo_dir_finds_models_dir() {
+        let p = Path::new("/h/.cache/huggingface/hub/models--org--repo/snapshots/abc/x.gguf");
+        assert_eq!(
+            cache_repo_dir(p).unwrap(),
+            Path::new("/h/.cache/huggingface/hub/models--org--repo")
+        );
+        assert_eq!(cache_repo_dir(Path::new("/tmp/m/x.gguf")), None);
     }
 }
