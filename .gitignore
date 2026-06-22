@@ -32,3 +32,6 @@ image.jpg
 # superpowers process scratch (specs/plans/ledgers) — never committed
 docs/superpowers/
 .superpowers/
+
+# Claude Code local artifacts (worktrees, etc.) — never committed
+.claude/
