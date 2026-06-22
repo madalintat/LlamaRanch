@@ -9,11 +9,6 @@
   <body>
     <!-- titlebar drag region -->
     <header class="titlebar" data-tauri-drag-region>
-      <div class="titlebar__dots">
-        <span class="titlebar__dot"></span>
-        <span class="titlebar__dot"></span>
-        <span class="titlebar__dot"></span>
-      </div>
       <span class="titlebar__spacer"></span>
       <span id="titlebar-model" class="titlebar__model mono">new chat · no model loaded</span>
       <span class="titlebar__spacer"></span>
@@ -34,9 +29,9 @@
               class="rail__lcd-canvas"></canvas>
             <div class="rail__lcd-row">
               <span id="lcd-model" class="rail__lcd-name">no model</span>
-              <span class="mono" style="font-size:8px;letter-spacing:.1em;color:var(--lcd-ink);">⌘K</span>
+              <span id="lcd-kbd" class="mono" style="font-size:8px;letter-spacing:.1em;color:var(--lcd-ink);">⌘K</span>
             </div>
-            <div class="rail__lcd-status mono">SERVING · <span data-counter="41">41</span> TOK/S</div>
+            <div class="rail__lcd-status mono"><span id="lcd-status">idle</span></div>
           </div>
 
           <!-- new chat -->
@@ -49,12 +44,10 @@
           </button>
         </div>
 
-        <!-- recent -->
+        <!-- recent — no history backend yet -->
         <div class="label rail__section-label">Recent</div>
         <div class="rail__recent">
-          <div class="rail__recent-item rail__recent-item--active">llama.cpp API changes</div>
-          <div class="rail__recent-item rail__recent-item--muted">Refactor Rust module</div>
-          <div class="rail__recent-item rail__recent-item--muted">Summarize notes</div>
+          <div class="rail__recent-item rail__recent-item--muted" style="font-style:italic;">No recent chats yet</div>
         </div>
 
         <span class="rail__spacer"></span>

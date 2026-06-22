@@ -2,6 +2,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { mountDither } from "./dither";
 import "./brand/theme";
+import { tagOS } from "./platform";
+
+tagOS();
 
 type BrainEvent =
   | { kind: "routed"; model_id: string; category: string; reason: string }
@@ -21,14 +24,35 @@ const emptyState = document.getElementById("empty-state") as HTMLDivElement;
 const newChatBtn = document.getElementById("new-chat") as HTMLButtonElement;
 const titlebarModel = document.getElementById("titlebar-model") as HTMLSpanElement;
 const lcdModel = document.getElementById("lcd-model") as HTMLSpanElement;
+const lcdStatus = document.getElementById("lcd-status") as HTMLSpanElement;
+const lcdKbd = document.getElementById("lcd-kbd") as HTMLSpanElement;
 const privacyModel = document.getElementById("privacy-model") as HTMLSpanElement;
 
 type PoolView = { resident: { id: string; status: string; pinned: boolean }[]; active: string | null };
 
 type ModelView = { id: string; name: string; group: string; local: boolean; need_download: boolean };
 
+// Strip org prefix, .gguf extension, quant suffixes like :Q4_0, then clean separators.
+function prettyName(id: string): string {
+  return id
+    .split("/").pop()!   // drop "org/"
+    .split(":")[0]        // drop ":Q4_0" quant suffix
+    .replace(/\.gguf$/i, "") // drop .gguf extension
+    .replace(/[-_]/g, " ")  // dashes/underscores → spaces
+    .replace(/\bGGUF\b/gi, "") // remove standalone GGUF token
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 // Mount dither engine on DOMContentLoaded (already fired — we're a module)
 const dither = mountDither();
+
+// OS-aware ⌘K hint
+if (lcdKbd) {
+  const isMac = document.documentElement.dataset.os === "macos";
+  lcdKbd.textContent = isMac ? "⌘K" : "Ctrl K";
+}
 
 /** Show/hide the empty state based on whether the log has any messages. */
 function syncEmptyState(): void {
@@ -38,10 +62,12 @@ function syncEmptyState(): void {
 }
 
 /** Update the model name shown in titlebar, LCD, and privacy panel. */
-function setActiveModel(name: string): void {
+function setActiveModel(id: string): void {
+  const name = id ? prettyName(id) : "";
   const label = name ? `${name} · local` : "new chat · no model loaded";
   titlebarModel.textContent = label;
   lcdModel.textContent = name || "no model";
+  if (lcdStatus) lcdStatus.textContent = name ? "SERVING" : "idle";
   if (privacyModel) privacyModel.textContent = name || "local";
 }
 
@@ -54,7 +80,11 @@ async function refreshPool() {
       dot.className = "pooldot";
       if (m.id === view.active) dot.classList.add("active");
       if (m.pinned) dot.classList.add("pinned");
-      dot.textContent = `● ${m.id}`;
+      // Square LED instead of ● emoji
+      const led = document.createElement("span");
+      led.className = m.id === view.active ? "led led--sm" : "led led--idle";
+      dot.appendChild(led);
+      dot.append(" " + prettyName(m.id));
       pool.appendChild(dot);
     }
     setActiveModel(view.active ?? "");
@@ -69,7 +99,7 @@ async function loadPicker() {
     for (const m of models.filter((x) => x.local || !x.need_download)) {
       const opt = document.createElement("option");
       opt.value = m.id;
-      opt.textContent = m.name;
+      opt.textContent = prettyName(m.name || m.id);
       modelPick.appendChild(opt);
     }
   } catch {
@@ -120,11 +150,21 @@ async function init() {
         bubble("trace", `routed to ${ev.model_id} · ${ev.category} — ${ev.reason}`);
         refreshPool();
       } else if (ev.kind === "tool_call") {
-        bubble("tool", `🔧 ${ev.name}(${ev.args})`);
+        bubble("tool", `${ev.name}(${ev.args})`);
         current = null;
       } else if (ev.kind === "tool_result") {
-        const el = bubble("tool", `${ev.ok ? "✓" : "✗"} ${ev.name} → ${ev.preview}`);
+        const el = document.createElement("div");
+        el.className = "msg msg--tool";
+        // Small square LED conveys ok/fail; no emoji
+        const led = document.createElement("span");
+        led.className = ev.ok ? "led led--sm" : "led led--idle";
+        el.appendChild(led);
+        el.append(` ${ev.name} → ${ev.preview}`);
         if (!ev.ok) el.classList.add("msg--error");
+        log.appendChild(el);
+        log.scrollTop = log.scrollHeight;
+        syncEmptyState();
+        dither.refresh();
       } else if (ev.kind === "token") {
         if (!current) current = bubble("assistant");
         current.textContent += ev.text;
