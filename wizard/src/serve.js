@@ -31,9 +31,20 @@ export async function runServe({ port, host } = {}) {
   const effectivePort = port || config.port || 2276;
   const effectiveHost = host || (config.expose_to_network ? '0.0.0.0' : '127.0.0.1');
 
+  // Args mirror src-tauri/src/server.rs router_args() -- keep in sync.
+  // --fit on: auto-size GPU layers and context to available memory (inherited by every model instance).
+  // --models-max 1: headless serve runs a single model; the app uses config.models_max.
+  const coreArgs = [
+    '--jinja',
+    '--fit', 'on',
+    '--props',
+    '--host', effectiveHost,
+    '--port', String(effectivePort),
+    '--models-max', '1',
+  ];
   const args = effectiveModel
-    ? ['--model', effectiveModel, '--host', effectiveHost, '--port', String(effectivePort), '--jinja', '--props']
-    : ['--host', effectiveHost, '--port', String(effectivePort), '--jinja', '--props'];
+    ? ['--model', effectiveModel, ...coreArgs]
+    : coreArgs;
 
   // Print branded startup banner
   const { renderLogo } = await import('./logo.js');

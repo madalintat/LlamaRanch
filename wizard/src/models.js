@@ -1,10 +1,10 @@
 // models.js -- model catalog and download logic for the LlamaRanch install wizard
+// MODEL_CATALOG is a deliberately curated subset of src-tauri/src/catalog.rs -- leave it as-is.
 
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-import https from 'https';
-import http from 'http';
+import { downloadFile } from './http.js';
 
 // ---------------------------------------------------------------------------
 // Model catalog
@@ -97,85 +97,6 @@ export function getModelsDir() {
 }
 
 // ---------------------------------------------------------------------------
-// HTTPS-only redirect guard
-// ---------------------------------------------------------------------------
-
-function assertHttpsRedirect(from, to) {
-  if (from.startsWith('https://') && !to.startsWith('https://')) {
-    throw new Error('Redirect from https to non-https refused: ' + to);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Download helper: writes to destPath+'.part', renames on success
-// ---------------------------------------------------------------------------
-
-async function downloadFile(url, destPath, onProgress, redirectCount = 0) {
-  if (redirectCount > 5) throw new Error('Too many redirects');
-
-  const partPath = destPath + '.part';
-  const protocol = url.startsWith('https://') ? https : http;
-
-  return new Promise((resolve, reject) => {
-    protocol.get(url, { headers: { 'User-Agent': 'llamaranch-wizard/0.1.0' } }, (res) => {
-      if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
-        const loc = res.headers.location;
-        res.resume();
-        try { assertHttpsRedirect(url, loc); } catch (e) { reject(e); return; }
-        downloadFile(loc, destPath, onProgress, redirectCount + 1)
-          .then(resolve)
-          .catch(reject);
-        return;
-      }
-
-      if (res.statusCode !== 200) {
-        res.resume();
-        reject(new Error('HTTP ' + res.statusCode + ' downloading ' + url));
-        return;
-      }
-
-      const totalBytes = parseInt(res.headers['content-length'] || '0', 10) || null;
-      let downloaded = 0;
-      let writeStream;
-      try {
-        writeStream = fs.createWriteStream(partPath);
-      } catch (err) {
-        reject(err);
-        return;
-      }
-
-      const cleanup = () => {
-        try { fs.unlinkSync(partPath); } catch { /* ignore */ }
-      };
-
-      res.on('data', (chunk) => {
-        downloaded += chunk.length;
-        if (totalBytes) {
-          const percent = Math.round((downloaded / totalBytes) * 100);
-          onProgress?.({ type: 'progress', downloaded, total: totalBytes, percent });
-        } else {
-          onProgress?.({ type: 'progress', downloaded, total: null, percent: null });
-        }
-      });
-
-      res.pipe(writeStream);
-
-      writeStream.on('finish', () => {
-        try {
-          fs.renameSync(partPath, destPath);
-          resolve(destPath);
-        } catch (err) {
-          cleanup();
-          reject(err);
-        }
-      });
-      writeStream.on('error', (err) => { cleanup(); reject(err); });
-      res.on('error', (err) => { cleanup(); reject(err); });
-    }).on('error', reject);
-  });
-}
-
-// ---------------------------------------------------------------------------
 // downloadModel(model, modelsDir, { onProgress })
 // ---------------------------------------------------------------------------
 
@@ -199,7 +120,14 @@ export async function downloadModel(model, modelsDir, { onProgress } = {}) {
   const url = 'https://huggingface.co/' + model.repo + '/resolve/main/' + model.file;
 
   try {
-    await downloadFile(url, destPath, onProgress);
+    await downloadFile(url, destPath, (received, total) => {
+      if (total) {
+        const percent = Math.round((received / total) * 100);
+        onProgress?.({ type: 'progress', downloaded: received, total, percent });
+      } else {
+        onProgress?.({ type: 'progress', downloaded: received, total: null, percent: null });
+      }
+    });
     onProgress?.({ type: 'done', path: destPath });
     return destPath;
   } catch (err) {

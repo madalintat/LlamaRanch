@@ -3,145 +3,10 @@
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-import https from 'https';
-import http from 'http';
 import { execa } from 'execa';
+import { fetchJSON, downloadFile } from './http.js';
 
 export const LLAMA_INSTALL_DIR = os.homedir() + '/.llamaranch/llama.cpp';
-
-// ---------------------------------------------------------------------------
-// Build GitHub API request headers
-// ---------------------------------------------------------------------------
-
-function githubHeaders() {
-  const h = {
-    'User-Agent': 'llamaranch-wizard/0.1.0',
-    'Accept': 'application/vnd.github+json',
-  };
-  if (process.env.GITHUB_TOKEN) {
-    h['Authorization'] = 'Bearer ' + process.env.GITHUB_TOKEN;
-  }
-  return h;
-}
-
-// ---------------------------------------------------------------------------
-// HTTPS-only redirect guard
-// ---------------------------------------------------------------------------
-
-function assertHttpsRedirect(from, to) {
-  if (from.startsWith('https://') && !to.startsWith('https://')) {
-    throw new Error('Redirect from https to non-https refused: ' + to);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// JSON fetch helper (follows redirects, always https for GitHub API)
-// ---------------------------------------------------------------------------
-
-async function fetchJSON(url, headers, redirectCount = 0) {
-  if (redirectCount > 5) throw new Error('Too many redirects');
-  const useHeaders = headers || { 'User-Agent': 'llamaranch-wizard/0.1.0' };
-  return new Promise((resolve, reject) => {
-    const protocol = url.startsWith('https://') ? https : http;
-    protocol.get(url, { headers: useHeaders }, (res) => {
-      if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
-        const loc = res.headers.location;
-        res.resume();
-        try { assertHttpsRedirect(url, loc); } catch (e) { reject(e); return; }
-        fetchJSON(loc, useHeaders, redirectCount + 1).then(resolve).catch(reject);
-        return;
-      }
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          let msg = 'HTTP ' + res.statusCode + ' fetching ' + url;
-          try {
-            const body = JSON.parse(data);
-            if (body.message) msg += ': ' + body.message;
-          } catch { /* not JSON */ }
-          reject(new Error(msg));
-          return;
-        }
-        try {
-          resolve(JSON.parse(data));
-        } catch (err) {
-          reject(new Error('Failed to parse JSON from ' + url + ': ' + err.message));
-        }
-      });
-      res.on('error', reject);
-    }).on('error', reject);
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Download helper: writes to destPath+'.part', renames on success
-// ---------------------------------------------------------------------------
-
-async function downloadFile(url, destPath, onProgress, redirectCount = 0) {
-  if (redirectCount > 5) throw new Error('Too many redirects');
-
-  const partPath = destPath + '.part';
-  const protocol = url.startsWith('https://') ? https : http;
-
-  return new Promise((resolve, reject) => {
-    protocol.get(url, { headers: { 'User-Agent': 'llamaranch-wizard/0.1.0' } }, (res) => {
-      if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
-        const loc = res.headers.location;
-        res.resume();
-        try { assertHttpsRedirect(url, loc); } catch (e) { reject(e); return; }
-        downloadFile(loc, destPath, onProgress, redirectCount + 1)
-          .then(resolve)
-          .catch(reject);
-        return;
-      }
-
-      if (res.statusCode !== 200) {
-        res.resume();
-        reject(new Error('HTTP ' + res.statusCode + ' downloading ' + url));
-        return;
-      }
-
-      const totalBytes = parseInt(res.headers['content-length'] || '0', 10) || null;
-      let downloaded = 0;
-      let writeStream;
-      try {
-        writeStream = fs.createWriteStream(partPath);
-      } catch (err) {
-        reject(err);
-        return;
-      }
-
-      const cleanup = () => {
-        try { fs.unlinkSync(partPath); } catch { /* ignore */ }
-      };
-
-      res.on('data', (chunk) => {
-        downloaded += chunk.length;
-        if (totalBytes) {
-          const percent = Math.round((downloaded / totalBytes) * 100);
-          onProgress?.({ type: 'progress', downloaded, total: totalBytes, percent });
-        } else {
-          onProgress?.({ type: 'progress', downloaded, total: null, percent: null });
-        }
-      });
-
-      res.pipe(writeStream);
-
-      writeStream.on('finish', () => {
-        try {
-          fs.renameSync(partPath, destPath);
-          resolve(destPath);
-        } catch (err) {
-          cleanup();
-          reject(err);
-        }
-      });
-      writeStream.on('error', (err) => { cleanup(); reject(err); });
-      res.on('error', (err) => { cleanup(); reject(err); });
-    }).on('error', reject);
-  });
-}
 
 // ---------------------------------------------------------------------------
 // macOS install via brew
@@ -206,10 +71,7 @@ async function installLinux(detectResult, onProgress) {
 
   let release;
   try {
-    release = await fetchJSON(
-      'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest',
-      githubHeaders(),
-    );
+    release = await fetchJSON('https://api.github.com/repos/ggml-org/llama.cpp/releases/latest');
   } catch (err) {
     onProgress?.('Failed to fetch release info: ' + err.message);
     return {
@@ -301,9 +163,9 @@ async function installLinux(detectResult, onProgress) {
   // Skip download only if the FINAL file (not a .part) already exists
   if (!fs.existsSync(archivePath)) {
     try {
-      await downloadFile(asset.browser_download_url, archivePath, (evt) => {
-        if (evt.type === 'progress' && evt.percent !== null) {
-          onProgress?.('Downloading... ' + evt.percent + '%');
+      await downloadFile(asset.browser_download_url, archivePath, (received, total) => {
+        if (total) {
+          onProgress?.('Downloading... ' + Math.round((received / total) * 100) + '%');
         }
       });
     } catch (err) {

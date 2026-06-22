@@ -3,143 +3,26 @@
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-import https from 'https';
-import http from 'http';
 import { execa } from 'execa';
+import { fetchJSON, downloadFile } from './http.js';
 
 const GITHUB_API = 'https://api.github.com/repos/madalintat/LlamaRanch/releases/latest';
 const RELEASES_URL = 'https://github.com/madalintat/LlamaRanch/releases';
-const UA = 'llamaranch-wizard/0.1.0';
 
 // ---------------------------------------------------------------------------
-// Build GitHub API request headers
+// downloadAsset: thin wrapper around shared downloadFile with string progress
 // ---------------------------------------------------------------------------
 
-function githubHeaders() {
-  const h = {
-    'User-Agent': UA,
-    'Accept': 'application/vnd.github+json',
-  };
-  if (process.env.GITHUB_TOKEN) {
-    h['Authorization'] = 'Bearer ' + process.env.GITHUB_TOKEN;
-  }
-  return h;
-}
-
-// ---------------------------------------------------------------------------
-// HTTPS-only redirect guard
-// ---------------------------------------------------------------------------
-
-function assertHttpsRedirect(from, to) {
-  if (from.startsWith('https://') && !to.startsWith('https://')) {
-    throw new Error('Redirect from https to non-https refused: ' + to);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// JSON fetch helper (follows redirects, rejects non-2xx)
-// ---------------------------------------------------------------------------
-
-async function fetchJSON(url, headers, redirectCount = 0) {
-  if (redirectCount > 5) throw new Error('Too many redirects');
-  const useHeaders = headers || { 'User-Agent': UA };
-  return new Promise((resolve, reject) => {
-    const protocol = url.startsWith('https://') ? https : http;
-    protocol.get(url, { headers: useHeaders }, (res) => {
-      if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
-        const loc = res.headers.location;
-        res.resume();
-        try { assertHttpsRedirect(url, loc); } catch (e) { reject(e); return; }
-        fetchJSON(loc, useHeaders, redirectCount + 1).then(resolve).catch(reject);
-        return;
-      }
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          let msg = 'HTTP ' + res.statusCode + ' fetching ' + url;
-          try {
-            const body = JSON.parse(data);
-            if (body.message) msg += ': ' + body.message;
-          } catch { /* not JSON */ }
-          reject(new Error(msg));
-          return;
-        }
-        try { resolve(JSON.parse(data)); }
-        catch (err) { reject(new Error('Failed to parse JSON: ' + err.message)); }
-      });
-      res.on('error', reject);
-    }).on('error', reject);
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Download helper: writes to .part, renames on success, HTTPS-only redirects
-// ---------------------------------------------------------------------------
-
-async function downloadAsset(url, destDir, filename, onProgress, redirectCount = 0) {
-  if (redirectCount > 10) throw new Error('Too many redirects');
-
+async function downloadAsset(url, destDir, filename, onProgress) {
   const destPath = path.join(destDir, filename);
-  const partPath = destPath + '.part';
-  const protocol = url.startsWith('https://') ? https : http;
-
-  return new Promise((resolve, reject) => {
-    protocol.get(url, { headers: { 'User-Agent': UA } }, (res) => {
-      if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
-        const loc = res.headers.location;
-        res.resume();
-        try { assertHttpsRedirect(url, loc); } catch (e) { reject(e); return; }
-        downloadAsset(loc, destDir, filename, onProgress, redirectCount + 1)
-          .then(resolve)
-          .catch(reject);
-        return;
-      }
-
-      if (res.statusCode !== 200) {
-        res.resume();
-        reject(new Error('HTTP ' + res.statusCode + ' downloading ' + url));
-        return;
-      }
-
-      const totalBytes = parseInt(res.headers['content-length'] || '0', 10) || null;
-      let downloaded = 0;
-      let writeStream;
-      try {
-        writeStream = fs.createWriteStream(partPath);
-      } catch (err) {
-        reject(err);
-        return;
-      }
-
-      const cleanup = () => {
-        try { fs.unlinkSync(partPath); } catch { /* ignore */ }
-      };
-
-      res.on('data', (chunk) => {
-        downloaded += chunk.length;
-        if (totalBytes) {
-          const percent = Math.round((downloaded / totalBytes) * 100);
-          onProgress?.('Downloading ' + filename + '... ' + percent + '%');
-        } else {
-          const mb = Math.round(downloaded / (1024 * 1024) * 10) / 10;
-          onProgress?.('Downloading ' + filename + '... ' + mb + ' MB');
-        }
-      });
-
-      res.pipe(writeStream);
-      writeStream.on('finish', () => {
-        try {
-          fs.renameSync(partPath, destPath);
-          resolve(destPath);
-        } catch (err) {
-          cleanup();
-          reject(err);
-        }
-      });
-      writeStream.on('error', (err) => { cleanup(); reject(err); });
-      res.on('error', (err) => { cleanup(); reject(err); });
-    }).on('error', reject);
+  return downloadFile(url, destPath, (received, total) => {
+    if (total) {
+      const percent = Math.round((received / total) * 100);
+      onProgress?.('Downloading ' + filename + '... ' + percent + '%');
+    } else {
+      const mb = Math.round(received / (1024 * 1024) * 10) / 10;
+      onProgress?.('Downloading ' + filename + '... ' + mb + ' MB');
+    }
   });
 }
 
@@ -148,8 +31,6 @@ async function downloadAsset(url, destDir, filename, onProgress, redirectCount =
 // ---------------------------------------------------------------------------
 
 function selectAsset(assets, normalizedOs, normalizedArch) {
-  const names = assets.map(a => a.name.toLowerCase());
-
   if (normalizedOs === 'macos') {
     if (normalizedArch === 'arm64') {
       return (
@@ -356,7 +237,7 @@ export async function installApp(detectResult, { onProgress } = {}) {
     onProgress?.('Fetching latest release from GitHub...');
     let release;
     try {
-      release = await fetchJSON(GITHUB_API, githubHeaders());
+      release = await fetchJSON(GITHUB_API);
     } catch (err) {
       onProgress?.('GitHub API error: ' + err.message);
       return {

@@ -3,6 +3,7 @@
 import chalk from 'chalk';
 import { detect } from './detect.js';
 import { installApp } from './app-install.js';
+import { fetchJSON } from './http.js';
 
 export async function runUpdate() {
   const { renderLogo } = await import('./logo.js');
@@ -17,27 +18,7 @@ export async function runUpdate() {
   console.log(chalk.dim('Checking for latest release on GitHub...'));
 
   try {
-    const ghHeaders = {
-      'User-Agent': 'llamaranch-wizard/0.1.0',
-      'Accept': 'application/vnd.github+json',
-    };
-    if (process.env.GITHUB_TOKEN) {
-      ghHeaders['Authorization'] = 'Bearer ' + process.env.GITHUB_TOKEN;
-    }
-    const res = await fetch('https://api.github.com/repos/madalintat/LlamaRanch/releases/latest', {
-      headers: ghHeaders,
-    });
-
-    if (!res.ok) {
-      let msg = 'GitHub API returned ' + res.status;
-      try {
-        const body = await res.json();
-        if (body.message) msg += ': ' + body.message;
-      } catch { /* not JSON */ }
-      throw new Error(msg);
-    }
-
-    const data = await res.json();
+    const data = await fetchJSON('https://api.github.com/repos/madalintat/LlamaRanch/releases/latest');
     const latestVersion = data.tag_name;
     const installedVersion = info.appInstalled.version;
 
