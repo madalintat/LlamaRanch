@@ -484,22 +484,198 @@ html, body {
 
 .foot__spacer { flex: 1; }
 
-/* ── Settings window (unchanged, keep for settings.html) ───────── */
+/* ── Settings window — brand skin ──────────────────────────────── */
+
+/* App shell override: settings uses --panel bg */
+#app:has(.s-body) {
+  background: var(--panel);
+}
+
+/* Header */
+.s-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 17px 20px 14px;
+  border-bottom: 1px solid var(--line-2);
+  flex: none;
+}
+
+.s-head__logo {
+  display: block;
+  flex: none;
+  border-radius: 5px;
+  pointer-events: none;
+}
+
+.s-head__title {
+  font-size: 19px;
+  color: var(--ink);
+  pointer-events: none;
+}
+
+.s-head__spacer { flex: 1; }
+
+.s-head__close {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--faint);
+  font-size: 16px;
+  line-height: 1;
+  border-radius: 6px;
+  flex: none;
+}
+.s-head__close:hover { color: var(--ink); background: var(--line-3); }
+
+/* Body scroll area */
+.s-body {
+  overflow-y: auto;
+  flex: 1;
+}
+.s-body::-webkit-scrollbar { width: 6px; }
+.s-body::-webkit-scrollbar-thumb {
+  background: var(--line-4);
+  border-radius: 3px;
+}
+
+/* Section block */
+.s-section {
+  padding: 6px 20px 8px;
+}
+
+.s-section__label {
+  padding: 14px 0 6px;
+  font-size: 9.5px;
+  letter-spacing: .12em;
+}
+
+/* Connector / tool row */
+.s-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line-3);
+}
+
+.s-row--muted { opacity: 0.65; }
+
+.s-row__body { flex: 1; min-width: 0; }
+
+.s-row__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.s-row__name--off { color: var(--muted); font-weight: 500; }
+
+.s-row__body .meta { margin-top: 2px; }
+
+.tag--faint { color: var(--faint); border-color: var(--line-2); }
+
+/* Add MCP server row */
+.s-row--add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 0 6px;
+  border-top: 1px solid var(--line-3);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 13px;
+}
+.s-row--add:hover { opacity: .75; }
+
+.s-row__add-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Field wrappers */
+.s-field-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.s-field-row--2up > .s-field-wrap { flex: 1; }
+.s-field-row--2up > .s-field-wrap--grow { flex: 2; }
+
+.s-field-wrap {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+}
+
+.s-field-row .s-field-wrap { margin-bottom: 0; }
+
+.s-field-wrap__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 9.5px;
+}
+
+/* Brand field inputs get the .field class directly via HTML */
+
+/* Expose / autostart toggle rows */
+.s-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 10px;
+  padding: 11px 13px;
+  border: 1px solid var(--field-line);
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.s-toggle-row__body { flex: 1; min-width: 0; }
+
+.s-toggle-row__name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.s-toggle-row__sub { margin-top: 2px; }
+
+/* Hidden native checkboxes (state kept for config save) */
+.s-hidden-check {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
+/* Pill toggles in the toggle row are clickable via the row itself */
+.s-toggle-row .toggle { flex: none; }
+
+/* Footer */
+.s-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 15px;
+  border-top: 1px solid var(--line-2);
+  background: var(--foot);
+  flex: none;
+}
+
+.s-foot__spacer { flex: 1; }
+
+/* Legacy class stubs — kept so any lingering references don't break */
 .settings-body { padding: 6px 15px 8px; overflow-y: auto; max-height: 480px; }
 .field-group { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 11px; }
-.field-group input {
-  display: block; width: 100%; margin-top: 4px; padding: 7px 10px;
-  border: 1px solid var(--field-line); border-radius: 7px;
-  background: var(--panel-2); color: var(--ink); font-family: var(--mono); font-size: 12px;
-  outline: none;
-}
-.field-group input::placeholder { color: var(--faint); }
-.field-group input:focus { border-color: var(--line-4); }
-.check {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 12px; margin: 6px 0 14px; color: var(--ink);
-}
-.check input { accent-color: var(--ink); }
+.check { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 6px 0 14px; color: var(--ink); }
 
 /* Focus rings */
 button:focus-visible {
