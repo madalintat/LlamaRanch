@@ -14,6 +14,8 @@ pub trait Tool: Send + Sync {
 /// Returns true for hosts that must never be fetched (SSRF-unsafe).
 /// Accepts either a bare hostname/IP or a `host:port` string.
 pub fn is_blocked_host(host: &str) -> bool {
+    use std::net::{Ipv4Addr, Ipv6Addr};
+
     if host.is_empty() {
         return true;
     }
@@ -23,29 +25,50 @@ pub fn is_blocked_host(host: &str) -> bool {
         return true;
     }
 
-    // Exact / keyword matches.
-    let lo = bare.to_ascii_lowercase();
-    if matches!(lo.as_str(), "localhost" | "0.0.0.0" | "::1") {
-        return true;
-    }
-    // IPv6 link-local / ULA.
-    if lo.starts_with("fe80:") || lo.starts_with("fc") || lo.starts_with("fd") {
-        return true;
+    // Normalize: strip one trailing dot (FQDN form, e.g. `localhost.`).
+    let bare = bare.trim_end_matches('.');
+
+    // Try parsing as IPv6 first.
+    if let Ok(addr) = bare.parse::<Ipv6Addr>() {
+        // Block loopback (::1) and unspecified (::).
+        if addr.is_loopback() || addr.is_unspecified() {
+            return true;
+        }
+        // Block ULA fc00::/7 (covers fc:: and fd:: prefixes).
+        if (addr.segments()[0] & 0xfe00) == 0xfc00 {
+            return true;
+        }
+        // Block link-local fe80::/10.
+        if (addr.segments()[0] & 0xffc0) == 0xfe80 {
+            return true;
+        }
+        // Block IPv4-mapped IPv6 addresses (::ffff:a.b.c.d) by re-running IPv4 checks.
+        if let Some(v4) = addr.to_ipv4_mapped() {
+            return is_blocked_ipv4(v4);
+        }
+        return false;
     }
 
-    // Parse as IPv4.
-    if let Ok(addr) = lo.parse::<std::net::Ipv4Addr>() {
-        let octets = addr.octets();
-        return matches!(octets,
-            [127, ..] |       // 127.0.0.0/8
-            [10, ..] |        // 10.0.0.0/8
-            [169, 254, ..] |  // 169.254.0.0/16 link-local
-            [0, 0, 0, 0]      // 0.0.0.0
-        ) || (octets[0] == 192 && octets[1] == 168)      // 192.168.0.0/16
-          || (octets[0] == 172 && (16..=31).contains(&octets[1])); // 172.16-31.x
+    // Try parsing as IPv4.
+    if let Ok(addr) = bare.parse::<Ipv4Addr>() {
+        return is_blocked_ipv4(addr);
+    }
+
+    // Treat as hostname: lowercase; block localhost variants, block empty.
+    let lo = bare.to_ascii_lowercase();
+    if lo.is_empty() || lo == "localhost" || lo.ends_with(".localhost") {
+        return true;
     }
 
     false
+}
+
+/// IPv4 address block predicate (private, loopback, link-local, unspecified).
+fn is_blocked_ipv4(addr: std::net::Ipv4Addr) -> bool {
+    addr.is_loopback()      // 127.0.0.0/8
+    || addr.is_private()    // 10/8, 172.16-31/12, 192.168/16
+    || addr.is_link_local() // 169.254/16
+    || addr.is_unspecified() // 0.0.0.0
 }
 
 /// Strip port from `host:port` or `[ipv6]:port`.
@@ -217,7 +240,18 @@ impl Tool for ReadFile {
     fn run(&self, args: &Value) -> Result<String, String> {
         let path = args.get("path").and_then(|v| v.as_str())
             .ok_or("missing 'path'")?;
+        // Cheap lexical pre-check (rejects `..` components and non-root paths).
         if !path_allowed(path, &self.roots) {
+            return Err("access to that path is not allowed — grant the folder in Settings".into());
+        }
+        // Canonicalize to resolve symlinks, then re-verify against canonicalized roots.
+        let real = std::fs::canonicalize(path).map_err(|e| e.to_string())?;
+        let allowed = self.roots.iter().any(|root| {
+            std::fs::canonicalize(root)
+                .map(|canon_root| real.starts_with(&canon_root))
+                .unwrap_or(false)
+        });
+        if !allowed {
             return Err("access to that path is not allowed — grant the folder in Settings".into());
         }
         const CAP: usize = 64 * 1024;
@@ -467,6 +501,31 @@ mod tests {
         assert!(!is_blocked_host("172.32.0.1")); // just outside 172.16-31 range
         assert!(!is_blocked_host("11.0.0.1"));   // not 10.x
         assert!(!is_blocked_host("192.169.1.1")); // not 192.168.x
+        // Additional public: IPv6
+        assert!(!is_blocked_host("2606:4700::1111")); // Cloudflare DNS
+        assert!(!is_blocked_host("face::1"));          // arbitrary global unicast
+    }
+
+    // ── SSRF bypass regression tests (must be blocked) ───────────────────────
+
+    #[test]
+    fn ssrf_ipv4_mapped_ipv6_loopback() {
+        // [::ffff:127.0.0.1] is IPv4-mapped loopback — must be blocked
+        assert!(is_blocked_host("[::ffff:127.0.0.1]"));
+        assert!(is_blocked_host("[::ffff:127.0.0.1]:8080"));
+    }
+
+    #[test]
+    fn ssrf_trailing_dot_localhost() {
+        // localhost. (trailing-dot FQDN) — must be blocked
+        assert!(is_blocked_host("localhost."));
+        assert!(is_blocked_host("localhost.:9200"));
+    }
+
+    #[test]
+    fn ssrf_expanded_ipv6_loopback() {
+        // 0:0:0:0:0:0:0:1 is the expanded form of ::1 — must be blocked
+        assert!(is_blocked_host("0:0:0:0:0:0:0:1"));
     }
 
     // ── path_allowed ──────────────────────────────────────────────────────────
@@ -609,5 +668,40 @@ mod tests {
             .map(|t| t["function"]["name"].as_str().unwrap()).collect();
         assert!(names.contains(&"web_fetch"));
         assert!(names.contains(&"web_search"));
+    }
+
+    // ── read_file symlink escape regression ──────────────────────────────────
+
+    #[test]
+    fn read_file_normal_file_in_root_still_works() {
+        // After the canonicalize fix, a real file inside the root must still be readable.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ok.txt");
+        std::fs::write(&path, "contents").unwrap();
+        let roots = vec![dir.path().to_string_lossy().into_owned()];
+        let tool = ReadFile { roots };
+        let args = json!({ "path": path.to_string_lossy().as_ref() });
+        assert_eq!(tool.run(&args).unwrap(), "contents");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn read_file_symlink_escape_blocked() {
+        // Create a root dir and a target dir outside it.
+        let root_dir = tempfile::tempdir().unwrap();
+        let outside_dir = tempfile::tempdir().unwrap();
+        let secret = outside_dir.path().join("secret.txt");
+        std::fs::write(&secret, "secret data").unwrap();
+
+        // Place a symlink inside root pointing to the outside file.
+        let link_path = root_dir.path().join("escape_link.txt");
+        std::os::unix::fs::symlink(&secret, &link_path).unwrap();
+
+        let roots = vec![root_dir.path().to_string_lossy().into_owned()];
+        let tool = ReadFile { roots };
+        let args = json!({ "path": link_path.to_string_lossy().as_ref() });
+        // Must be denied because canonicalized path escapes the root.
+        let err = tool.run(&args).unwrap_err();
+        assert!(err.contains("not allowed"), "expected access denied, got: {err}");
     }
 }
