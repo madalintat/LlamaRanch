@@ -16,7 +16,11 @@ Run AI on your own hardware. One private endpoint. Nothing leaves the valley.
 ![License](https://img.shields.io/badge/license-MIT-b07a3e)
 ![Built on](https://img.shields.io/badge/built%20on-llama.cpp-2e8b48)
 
-<img src="docs/assets/cover.jpg" width="680" alt="LlamaRanch" />
+<img src="docs/assets/ranch-dither.jpg" width="720" alt="LlamaRanch — a quiet ranch for your local models" />
+
+<br/>
+
+<img src="docs/assets/model-selector.png" width="760" alt="The LlamaRanch model selector — load, stop, and route local models from one private endpoint" />
 
 </div>
 
