@@ -251,14 +251,14 @@
     <span style="flex:1; height:1px; background:var(--line);"></span>
   </div>
 
-  <div style="display:flex; gap:26px; align-items:flex-start;">
+  <div id="pop-mocks" style="display:flex; gap:26px; align-items:flex-start;">
 
     <!-- ── LIGHT POPOVER ─────────────────────────────────────── -->
     <div style="flex:none; width:380px;">
       <div class="label" style="margin-bottom:12px;">light · default</div>
 
       <!-- hero dither bg -->
-      <div style="position:relative; border:1px solid var(--line); border-radius:6px; overflow:hidden; background:var(--panel-2); padding:48px 0; display:flex; justify-content:center; margin-bottom:20px;">
+      <div id="pop-light" style="position:relative; border:1px solid var(--line); border-radius:6px; overflow:hidden; background:var(--panel-2); padding:48px 0; display:flex; justify-content:center; margin-bottom:20px;">
         <canvas data-glyph="wall" data-seed="5" data-cell="4" data-color="#cbc7bb" style="position:absolute; inset:0; width:100%; height:100%;"></canvas>
 
         <!-- Popover card -->
@@ -340,7 +340,7 @@
 
           <!-- foot -->
           <div style="display:flex; align-items:center; gap:8px; padding:11px 15px; border-top:1px solid var(--line-2); background:var(--foot);">
-            <span class="mono" style="font-size:9.5px; letter-spacing:.04em; color:var(--faint);">LLAMARANCH 1.0 · LLAMA.CPP b9670</span>
+            <span class="mono" style="font-size:9.5px; letter-spacing:.04em; color:var(--faint);">LLAMARANCH 0.3.0 · LLAMA.CPP b9670</span>
             <span style="flex:1;"></span>
             <button class="ubtn">settings</button>
           </div>
@@ -355,7 +355,7 @@
 
       <!-- dark wrapper applies dark tokens -->
       <div data-theme="dark" style="border-radius:6px;">
-        <div style="position:relative; border:1px solid #2f2d26; border-radius:6px; overflow:hidden; background:#16150f; padding:48px 0; display:flex; justify-content:center;">
+        <div id="pop-dark" style="position:relative; border:1px solid #2f2d26; border-radius:6px; overflow:hidden; background:#16150f; padding:48px 0; display:flex; justify-content:center;">
           <canvas data-glyph="wall" data-seed="7" data-cell="4" data-color="#252420" style="position:absolute; inset:0; width:100%; height:100%;"></canvas>
 
           <!-- Popover card -->
@@ -437,7 +437,7 @@
 
             <!-- foot -->
             <div style="display:flex; align-items:center; gap:8px; padding:11px 15px; border-top:1px solid #262420; background:#16150f;">
-              <span class="mono" style="font-size:9.5px; letter-spacing:.04em; color:#6a685e;">LLAMARANCH 1.0 · LLAMA.CPP b9670</span>
+              <span class="mono" style="font-size:9.5px; letter-spacing:.04em; color:#6a685e;">LLAMARANCH 0.3.0 · LLAMA.CPP b9670</span>
               <span style="flex:1;"></span>
               <span class="mono" style="font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:#94918a;">settings</span>
             </div>
