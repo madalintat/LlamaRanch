@@ -266,7 +266,8 @@ body {
 }
 .hero-content {
   position: relative;
-  max-width: clamp(420px, 46vw, 640px);
+  max-width: min(640px, 100%);
+  width: clamp(280px, 46vw, 640px);
   animation: fadeUp 0.6s ease both;
 }
 .hero-eyebrow {
@@ -291,7 +292,7 @@ body {
 .hero-headline {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: clamp(44px, 5.4vw, 76px);
+  font-size: clamp(30px, 7vw, 76px);
   line-height: 1.04;
   letter-spacing: -0.01em;
   margin-bottom: 28px;
@@ -1126,17 +1127,99 @@ body {
 .page {
   background: var(--panel-2);
   width: 100%;
+  overflow-x: hidden;
 }
 
 /* ── Responsive / mobile ── */
-@media (max-width: 860px) {
-  /* 2-col → 1-col for all new layouts */
+
+/* ── LARGE SCREENS (>=1600px): cap content widths so they don't stretch too wide ── */
+@media (min-width: 1600px) {
+  .agent-cols,
+  .models-cols,
+  .endpoint-cols {
+    max-width: 1360px;
+    margin: 0 auto;
+  }
+  .agent-left,
+  .agent-right {
+    padding-left: clamp(40px, 4vw, 80px);
+    padding-right: clamp(40px, 4vw, 80px);
+  }
+  .models-left {
+    padding-left: clamp(40px, 4vw, 80px);
+    padding-right: clamp(40px, 4vw, 80px);
+  }
+  .features {
+    max-width: 1360px;
+    margin: 0 auto;
+  }
+  .download-section .section-inner,
+  .download-section .download-grid {
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .mission-inner {
+    max-width: 760px;
+  }
+  .footer-top {
+    max-width: 1360px;
+    margin: 0 auto;
+  }
+  .footer-bottom {
+    max-width: 1360px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* ── TABLET (<=1024px): 2-col sections begin to tighten ── */
+@media (max-width: 1024px) {
+  .agent-cols {
+    grid-template-columns: 44% 56%;
+  }
+  .models-cols {
+    grid-template-columns: 54% 46%;
+  }
+  .endpoint-cols {
+    grid-template-columns: 40% 60%;
+  }
+  .download-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .download-card:last-child {
+    grid-column: span 2;
+    max-width: 480px;
+    justify-self: center;
+    width: 100%;
+  }
+  .features {
+    grid-template-columns: 1fr 1fr;
+  }
+  .feature:nth-child(2) {
+    border-right: none !important;
+  }
+  .feature:nth-child(3) {
+    border-top: 1px solid var(--line-2);
+    border-right: none !important;
+    grid-column: span 2;
+  }
+}
+
+/* ── STACKED COLUMNS (~<=900px): 2-col sections stack ── */
+@media (max-width: 900px) {
   .agent-cols,
   .models-cols,
   .endpoint-cols {
     grid-template-columns: 1fr;
   }
+  /* Screenshot below text in all stacked sections */
+  .agent-right {
+    order: 2;
+  }
   .agent-left {
+    order: 1;
     padding: 0 clamp(20px, 5vw, 48px);
     margin-bottom: 32px;
   }
@@ -1146,53 +1229,294 @@ body {
   }
   .agent-shot-frame {
     transform: none;
+    max-width: 540px;
+    margin: 0 auto;
+  }
+  .agent-shot {
+    max-width: 100%;
   }
   .models-left {
     padding: 0 clamp(20px, 5vw, 48px);
   }
   .models-right {
+    order: 2;
     padding: clamp(20px, 4vw, 48px) clamp(20px, 5vw, 48px);
     min-height: 260px;
   }
-  .models-shot { max-width: 320px; }
+  .models-shot {
+    max-width: 380px;
+    margin: 0 auto;
+  }
   .endpoint-cols {
-    grid-template-columns: 1fr;
     gap: 28px;
   }
   .endpoint-left {
     gap: 12px;
   }
+  .endpoint-right {
+    order: 2;
+  }
 }
 
-@media (max-width: 800px) {
-  .site-nav { padding: 14px 20px; }
+/* ── PHONE (~<=768px): nav, hero, grids, spacing ── */
+@media (max-width: 768px) {
+  /* Overflow guard */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Nav */
+  .site-nav { padding: 14px 16px; }
   .nav-links { gap: 14px; }
   .nav-links .nav-features,
   .nav-links .nav-models,
   .nav-links .nav-install { display: none; }
+  .nav-links .nav-github {
+    padding: 8px 14px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
 
-  .hero { padding: 48px 20px 48px; min-height: 80vh; }
-  .hero-bg { -webkit-mask-image: linear-gradient(90deg, transparent 10%, #000 55%); mask-image: linear-gradient(90deg, transparent 10%, #000 55%); }
-  .hero-content { max-width: 100%; }
+  /* Hero */
+  .hero {
+    padding: 56px 20px 56px;
+    min-height: 68vh;
+    align-items: flex-start;
+  }
+  .hero-bg {
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 60%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 60%);
+    opacity: 0.55;
+  }
+  .hero-content {
+    max-width: 100%;
+  }
+  .hero-headline {
+    font-size: clamp(30px, 9vw, 44px);
+  }
+  .hero-body {
+    font-size: 15px;
+    max-width: 100%;
+  }
+  .hero-install {
+    max-width: 100%;
+  }
+  .install-cmd {
+    overflow: hidden;
+  }
+  .install-text {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .hero-actions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .btn-outline,
+  .btn-primary {
+    min-height: 44px;
+    padding: 12px 24px;
+    display: inline-flex;
+    align-items: center;
+  }
 
-  .works-with { padding: 14px 20px; }
-  .features { grid-template-columns: 1fr; }
-  .feature { border-right: none !important; }
-  .endpoint { padding: 48px 20px; }
+  /* Works with */
+  .works-with {
+    padding: 14px 20px;
+    gap: 10px;
+  }
+  .works-with-items {
+    font-size: 12px;
+  }
 
-  .download-grid { grid-template-columns: 1fr; }
+  /* Status band */
+  .status-band {
+    padding: 16px 20px;
+  }
+  .status-row {
+    gap: 10px;
+    row-gap: 8px;
+  }
+  .status-note {
+    margin-left: 0;
+    flex-basis: 100%;
+    margin-top: 4px;
+  }
 
-  .site-footer { padding: 32px 20px 0; }
-  .footer-nav { gap: 32px; }
+  /* Agent/Models/Endpoint sections */
+  .agent-section,
+  .models-section {
+    padding: clamp(48px, 7vh, 80px) 0;
+  }
+  .agent-left,
+  .agent-right,
+  .models-left {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .agent-shot-frame {
+    max-width: 100%;
+  }
+  .models-right {
+    padding: 20px;
+    min-height: auto;
+  }
+  .models-shot {
+    max-width: 100%;
+  }
 
-  .model-list-header { flex-wrap: wrap; gap: 8px; }
-  .model-count-chip { margin-left: 0; }
+  /* Features */
+  .features {
+    grid-template-columns: 1fr;
+  }
+  .feature {
+    border-right: none !important;
+    border-top: 1px solid var(--line-2) !important;
+  }
+  .feature:nth-child(3) {
+    grid-column: auto;
+  }
+
+  /* Endpoint */
+  .endpoint {
+    padding: 48px 20px;
+  }
+  .endpoint-cols {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .endpoint-panel {
+    overflow-x: auto;
+  }
+  .endpoint-body {
+    min-width: 0;
+    font-size: 11.5px;
+  }
+
+  /* Mission */
+  .mission-inner {
+    padding: clamp(48px, 7vh, 80px) 20px;
+  }
+  .mission-quote {
+    font-size: clamp(26px, 8vw, 38px);
+  }
+  .mission-body {
+    font-size: 14px;
+  }
+
+  /* Download */
+  .download-section {
+    padding: clamp(48px, 7vh, 80px) 20px;
+  }
+  .download-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .download-card:last-child {
+    grid-column: auto;
+    max-width: 100%;
+    justify-self: auto;
+  }
+  .install-cmd-wide {
+    max-width: 100%;
+  }
+  .install-note-wide {
+    font-size: 10.5px;
+  }
+
+  /* Footer */
+  .site-footer {
+    padding: 36px 20px 0;
+  }
+  .footer-top {
+    flex-direction: column;
+    gap: 32px;
+  }
+  .footer-brand {
+    max-width: 100%;
+  }
+  .footer-nav {
+    gap: 28px;
+    flex-wrap: wrap;
+  }
+  .footer-bottom {
+    font-size: 9.5px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .footer-horizon {
+    height: clamp(120px, 18vh, 200px);
+    /* Keep full-bleed but ensure no horizontal overflow */
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+  }
+
+  /* Section headlines */
+  .section-headline {
+    font-size: clamp(24px, 7vw, 36px);
+  }
 }
 
+/* ── SMALL PHONE (<=480px): further tighten ── */
 @media (max-width: 480px) {
-  .footer-top { flex-direction: column; }
-  .section-headline { font-size: 26px; }
-  .mission-quote { font-size: 28px; }
+  .hero {
+    padding: 44px 16px 44px;
+    min-height: auto;
+  }
+  .hero-headline {
+    font-size: clamp(28px, 10vw, 36px);
+  }
+  .hero-body {
+    font-size: 14px;
+  }
+  .hero-note {
+    font-size: 10.5px;
+  }
+
+  .site-nav { padding: 12px 16px; }
+
+  .status-band { padding: 14px 16px; }
+  .status-endpoint { font-size: 12px; }
+  .status-tags { gap: 5px; }
+
+  .agent-left,
+  .agent-right,
+  .models-left,
+  .endpoint { padding-left: 16px; padding-right: 16px; }
+
+  .endpoint-body { font-size: 11px; padding: 14px 14px 18px; }
+
+  .section-headline { font-size: clamp(22px, 8vw, 30px); }
+  .mission-quote { font-size: clamp(24px, 8.5vw, 32px); }
+  .mission-body { font-size: 13.5px; }
+
+  .download-section { padding: 44px 16px; }
+  .download-card { padding: 22px 18px; }
+
+  .site-footer { padding: 28px 16px 0; }
+  .footer-nav { gap: 20px; }
+  .footer-horizon { height: clamp(100px, 15vh, 160px); }
+  .footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .works-with { padding: 12px 16px; }
+  .works-with-items { font-size: 11px; }
+
+  .features { }
+  .feature { padding: clamp(28px, 5vw, 48px) 16px; }
+
+  .mission-inner { padding: 44px 16px; }
+
+  .btn-outline,
+  .btn-primary { width: 100%; justify-content: center; }
+
+  .model-row { padding: 12px 14px; gap: 10px; }
+  .model-meta { display: none; }
 }
 
 /* ── Install command (the wizard one-liner) ── */
