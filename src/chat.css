@@ -1,6 +1,6 @@
 /* ============================================================
    chat.css - Brand re-skin for the LlamaRanch chat window
-   All colors via var(--…) tokens from src/brand/tokens.css
+   All colors via var(--) tokens from src/brand/tokens.css
    ============================================================ */
 
 /* ── Root & Layout ─────────────────────────────────────────── */
@@ -86,6 +86,72 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+  transition: width .22s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail { transition: none; }
+}
+
+.rail--collapsed {
+  width: 32px;
+}
+
+.rail--collapsed .rail__content {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rail__content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity .16s ease;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail__content { transition: none; }
+}
+
+/* Collapse toggle button - sits at top-right of the rail */
+.rail__collapse-btn {
+  position: absolute;
+  right: 0;
+  top: 10px;
+  z-index: 10;
+  width: 24px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px 0 0 6px;
+  transition: background .12s, color .12s;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.rail--collapsed .rail__collapse-btn {
+  right: 4px;
+  top: 10px;
+}
+
+.rail__collapse-btn:hover {
+  background: var(--line-3);
+  color: var(--ink);
+}
+
+.rail__collapse-icon {
+  font-size: 16px;
+  line-height: 1;
+  font-family: var(--sans);
 }
 
 .rail__top {
@@ -95,12 +161,23 @@ body {
   gap: 11px;
 }
 
-/* mini LCD inside rail */
+/* mini LCD inside rail - now clickable */
 .rail__lcd {
   position: relative;
-  height: 62px;
+  height: 68px;
   border-radius: 9px;
   padding: 10px 12px;
+  cursor: pointer;
+  transition: opacity .12s;
+}
+
+.rail__lcd:hover {
+  opacity: .85;
+}
+
+.rail__lcd:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 
 .rail__lcd-canvas {
@@ -116,6 +193,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 8px;
 }
 
 .rail__lcd-name {
@@ -123,14 +201,31 @@ body {
   font-size: 13px;
   font-weight: 600;
   font-family: var(--sans);
+  line-height: 1.3;
+  /* Ensure text is readable on the dark LCD surface */
+  text-shadow: 0 1px 2px rgba(0,0,0,.18);
+}
+
+.rail__lcd-kbd {
+  font-size: 9px;
+  letter-spacing: .12em;
+  color: var(--lcd-ink);
+  opacity: .75;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid var(--lcd-ink);
+  border-radius: 4px;
+  padding: 1px 4px;
 }
 
 .rail__lcd-status {
   position: relative;
-  font-size: 8.5px;
-  letter-spacing: .06em;
-  color: var(--lcd-mut);
-  margin-top: 6px;
+  font-size: 9px;
+  letter-spacing: .08em;
+  color: var(--lcd-ink);
+  opacity: .7;
+  margin-top: 8px;
+  text-transform: uppercase;
 }
 
 /* New chat button */
@@ -248,15 +343,15 @@ body {
 .empty-state.hidden { display: none; }
 
 .empty-state__dither-wrap {
-  width: 360px;
-  height: 158px;
+  width: 380px;
+  height: 168px;
   max-width: 100%;
   border: 1px solid var(--line-2);
   border-radius: 10px;
   overflow: hidden;
   position: relative;
   background: var(--panel-2);
-  margin-bottom: 26px;
+  margin-bottom: 28px;
   flex-shrink: 0;
 }
 
@@ -469,6 +564,71 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+  transition: width .22s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .privacy { transition: none; }
+}
+
+.privacy--collapsed {
+  width: 32px;
+}
+
+.privacy--collapsed .privacy__content {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.privacy__content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity .16s ease;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .privacy__content { transition: none; }
+}
+
+/* Collapse toggle button - sits at top-left of the privacy panel */
+.privacy__collapse-btn {
+  position: absolute;
+  left: 0;
+  top: 10px;
+  z-index: 10;
+  width: 24px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 6px 6px 0;
+  transition: background .12s, color .12s;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.privacy--collapsed .privacy__collapse-btn {
+  left: 4px;
+}
+
+.privacy__collapse-btn:hover {
+  background: var(--line-3);
+  color: var(--ink);
+}
+
+.privacy__collapse-icon {
+  font-size: 16px;
+  line-height: 1;
+  font-family: var(--sans);
 }
 
 .privacy__header {
@@ -502,7 +662,7 @@ body {
 .privacy__row:last-child { border-bottom: none; }
 .privacy__row--off { opacity: .7; }
 
-/* Small 8×8 square LEDs in privacy panel */
+/* Small 8x8 square LEDs in privacy panel */
 .privacy__led {
   width: 8px;
   height: 8px;
@@ -567,6 +727,87 @@ body {
 .privacy__offline-desc {
   font-size: 10.5px;
   color: var(--muted);
+}
+
+/* ── Model Popup (Cmd+K / LCD click) ────────────────────────── */
+
+.model-popup-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+
+.model-popup-backdrop--open {
+  display: block;
+}
+
+.model-popup {
+  display: none;
+  position: fixed;
+  left: 16px;
+  top: 60px;
+  width: 260px;
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: 11px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.22);
+  z-index: 100;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.model-popup--open {
+  display: flex;
+}
+
+.model-popup__header {
+  padding: 10px 14px 8px;
+  font-size: 9px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line-2);
+}
+
+.model-popup__list {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.model-popup__row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 14px;
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font-size: 12px;
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: background .1s;
+}
+
+.model-popup__row:hover,
+.model-popup__row:focus {
+  background: var(--line-3);
+  outline: none;
+}
+
+.model-popup__empty {
+  padding: 14px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.model-popup__footer {
+  padding: 7px 14px 9px;
+  font-size: 9px;
+  letter-spacing: .08em;
+  color: var(--faint);
+  border-top: 1px solid var(--line-2);
 }
 
 /* ── Dark mode overrides for mix-blend ────────────────────────── */
