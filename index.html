@@ -58,12 +58,43 @@
       <footer class="foot">
         <span class="foot__ver" id="version">LLAMARANCH · LLAMA.CPP</span>
         <span class="foot__spacer"></span>
+        <button class="ubtn" id="cmdk-hint" title="Open command bar"></button>
         <button class="ubtn" id="chat-btn">chat</button>
         <button class="ubtn" id="settings-btn">settings</button>
         <button class="ubtn" id="quit">quit</button>
       </footer>
 
     </div>
+    <!-- ⌘K COMMAND BAR OVERLAY -->
+    <div id="cmdk-overlay" class="cmdk-overlay hidden" role="dialog" aria-modal="true" aria-label="Switch model">
+      <div class="cmdk-card">
+        <!-- Search row -->
+        <div class="cmdk-search">
+          <svg class="cmdk-search__icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <div class="cmdk-search__field">
+            <span id="cmdk-typed" class="cmdk-search__typed"></span><span class="cmdk-search__caret"></span><span id="cmdk-placeholder" class="cmdk-search__placeholder">switch model…</span>
+          </div>
+          <span class="cmdk-key">ESC</span>
+        </div>
+        <!-- Dither hairline band -->
+        <div class="cmdk-band">
+          <canvas data-glyph="band" data-hairline="1" data-seed="4" data-cell="2.4" data-color="#c4c0b4" style="width:100%;height:14px;"></canvas>
+        </div>
+        <!-- Section label -->
+        <div class="cmdk-section-label" id="cmdk-section-label">loaded · ready now</div>
+        <!-- Model list -->
+        <div class="cmdk-list" id="cmdk-list" role="listbox"></div>
+        <!-- Footer -->
+        <div class="cmdk-footer">
+          <span class="cmdk-footer__left">
+            <span class="cmdk-footer__sq"></span>
+            <span id="cmdk-footer-ep">LOCAL · 127.0.0.1:2276/v1</span>
+          </span>
+          <span class="cmdk-footer__hint">↑↓ NAVIGATE · ⏎ LOAD</span>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
