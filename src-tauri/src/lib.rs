@@ -130,8 +130,12 @@ pub fn run() {
             // Register CmdOrCtrl+K as a global shortcut.
             // On press: show the main popover and emit "open-cmdk" to let the
             // frontend open the command bar.
-            app.global_shortcut()
-                .on_shortcut("CmdOrCtrl+K", |app, _shortcut, event| {
+            // Best-effort: if another app already holds Cmd/Ctrl+K, registration
+            // fails. Log and carry on instead of panicking (the in-window ⌘K still
+            // works); never let this take down app startup.
+            if let Err(e) = app.global_shortcut().on_shortcut(
+                "CmdOrCtrl+K",
+                |app, _shortcut, event| {
                     if event.state == ShortcutState::Pressed {
                         if let Some(win) = app.get_webview_window("main") {
                             let _ = win.show();
@@ -139,8 +143,10 @@ pub fn run() {
                             let _ = win.emit("open-cmdk", ());
                         }
                     }
-                })
-                .expect("failed to register CmdOrCtrl+K global shortcut");
+                },
+            ) {
+                eprintln!("llamaranch: could not register global Cmd/Ctrl+K ({e}); the in-window shortcut still works.");
+            }
 
             let h = app.handle().clone();
             std::thread::spawn(move || {
