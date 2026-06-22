@@ -75,7 +75,7 @@ A warm, paper-and-ink interface with a live "dither" material, follow-OS light/d
 | OS | Arch | Installers |
 |----|------|-----------|
 | **macOS** | Apple Silicon | `.dmg` |
-| **Linux** | x86_64, arm64 | `.deb`, `.AppImage` |
+| **Linux** | x86_64, arm64 | `.deb`, `.AppImage`, `.rpm` |
 | **Windows** | x86_64, Arm | `.exe`, `.msi` |
 
 All platforms are first-class, with in-app auto-update. macOS builds are ad-hoc signed but not yet Apple-notarized — on first launch, right-click the app and choose **Open**.
