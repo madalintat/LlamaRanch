@@ -11,30 +11,30 @@ function useColor() {
   return true;
 }
 
-// ASCII llama art: 9 lines, crafted block look
-// Head with ears, long neck, body, legs
+// ASCII llama, derived from our real logo (src/assets/llama.svg) by
+// half-block downsampling. Head + ears top-left, long neck curving down
+// into the body. Rendered in brand cream.
 const LLAMA_LINES = [
-  '  ╔══╗   ',
-  '  ║  ║   ',
-  '  ╚╗ ╔╝  ',
-  '   ║ ║   ',
-  '  ██████ ',
-  '  ██████ ',
-  '  ██████ ',
-  '  █  █   ',
-  '  █  █   ',
+  '          ▄',
+  '       ██ ██',
+  '       ▀█▄██',
+  '        ████',
+  '       ▄████',
+  '       ██████',
+  '      ███████',
+  '     ████████',
+  '     ▀███████▄',
+  '      ▀  █████',
+  '         █████',
+  '         █████',
+  '         █████',
+  '          ▀▀▀▀',
 ];
 
-// Each character type maps to a color
+// Block glyphs render in brand cream.
 function colorLine(line, colored) {
   if (!colored) return line;
-  // Gold accent on ear/corner characters
-  return line
-    .replace(/[╔╗╚╝╠╣╦╩╬]/g, m => chalk.hex(GOLD)(m))
-    .replace(/[║═]/g, m => chalk.hex(GOLD)(m))
-    .replace(/█/g, m => chalk.hex(CREAM)(m))
-    .replace(/▓/g, m => chalk.hex(CREAM)(m))
-    .replace(/[│ ]/g, m => m);
+  return line.replace(/[█▀▄]/g, m => chalk.hex(CREAM)(m));
 }
 
 export function renderLogo() {
