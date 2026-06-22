@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LlamaRanch Docs · Local AI runner and agent</title>
+  <meta name="description" content="Documentation for LlamaRanch: quick start, API reference, model management, the chat agent, tools, configuration, and roadmap." />
+  <link rel="icon" href="../assets/llama.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="docs.css" />
+</head>
+<body>
+
+<div class="docs-shell">
+
+  <!-- ── DOCS HEADER ── -->
+  <header class="docs-header">
+    <div class="docs-header-inner">
+      <div class="docs-header-left">
+        <a href="../" class="docs-logo" aria-label="LlamaRanch home">
+          <img src="../assets/llama.svg" alt="" width="24" height="24" />
+          <span class="wordmark">Llama<span>Ranch</span></span>
+        </a>
+        <div class="docs-sep" aria-hidden="true"></div>
+        <span class="docs-label">Docs</span>
+      </div>
+      <div class="docs-header-right">
+        <button class="docs-nav-toggle" type="button" aria-controls="docs-sidebar" aria-expanded="false" id="nav-toggle">
+          Sections &#9662;
+        </button>
+        <a href="https://github.com/madalintat/LlamaRanch" class="docs-github" target="_blank" rel="noopener">GitHub &#8599;</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── BODY ── -->
+  <div class="docs-body">
+
+    <!-- ── SIDEBAR ── -->
+    <nav class="docs-sidebar" id="docs-sidebar" aria-label="Documentation sections">
+      <div class="docs-sidebar-inner">
+        <div class="docs-nav-head">On this page</div>
+        <ul class="docs-nav" id="docs-nav">
+          <li><a href="#overview">Overview</a></li>
+          <li><a href="#quick-start">Quick start</a></li>
+          <li><a href="#install">Install by hand</a></li>
+          <li><a href="#updating">Updating</a></li>
+          <li><a href="#endpoint">The endpoint</a></li>
+          <li><a href="#models">Models</a></li>
+          <li><a href="#agent">The chat agent</a></li>
+          <li><a href="#tools">Tools and privacy</a></li>
+          <li><a href="#configuration">Configuration</a></li>
+          <li><a href="#wizard">Wizard reference</a></li>
+          <li><a href="#build">Build from source</a></li>
+          <li><a href="#roadmap">Roadmap</a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- ── MAIN ── -->
+    <main class="docs-main" id="docs-main">
+      <div class="docs-content">
+
+        <!-- Page title -->
+        <div class="docs-page-title">
+          <div class="docs-page-eyebrow">LlamaRanch</div>
+          <h1 class="docs-page-h1">Documentation</h1>
+          <p class="docs-page-lead">A local AI runner and agent on top of it. Runs llama.cpp models on your own hardware behind one private OpenAI-compatible endpoint. Nothing leaves your machine.</p>
+        </div>
+
+        <!-- ── 1. OVERVIEW ── -->
+        <section class="doc-section" id="overview">
+          <div class="doc-section-num">01</div>
+          <h2 class="doc-h2">Overview</h2>
+          <p class="doc-p">LlamaRanch is two things behind one tray icon. A model server that runs GGUF models via llama.cpp and exposes them on a single private OpenAI-compatible endpoint. And a chat agent that routes each task to the right local model, swaps experts in and out to fit your memory, and calls tools when it needs them.</p>
+          <p class="doc-p">The endpoint lives at:</p>
+          <div class="doc-endpoint-band">
+            <span class="doc-led" aria-hidden="true"></span>
+            <span>127.0.0.1:2276/v1</span>
+            <span class="doc-tag" style="margin-left:4px;">LOCAL</span>
+          </div>
+          <p class="doc-p">Point any OpenAI-compatible app at that URL and it works: Open WebUI, Continue, Zed, Cline, curl, any OpenAI SDK. macOS, Linux, Windows. Nothing leaves the valley.</p>
+        </section>
+
+        <hr class="doc-divider" />
+
+        <!-- ── 2. QUICK START ── -->
+        <section class="doc-section" id="quick-start">
+          <div class="doc-section-num">02</div>
+          <h2 class="doc-h2">Quick start: the wizard</h2>
+          <p class="doc-p">One command covers the whole setup:</p>
+
+          <div class="doc-code-block">
+            <div class="doc-code-header">
+              <div class="doc-code-dots" aria-hidden="true">
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+              </div>
+              <span class="doc-code-label">shell</span>
+              <button class="doc-copy-btn" type="button" data-copy="npx @llamaranch/wizard">Copy</button>
+            </div>
+            <div class="doc-code-body">
+              <span class="prompt">$</span> npx @llamaranch/wizard
+            </div>
+          </div>
+
+          <p class="doc-p">The wizard detects your hardware, installs llama.cpp with the right backend (Metal, CUDA, Vulkan, CPU), suggests and downloads models that fit your memory, writes your config, and installs the app. When it finishes, open the app. Everything is ready.</p>
+          <p class="doc-p">Need it headless, e.g. on a server? Run the router straight from the terminal:</p>
+
+          <div class="doc-code-block">
+            <div class="doc-code-header">
+              <div class="doc-code-dots" aria-hidden="true">
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+              </div>
+              <span class="doc-code-label">shell</span>
+              <button class="doc-copy-btn" type="button" data-copy="npx @llamaranch/wizard serve">Copy</button>
+            </div>
+            <div class="doc-code-body">
+              <span class="prompt">$</span> npx @llamaranch/wizard serve
+            </div>
+          </div>
+
+          <p class="doc-p">The wizard is published on npm as <span class="chip">@llamaranch/wizard</span> and works on macOS, Linux, and Windows. If any step can't run automatically (no Homebrew, an unusual distro), it explains exactly what to do by hand.</p>
+        </section>
+
+        <hr class="doc-divider" />
+
+        <!-- ── 3. INSTALL BY HAND ── -->
+        <section class="doc-section" id="install">
+          <div class="doc-section-num">03</div>
+          <h2 class="doc-h2">Install by hand</h2>
+          <p class="doc-p">Prefer a direct download? Grab the right installer for your OS from <a href="https://github.com/madalintat/LlamaRanch/releases/latest" target="_blank" rel="noopener">Releases</a>.</p>
+
+          <div class="doc-table-wrap">
+            <table class="doc-table">
+              <thead>
+                <tr>
+                  <th>OS</th>
+                  <th>Arch</th>
+                  <th>Formats</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>macOS</td>
+                  <td>Apple Silicon</td>
+                  <td>.dmg</td>
+                </tr>
+                <tr>
+                  <td>Linux</td>
+                  <td>x86_64 · arm64</td>
+                  <td>.deb · .AppImage · .rpm</td>
+                </tr>
+                <tr>
+                  <td>Windows</td>
+                  <td>x86_64 · Arm</td>
+                  <td>.exe · .msi</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p class="doc-p">You also need a <span class="chip">llama-server</span> binary from llama.cpp on your PATH:</p>
+
+          <div class="doc-code-block">
+            <div class="doc-code-header">
+              <div class="doc-code-dots" aria-hidden="true">
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+              </div>
+              <span class="doc-code-label">macOS (Homebrew)</span>
+              <button class="doc-copy-btn" type="button" data-copy="brew install llama.cpp">Copy</button>
+            </div>
+            <div class="doc-code-body">
+              <span class="comment"># macOS (Homebrew)</span><br>
+              <span class="prompt">$</span> brew install llama.cpp<br>
+              <br>
+              <span class="comment"># Linux / Windows: grab a prebuilt from llama.cpp Releases</span><br>
+              <span class="comment"># https://github.com/ggml-org/llama.cpp/releases/latest</span><br>
+              <span class="comment"># (CPU, CUDA, Vulkan, Metal variants available)</span>
+            </div>
+          </div>
+
+          <p class="doc-p">First run finds <span class="chip">llama-server</span> on your PATH automatically. Open the tray popover, pick a model from the catalog (or drop in any <span class="chip">.gguf</span>), load it, and start chatting.</p>
+          <p class="doc-p">macOS builds are ad-hoc signed but not yet notarized. On the first launch, right-click the app and choose Open to bypass Gatekeeper.</p>
+        </section>
+
+        <hr class="doc-divider" />
+
+        <!-- ── 4. UPDATING ── -->
+        <section class="doc-section" id="updating">
+          <div class="doc-section-num">04</div>
+          <h2 class="doc-h2">Updating</h2>
+          <p class="doc-p">The quickest path on any OS:</p>
+
+          <div class="doc-code-block">
+            <div class="doc-code-header">
+              <div class="doc-code-dots" aria-hidden="true">
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+              </div>
+              <span class="doc-code-label">shell</span>
+              <button class="doc-copy-btn" type="button" data-copy="npx @llamaranch/wizard update">Copy</button>
+            </div>
+            <div class="doc-code-body">
+              <span class="prompt">$</span> npx @llamaranch/wizard update
+            </div>
+          </div>
+
+          <p class="doc-p">The app also self-updates. LlamaRanch checks Releases on launch and shows a banner when a newer signed build is available.</p>
+          <p class="doc-p">In-place updates: <span class="chip">.dmg</span> (macOS), <span class="chip">.exe</span> and <span class="chip">.msi</span> (Windows), and <span class="chip">.AppImage</span> (Linux) all update in place. Click Update in the banner; the app downloads, checks the signature, and relaunches.</p>
+          <p class="doc-p">For Linux package formats, download the new file from Releases and run:</p>
+
+          <div class="doc-code-block">
+            <div class="doc-code-header">
+              <div class="doc-code-dots" aria-hidden="true">
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+              </div>
+              <span class="doc-code-label">shell</span>
+              <button class="doc-copy-btn" type="button" data-copy="sudo dpkg -i LlamaRanch_*.deb">Copy</button>
+            </div>
+            <div class="doc-code-body">
+              <span class="comment"># .deb</span><br>
+              <span class="prompt">$</span> sudo dpkg -i LlamaRanch_*.deb<br>
+              <br>
+              <span class="comment"># .rpm</span><br>
+              <span class="prompt">$</span> sudo rpm -Uvh LlamaRanch-*.rpm
+            </div>
+          </div>
+
+          <p class="doc-p">Every update is checked against the signing key. A tampered build won't install. To stay on a specific version, download it directly from <a href="https://github.com/madalintat/LlamaRanch/releases" target="_blank" rel="noopener">Releases</a>.</p>
+        </section>
+
+        <hr class="doc-divider" />
+
+        <!-- ── 5. ENDPOINT ── -->
+        <section class="doc-section" id="endpoint">
+          <div class="doc-section-num">05</div>
+          <h2 class="doc-h2">The endpoint</h2>
+          <p class="doc-p"><span class="chip">127.0.0.1:2276/v1</span> is llama.cpp's <span class="chip">llama-server</span>, run and supervised by LlamaRanch in router mode. It handles multi-model load/unload, <span class="chip">--fit</span> memory sizing, jinja templates, and idle sleep. The API is OpenAI-compatible.</p>
+
+          <p class="doc-p">Key routes:</p>
+
+          <div class="doc-code-block">
+            <div class="doc-code-header">
+              <div class="doc-code-dots" aria-hidden="true">
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+              </div>
+              <span class="doc-code-label">shell · list models</span>
+              <button class="doc-copy-btn" type="button" data-copy="curl http://127.0.0.1:2276/v1/models">Copy</button>
+            </div>
+            <div class="doc-code-body">
+              <span class="prompt">$</span> curl http://127.0.0.1:2276/v1/models<br>
+              <span class="response">{ "data": [ { "id": "gemma-3-4b", "object": "model" } ] }</span>
+            </div>
+          </div>
+
+          <div class="doc-code-block">
+            <div class="doc-code-header">
+              <div class="doc-code-dots" aria-hidden="true">
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+              </div>
+              <span class="doc-code-label">shell · chat completions</span>
+              <button class="doc-copy-btn" type="button" data-copy='curl http://127.0.0.1:2276/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d "{\"model\":\"gemma-3-4b\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}"'>Copy</button>
+            </div>
+            <div class="doc-code-body">
+<pre><span class="prompt">$</span> curl http://127.0.0.1:2276/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gemma-3-4b",
+       "messages":[{"role":"user","content":"Hello"}]}'</pre>
+            </div>
+          </div>
+
+          <div class="doc-code-block">
+            <div class="doc-code-header">
+              <div class="doc-code-dots" aria-hidden="true">
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+              </div>
+              <span class="doc-code-label">shell · embeddings</span>
+              <button class="doc-copy-btn" type="button" data-copy='curl http://127.0.0.1:2276/v1/embeddings \
+  -H "Content-Type: application/json" \
+  -d "{\"model\":\"nomic-embed-text\",\"input\":\"The sky is blue\"}"'>Copy</button>
+            </div>
+            <div class="doc-code-body">
+<pre><span class="prompt">$</span> curl http://127.0.0.1:2276/v1/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{"model":"nomic-embed-text","input":"The sky is blue"}'</pre>
+            </div>
+          </div>
+
+          <p class="doc-p">Works with Open WebUI, Continue, Zed, Cline, curl, and any OpenAI SDK. Set the base URL to <span class="chip">http://127.0.0.1:2276/v1</span> and leave the API key blank (or any string).</p>
+          <p class="doc-p">By default the server binds <span class="chip">127.0.0.1</span> only. To expose the endpoint to other devices on your network, set <span class="chip">expose_to_network: true</span> in your config. That binds <span class="chip">0.0.0.0</span>. Off by default because the endpoint carries no authentication.</p>
+        </section>
+
+        <hr class="doc-divider" />
+
+        <!-- ── 6. MODELS ── -->
+        <section class="doc-section" id="models">
+          <div class="doc-section-num">06</div>
+          <h2 class="doc-h2">Models</h2>
+          <p class="doc-p">LlamaRanch ships a catalog of 25+ curated GGUF models, one click to download. For gated repos on Hugging Face (such as Llama 3 family models), add your HF token in Settings. You can also drop any <span class="chip">.gguf</span> file into the models folder and it appears automatically.</p>
+          <p class="doc-p">Hardware fit via <span class="chip">--fit</span>: LlamaRanch sizes GPU layers and context to the memory you actually have. No manual tuning. Per-model context length and sampling are adjustable in the model detail view, with a live memory estimate so you know what fits before you load it.</p>
+          <p class="doc-p">Run several models at once. Load, unload, and hot-swap from the tray popover or with the in-chat command bar (&#8984;K on macOS).</p>
+
+          <div class="doc-shot-wrap">
+            <img
+              src="../assets/shot-popover.png"
+              alt="LlamaRanch model-selector popover showing installed models with sizes and status LEDs"
+              class="doc-shot"
+              loading="lazy"
+            />
+          </div>
+        </section>
+
+        <hr class="doc-divider" />
+
+        <!-- ── 7. THE CHAT AGENT ── -->
+        <section class="doc-section" id="agent">
+          <div class="doc-section-num">07</div>
+          <h2 class="doc-h2">The chat agent</h2>
+          <p class="doc-p">The built-in chat does more than forward messages. It reads each task and routes it to the local model that fits: general, code, reasoning, or vision. It hot-swaps experts to fit available memory, keeping a small general model warm so the first token stays fast.</p>
+          <p class="doc-p">Pin any model yourself mid-conversation with &#8984;K (macOS) or the command bar on other platforms. Long sessions stay sharp via observation masking: old tool output is trimmed before it reaches the model, so context stays useful rather than bloated.</p>
+
+          <div class="doc-shot-wrap">
+            <img
+              src="../assets/shot-chat.png"
+              alt="LlamaRanch chat agent UI with conversation rail and privacy panel"
+              class="doc-shot"
+              loading="lazy"
+            />
+          </div>
+        </section>
+
+        <hr class="doc-divider" />
+
+        <!-- ── 8. TOOLS AND PRIVACY ── -->
+        <section class="doc-section" id="tools">
+          <div class="doc-section-num">08</div>
+          <h2 class="doc-h2">Tools and privacy</h2>
+          <p class="doc-p">The tool loop is sandboxed and local-first. Every tool is tagged LOCAL or ONLINE in the privacy panel:</p>
+
+          <div class="doc-table-wrap">
+            <table class="doc-table">
+              <thead>
+                <tr>
+                  <th>Tool</th>
+                  <th>What it does</th>
+                  <th>Privacy</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>read_file</td>
+                  <td>Reads files from folders you've explicitly allowed</td>
+                  <td><span class="doc-tag">LOCAL</span></td>
+                </tr>
+                <tr>
+                  <td>web_fetch</td>
+                  <td>Fetches a URL, private-network access blocked</td>
+                  <td><span class="doc-tag" style="border-color:#c8b98a;color:#7a6840;background:#fdf8ec;">ONLINE</span></td>
+                </tr>
+                <tr>
+                  <td>web_search</td>
+                  <td>Searches via your own SearXNG instance (off until you set a URL)</td>
+                  <td><span class="doc-tag" style="border-color:#c8b98a;color:#7a6840;background:#fdf8ec;">ONLINE</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="doc-privacy-row">
+            <span class="doc-priv-tag doc-priv-tag-local">
+              <span class="doc-priv-led doc-priv-led-local" aria-hidden="true"></span>
+              LOCAL
+            </span>
+            <span class="doc-priv-tag doc-priv-tag-online">
+              <span class="doc-priv-led doc-priv-led-online" aria-hidden="true"></span>
+              ONLINE
+            </span>
+          </div>
+
+          <p class="doc-p">The privacy panel shows every active tool's tag during a session. One Offline switch cuts all tool internet access at once. Flip it and the agent can still read files, but won't touch the network.</p>
+          <p class="doc-p"><strong>MCP (external tool servers):</strong> <span class="doc-tag doc-tag-soon">Coming soon</span> Connect external MCP tool servers to the local agent. Not yet available.</p>
+        </section>
+
+        <hr class="doc-divider" />
+
+        <!-- ── 9. CONFIGURATION ── -->
+        <section class="doc-section" id="configuration">
+          <div class="doc-section-num">09</div>
+          <h2 class="doc-h2">Configuration</h2>
+          <p class="doc-p">The config file lives at:</p>
+
+          <div class="doc-paths">
+            <div class="doc-path-row">
+              <span class="doc-path-os">macOS</span>
+              <span class="doc-path-val">~/Library/Application Support/llamaranch/config.json</span>
+            </div>
+            <div class="doc-path-row">
+              <span class="doc-path-os">Linux</span>
+              <span class="doc-path-val">~/.config/llamaranch/config.json</span>
+            </div>
+            <div class="doc-path-row">
+              <span class="doc-path-os">Windows</span>
+              <span class="doc-path-val">%APPDATA%\llamaranch\config.json</span>
+            </div>
+          </div>
+
+          <p class="doc-p">Most keys are editable in the Settings window. Editing the file directly also works; changes take effect on restart.</p>
+
+          <div class="doc-table-wrap">
+            <table class="doc-table">
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Default</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>port</td>
+                  <td>2276</td>
+                  <td>Port the endpoint listens on</td>
+                </tr>
+                <tr>
+                  <td>models_dir</td>
+                  <td>auto</td>
+                  <td>Directory where .gguf model files are stored</td>
+                </tr>
+                <tr>
+                  <td>server_bin</td>
+                  <td>auto</td>
+                  <td>Path to the llama-server binary (auto-detected from PATH)</td>
+                </tr>
+                <tr>
+                  <td>expose_to_network</td>
+                  <td>false</td>
+                  <td>Bind 0.0.0.0 instead of 127.0.0.1 (for other devices on your LAN)</td>
+                </tr>
+                <tr>
+                  <td>models_max</td>
+                  <td>3</td>
+                  <td>Maximum number of models loaded concurrently</td>
+                </tr>
+                <tr>
+                  <td>sleep_idle_seconds</td>
+                  <td>600</td>
+                  <td>Seconds of inactivity before an idle model unloads</td>
+                </tr>
+                <tr>
+                  <td>general_model</td>
+                  <td>auto</td>
+                  <td>Model kept warm for general tasks and fast first tokens</td>
+                </tr>
+                <tr>
+                  <td>embedding_model</td>
+                  <td>none</td>
+                  <td>Model used for /v1/embeddings requests</td>
+                </tr>
+                <tr>
+                  <td>allowed_dirs</td>
+                  <td>[]</td>
+                  <td>Folders the read_file tool may access (local, explicit list)</td>
+                </tr>
+                <tr>
+                  <td>searxng_url</td>
+                  <td>none</td>
+                  <td>URL of your SearXNG instance; enables web_search when set</td>
+                </tr>
+                <tr>
+                  <td>offline_mode</td>
+                  <td>false</td>
+                  <td>Cut all tool internet access with one switch</td>
+                </tr>
+                <tr>
+                  <td>hf_token</td>
+                  <td>none</td>
+                  <td>Hugging Face token for downloading gated models</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <hr class="doc-divider" />
+
+        <!-- ── 10. WIZARD REFERENCE ── -->
+        <section class="doc-section" id="wizard">
+          <div class="doc-section-num">10</div>
+          <h2 class="doc-h2">Wizard reference</h2>
+          <p class="doc-p">The wizard is published on npm as <span class="chip">@llamaranch/wizard</span>. Commands:</p>
+
+          <div class="doc-table-wrap">
+            <table class="doc-table">
+              <thead>
+                <tr>
+                  <th>Command</th>
+                  <th>What it does</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>npx @llamaranch/wizard</td>
+                  <td>Full setup: hardware detection, llama.cpp install, model selection, app install</td>
+                </tr>
+                <tr>
+                  <td>npx @llamaranch/wizard serve</td>
+                  <td>Start the endpoint router headlessly in the terminal (no app required)</td>
+                </tr>
+                <tr>
+                  <td>npx @llamaranch/wizard update</td>
+                  <td>Pull and install the latest LlamaRanch release for your OS</td>
+                </tr>
+                <tr>
+                  <td>npx @llamaranch/wizard --help</td>
+                  <td>Show usage and all options</td>
+                </tr>
+                <tr>
+                  <td>npx @llamaranch/wizard --version</td>
+                  <td>Print the wizard version</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p class="doc-p">The wizard calls the GitHub API to check for releases. If you run it frequently in CI or a script, set <span class="chip">GITHUB_TOKEN</span> in your environment to raise the API rate limit.</p>
+
+          <div class="doc-code-block">
+            <div class="doc-code-header">
+              <div class="doc-code-dots" aria-hidden="true">
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+              </div>
+              <span class="doc-code-label">shell</span>
+              <button class="doc-copy-btn" type="button" data-copy="GITHUB_TOKEN=ghp_... npx @llamaranch/wizard update">Copy</button>
+            </div>
+            <div class="doc-code-body">
+              <span class="comment"># raise API rate limit</span><br>
+              <span class="prompt">$</span> GITHUB_TOKEN=ghp_... npx @llamaranch/wizard update
+            </div>
+          </div>
+        </section>
+
+        <hr class="doc-divider" />
+
+        <!-- ── 11. BUILD FROM SOURCE ── -->
+        <section class="doc-section" id="build">
+          <div class="doc-section-num">11</div>
+          <h2 class="doc-h2">Build from source</h2>
+          <p class="doc-p">You need Rust, Node, and a <span class="chip">llama-server</span> binary on your PATH. The <a href="https://v2.tauri.app/start/prerequisites/" target="_blank" rel="noopener">Tauri prerequisites page</a> lists the current minimums for your OS.</p>
+
+          <div class="doc-code-block">
+            <div class="doc-code-header">
+              <div class="doc-code-dots" aria-hidden="true">
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+              </div>
+              <span class="doc-code-label">shell</span>
+              <button class="doc-copy-btn" type="button" data-copy="git clone https://github.com/madalintat/LlamaRanch
+cd LlamaRanch
+npm install
+npm run tauri dev">Copy</button>
+            </div>
+            <div class="doc-code-body">
+<pre><span class="prompt">$</span> git clone https://github.com/madalintat/LlamaRanch
+<span class="prompt">$</span> cd LlamaRanch
+<span class="prompt">$</span> npm install
+<span class="prompt">$</span> npm run tauri dev      <span class="comment"># hot-reload dev loop</span>
+<span class="prompt">$</span> npm run tauri build    <span class="comment"># production build</span></pre>
+            </div>
+          </div>
+        </section>
+
+        <hr class="doc-divider" />
+
+        <!-- ── 12. ROADMAP ── -->
+        <section class="doc-section" id="roadmap">
+          <div class="doc-section-num">12</div>
+          <h2 class="doc-h2">Roadmap</h2>
+          <p class="doc-p">What's next for LlamaRanch:</p>
+
+          <div class="doc-roadmap">
+            <div class="doc-roadmap-item">
+              <span class="doc-tag doc-tag-soon" style="flex:none;align-self:flex-start;margin-top:2px;">Coming soon</span>
+              <div class="doc-roadmap-item-inner">
+                <div class="doc-roadmap-title">MCP: external tool servers</div>
+                <div class="doc-roadmap-desc">Connect any MCP-compatible tool server to the local agent. Extend what the chat can do without touching the core.</div>
+              </div>
+            </div>
+            <div class="doc-roadmap-item">
+              <span class="doc-tag doc-tag-soon" style="flex:none;align-self:flex-start;margin-top:2px;">Coming soon</span>
+              <div class="doc-roadmap-item-inner">
+                <div class="doc-roadmap-title">Knowledge base (RAG)</div>
+                <div class="doc-roadmap-desc">Local embeddings and retrieval. Feed the agent your own documents. Stays on your machine.</div>
+              </div>
+            </div>
+            <div class="doc-roadmap-item">
+              <span class="doc-tag doc-tag-soon" style="flex:none;align-self:flex-start;margin-top:2px;">Coming soon</span>
+              <div class="doc-roadmap-item-inner">
+                <div class="doc-roadmap-title">Skills and persistent memory</div>
+                <div class="doc-roadmap-desc">Teach the agent recurring tasks and let it remember things across sessions.</div>
+              </div>
+            </div>
+            <div class="doc-roadmap-item">
+              <span class="doc-tag doc-tag-soon" style="flex:none;align-self:flex-start;margin-top:2px;">Coming soon</span>
+              <div class="doc-roadmap-item-inner">
+                <div class="doc-roadmap-title">More web-search providers</div>
+                <div class="doc-roadmap-desc">Beyond SearXNG: support for additional self-hosted and private search backends.</div>
+              </div>
+            </div>
+            <div class="doc-roadmap-item">
+              <span class="doc-tag doc-tag-soon" style="flex:none;align-self:flex-start;margin-top:2px;">Coming soon</span>
+              <div class="doc-roadmap-item-inner">
+                <div class="doc-roadmap-title">Local API gateway</div>
+                <div class="doc-roadmap-desc">Route, log, and rate-limit requests across local models from a single private gateway.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div><!-- /.docs-content -->
+    </main><!-- /.docs-main -->
+  </div><!-- /.docs-body -->
+
+  <!-- ── DOCS FOOTER ── -->
+  <footer class="docs-footer">
+    <span class="docs-footer-note">LlamaRanch · MIT · runs 100% on your machine</span>
+    <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
+      <a href="../" class="docs-footer-link">Website &#8593;</a>
+      <a href="https://github.com/madalintat/LlamaRanch" class="docs-footer-link" target="_blank" rel="noopener">GitHub &#8599;</a>
+      <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="docs-footer-link" target="_blank" rel="noopener">Releases &#8599;</a>
+    </div>
+  </footer>
+
+</div><!-- /.docs-shell -->
+
+<script>
+  // Sidebar toggle for mobile
+  (function () {
+    var toggle = document.getElementById('nav-toggle');
+    var sidebar = document.getElementById('docs-sidebar');
+    if (!toggle || !sidebar) return;
+    toggle.addEventListener('click', function () {
+      var open = sidebar.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.textContent = open ? 'Sections ▲' : 'Sections ▼';
+    });
+  })();
+
+  // Active section highlight on scroll
+  (function () {
+    var sections = document.querySelectorAll('.doc-section[id]');
+    var links = document.querySelectorAll('#docs-nav a');
+    if (!sections.length || !links.length) return;
+
+    function setActive(id) {
+      links.forEach(function (a) {
+        a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+      });
+    }
+
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          setActive(entry.target.id);
+        }
+      });
+    }, {
+      rootMargin: '-20% 0px -70% 0px',
+      threshold: 0
+    });
+
+    sections.forEach(function (s) { observer.observe(s); });
+  })();
+</script>
+
+<script defer src="../anim.js"></script>
+</body>
+</html>

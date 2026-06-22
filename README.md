@@ -8,7 +8,7 @@
 
 Run AI on your own hardware. One private endpoint. Nothing leaves the valley.
 
-[**Website**](https://madalintat.github.io/LlamaRanch/) &nbsp;·&nbsp; [**Download**](https://github.com/madalintat/LlamaRanch/releases/latest) &nbsp;·&nbsp; [**Models on Hugging Face**](https://huggingface.co/models?apps=llama.cpp&sort=trending)
+[**Website**](https://madalintat.github.io/LlamaRanch/) &nbsp;·&nbsp; [**Documentation**](https://madalintat.github.io/LlamaRanch/docs/) &nbsp;·&nbsp; [**Download**](https://github.com/madalintat/LlamaRanch/releases/latest) &nbsp;·&nbsp; [**Models on Hugging Face**](https://huggingface.co/models?apps=llama.cpp&sort=trending)
 
 ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-18262e)
 ![Linux](https://img.shields.io/badge/Linux-x86__64%20%2B%20arm64-18262e)
@@ -23,6 +23,10 @@ Run AI on your own hardware. One private endpoint. Nothing leaves the valley.
 ---
 
 LlamaRanch keeps your [llama.cpp](https://github.com/ggml-org/llama.cpp) models running behind one private, OpenAI-compatible endpoint at `http://127.0.0.1:2276/v1`. Point any app, IDE, or SDK that speaks OpenAI at it and it just works. There's also a built-in chat that picks the right local model for each turn, swaps experts in and out to fit your memory, and reaches for tools when it needs them. None of it leaves your machine.
+
+## Documentation
+
+Full documentation lives at [**madalintat.github.io/LlamaRanch/docs/**](https://madalintat.github.io/LlamaRanch/docs/). It covers the quick start wizard, manual install, the endpoint API, model management, the chat agent, tools, configuration reference, and roadmap.
 
 ## What it is
 
