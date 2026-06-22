@@ -312,9 +312,10 @@ pub fn chat_send<R: Runtime>(
     app: AppHandle<R>,
     cfg: State<AppConfig>,
 ) {
-    let (port, models_dir, general, models_max, embedding_model) = {
+    let (port, models_dir, general, models_max, embedding_model, allowed_dirs, searxng_url, offline_mode) = {
         let c = cfg.0.lock().unwrap();
-        (c.port, c.models_dir.clone(), c.general_model.clone(), c.models_max, c.embedding_model.clone())
+        (c.port, c.models_dir.clone(), c.general_model.clone(), c.models_max, c.embedding_model.clone(),
+         c.allowed_dirs.clone(), c.searxng_url.clone(), c.offline_mode)
     };
 
     std::thread::spawn(move || {
@@ -344,7 +345,13 @@ pub fn chat_send<R: Runtime>(
             pool: pool_state.inner(),
         };
         let chat_backend = RouterChatBackend { port };
-        let registry = tools::ToolRegistry::with_defaults();
+        let tool_cfg = crate::config::Config {
+            allowed_dirs,
+            searxng_url,
+            offline_mode,
+            ..Default::default()
+        };
+        let registry = tools::ToolRegistry::with_config(&tool_cfg);
 
         let sessions = app.state::<Sessions>();
         let mut history = sessions.map.lock().unwrap().get(&session_id).cloned().unwrap_or_default();
