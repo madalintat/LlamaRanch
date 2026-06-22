@@ -382,7 +382,7 @@ body {
   border-bottom: 1px solid var(--line-2);
 }
 
-/* ── THE AGENT section — 2-col ── */
+/* ── THE AGENT section - 2-col ── */
 .agent-section {
   padding: clamp(64px, 8vh, 104px) 0;
   border-top: 1px solid var(--line-2);
@@ -457,7 +457,7 @@ body {
   max-width: 100%;
 }
 
-/* ── MODELS section — 2-col ── */
+/* ── MODELS section - 2-col ── */
 .models-section {
   padding: clamp(64px, 8vh, 104px) 0;
   border-top: 1px solid var(--line-2);
@@ -576,7 +576,7 @@ body {
 .model-num {
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--faint); /* decorative part-number prefix — intentionally faint */
+  color: var(--faint); /* decorative part-number prefix - intentionally faint */
   flex: none;
   width: 20px;
 }
@@ -708,7 +708,7 @@ body {
 .download-card-num {
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--faint); /* decorative part-number — intentionally faint */
+  color: var(--faint); /* decorative part-number - intentionally faint */
 }
 .download-card-led {
   display: inline-block;
@@ -847,7 +847,7 @@ body {
 .feature-num {
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--faint); /* decorative part-number prefix — intentionally faint */
+  color: var(--faint); /* decorative part-number prefix - intentionally faint */
   margin-bottom: 12px;
 }
 .feature-title {
@@ -869,7 +869,7 @@ body {
   border-radius: 4px;
 }
 
-/* ── ENDPOINT terminal — 2-col ── */
+/* ── ENDPOINT terminal - 2-col ── */
 .endpoint {
   padding: clamp(64px, 8vh, 104px) clamp(20px, 5vw, 80px);
   border-top: 1px solid var(--line-2);
@@ -1103,7 +1103,7 @@ body {
   gap: 8px;
 }
 
-/* Footer horizon — full-bleed, grander, soft top fade */
+/* Footer horizon - full-bleed, grander, soft top fade */
 .footer-horizon {
   height: clamp(180px, 22vh, 280px);
   margin-top: 32px;

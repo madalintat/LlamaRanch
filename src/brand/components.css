@@ -1,5 +1,5 @@
 /* ============================================================
-   LlamaRanch Component Kit  — P-01 through P-12 + helpers
+   LlamaRanch Component Kit - P-01 through P-12 + helpers
    All colors via var(--…) tokens. See src/brand/tokens.css.
    ============================================================ */
 
@@ -37,7 +37,7 @@
   color: var(--ink);
 }
 
-/* Micro uppercase mono button — "copy / webui / load / stop / get" */
+/* Micro uppercase mono button - "copy / webui / load / stop / get" */
 .ubtn {
   display: inline-flex;
   align-items: center;
@@ -64,7 +64,7 @@
 
 /* ── P-04 · Status LEDs ─────────────────────────────────────── */
 
-/* Square LED — 15 × 15 px */
+/* Square LED - 15 x 15 px */
 .led {
   display: inline-block;
   width: 15px;
@@ -77,19 +77,19 @@
   background: var(--ink);
 }
 
-/* idle — click to load */
+/* idle - click to load */
 .led--idle {
   border: 1.5px solid var(--ink);
   background: transparent;
 }
 
-/* cloud — needs download */
+/* cloud - needs download */
 .led--cloud {
   border: 1.5px dashed var(--ink);
   background: transparent;
 }
 
-/* Inline small LED — ~7 px, with pulse */
+/* Inline small LED - ~7 px, with pulse */
 .led--sm {
   width: 7px;
   height: 7px;
@@ -119,7 +119,7 @@
   top: 3px;
 }
 
-/* ON — filled track, light SQUARE knob on the right */
+/* ON - filled track, light SQUARE knob on the right */
 .toggle--on {
   background: var(--inv-bg);
   border: none;
@@ -129,7 +129,7 @@
   background: var(--inv-ink);
 }
 
-/* OFF — outline track, dark SQUARE knob on the left */
+/* OFF - outline track, dark SQUARE knob on the left */
 .toggle--off {
   background: transparent;
   border: 1.5px solid var(--faint-2);
@@ -234,7 +234,7 @@
 .field::placeholder { color: var(--faint); }
 .field:focus { border-color: var(--line-4); }
 
-/* Blinking caret — use as a sibling <span class="caret"> inside .field */
+/* Blinking caret - use as a sibling <span class="caret"> inside .field */
 .caret {
   display: inline-block;
   border-right: 1.5px solid var(--ink);
@@ -286,7 +286,7 @@
 
 /* ── P-09 / P-12 · Typography helpers ───────────────────────── */
 
-/* Part-number — mono faint "01 / 02 / 03" */
+/* Part-number - mono faint "01 / 02 / 03" */
 .partno {
   font-family: var(--mono);
   font-size: 11px;
@@ -295,7 +295,7 @@
   flex-shrink: 0;
 }
 
-/* Endpoint row — pulsing led--sm + mono address */
+/* Endpoint row - pulsing led--sm + mono address */
 .endpoint {
   display: inline-flex;
   align-items: center;
@@ -305,7 +305,7 @@
   color: var(--ink);
 }
 
-/* Meta line — mono small muted */
+/* Meta line - mono small muted */
 .meta {
   font-family: var(--mono);
   font-size: 10px;
@@ -314,7 +314,7 @@
   line-height: 1.4;
 }
 
-/* Label — mono uppercase faint header */
+/* Label - mono uppercase faint header */
 .label {
   font-family: var(--mono);
   font-size: 9px;

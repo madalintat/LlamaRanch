@@ -13,7 +13,7 @@ export function tagOS() {
 }
 
 /** Resize the current window to hug #app's content height. Two passes (after
- *  layout, then after fonts/images settle) so it always fits — never a tall box. */
+ *  layout, then after fonts/images settle) so it always fits, never a tall box. */
 export function fitWindow(width: number, max = 560) {
   const apply = () => {
     const el = document.getElementById("app");

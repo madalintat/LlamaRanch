@@ -1,4 +1,4 @@
-/* anim.js — scroll reveal + hero drift (reduced-motion-safe) */
+/* anim.js - scroll reveal + hero drift (reduced-motion-safe) */
 (function () {
   'use strict';
 
@@ -35,5 +35,5 @@
 
   // ── Line-draw for eyebrow rules ────────────────────────────────
   // [data-reveal-rule] elements also get [data-reveal], so the .in
-  // class propagates to the ::before pseudo as well — no extra work needed.
+  // class propagates to the ::before pseudo as well - no extra work needed.
 })();
