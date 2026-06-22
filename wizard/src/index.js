@@ -7,7 +7,7 @@ const VERSION = '0.1.0';
 const PKG_NAME = '@llamaranch/wizard';
 
 // ---------------------------------------------------------------------------
-// Top-level process error guards (print clean message, never a raw stack trace)
+// Top-level process error guards
 // ---------------------------------------------------------------------------
 
 process.on('uncaughtException', (err) => {
@@ -23,17 +23,24 @@ process.on('unhandledRejection', (reason) => {
   process.exit(1);
 });
 
+// ---------------------------------------------------------------------------
+// --help / --version (non-Ink paths)
+// ---------------------------------------------------------------------------
+
 function printHelp() {
   renderLogo();
-  console.log(chalk.bold('Usage:'));
+  const gold = (s) => chalk.hex('#c7a228')(s);
+  const cream = (s) => chalk.hex('#f5f0e8')(s);
+  const muted = (s) => chalk.hex('#6b6456')(s);
+  console.log(cream('Usage:'));
   console.log('');
-  console.log(`  ${chalk.hex('#2e8b48')('llamaranch-wizard')}          run the setup wizard`);
-  console.log(`  ${chalk.hex('#2e8b48')('llamaranch-wizard serve')}    start headless llama-server`);
-  console.log(`  ${chalk.hex('#2e8b48')('llamaranch-wizard update')}   update LlamaRanch to the latest release`);
-  console.log(`  ${chalk.hex('#2e8b48')('llamaranch-wizard --help')}   show this help`);
-  console.log(`  ${chalk.hex('#2e8b48')('llamaranch-wizard --version')}`);
+  console.log('  ' + gold('llamaranch-wizard') + '          ' + muted('run the setup wizard'));
+  console.log('  ' + gold('llamaranch-wizard serve') + '    ' + muted('start headless llama-server'));
+  console.log('  ' + gold('llamaranch-wizard update') + '   ' + muted('update LlamaRanch to the latest release'));
+  console.log('  ' + gold('llamaranch-wizard --help') + '   ' + muted('show this help'));
+  console.log('  ' + gold('llamaranch-wizard --version'));
   console.log('');
-  console.log(chalk.dim('LlamaRanch keeps your models local. Nothing leaves the valley.'));
+  console.log(muted('LlamaRanch keeps your models local. Nothing leaves the valley.'));
   console.log('');
 }
 
@@ -41,41 +48,109 @@ function printVersion() {
   console.log(`${PKG_NAME} v${VERSION}`);
 }
 
+// ---------------------------------------------------------------------------
+// Main wizard (Ink TUI)
+// ---------------------------------------------------------------------------
+
 async function runWizard() {
-  // Guard: non-TTY environments cannot run the interactive wizard
   if (!process.stdout.isTTY) {
     console.log('Run in a terminal for the interactive wizard');
     process.exit(0);
   }
 
-  // Import all dependencies before defining the component
   const { render, Text, Box, useInput, useApp } = await import('ink');
-  const { default: Spinner } = await import('ink-spinner');
   const React = (await import('react')).default;
-  const { useState, useEffect, useRef } = React;
+  const { useState, useEffect } = React;
 
-  const { detect, formatDetectResult } = await import('./detect.js');
+  const { detect } = await import('./detect.js');
   const { installEngine } = await import('./engine.js');
   const { MODEL_CATALOG, suggestModels, downloadModel, getModelsDir } = await import('./models.js');
   const { writeConfig, getConfigPath } = await import('./config.js');
   const { installApp } = await import('./app-install.js');
 
-  // ---------------------------------------------------------------------------
-  // SIGINT: exit cleanly. The temp-then-rename pattern in download helpers
-  // ensures no complete-looking partial file is left with the final name.
-  // .part files may remain but will be cleaned up on next run before download.
-  // ---------------------------------------------------------------------------
-  process.on('SIGINT', () => {
-    process.exit(130);
-  });
+  process.on('SIGINT', () => { process.exit(130); });
 
-  // ---------------------------------------------------------------------------
-  // ModelPicker: custom multi-select component using useInput
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // Custom spinner hook: ◒ ◐ ◓ ◑ at ~120ms
+  // -------------------------------------------------------------------------
+
+  function useSpinner() {
+    const frames = ['◒', '◐', '◓', '◑'];
+    const [frame, setFrame] = useState(0);
+    useEffect(() => {
+      const t = setInterval(() => setFrame(f => (f + 1) % frames.length), 120);
+      return () => clearInterval(t);
+    }, []);
+    return frames[frame];
+  }
+
+  // -------------------------------------------------------------------------
+  // Segmented progress bar (~26 cells)
+  // -------------------------------------------------------------------------
+
+  function ProgressBar({ percent, width }) {
+    const w = width != null ? width : 26;
+    const p = typeof percent === 'number' && isFinite(percent) ? Math.max(0, Math.min(100, percent)) : 0;
+    const filled = Math.round((p / 100) * w);
+    return React.createElement(
+      Text,
+      null,
+      React.createElement(Text, { color: '#f5f0e8' }, '█'.repeat(filled)),
+      React.createElement(Text, { color: '#2a2820' }, '░'.repeat(w - filled))
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // KV row helper
+  // -------------------------------------------------------------------------
+
+  function KVRow({ label, value, tag }) {
+    const paddedLabel = (label || '').padEnd(14);
+    return React.createElement(
+      Box,
+      { flexDirection: 'row' },
+      React.createElement(Text, { color: '#3f3d34' }, '│ '),
+      React.createElement(Text, { color: '#8a8270' }, paddedLabel),
+      React.createElement(Text, { color: '#f5f0e8' }, value || ''),
+      tag ? React.createElement(Text, { color: '#c7a228' }, '  ' + tag) : null
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Gutter row: [gutter symbol] + content
+  // -------------------------------------------------------------------------
+
+  function GutterRow({ symbol, symbolColor, children }) {
+    return React.createElement(
+      Box,
+      { flexDirection: 'row' },
+      React.createElement(Text, { color: symbolColor || '#3f3d34' }, symbol + ' '),
+      children
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // SubLog row: a muted line indented under the gutter
+  // -------------------------------------------------------------------------
+
+  function SubLog({ text }) {
+    return React.createElement(
+      Box,
+      { flexDirection: 'row' },
+      React.createElement(Text, { color: '#3f3d34' }, '│   '),
+      React.createElement(Text, { color: '#6b6456' }, text || '')
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // ModelPicker: interactive multi-select with useInput
+  // -------------------------------------------------------------------------
 
   function ModelPicker({ models, suggested, onDone }) {
     const suggestedIds = new Set(suggested.map(m => m.id));
-    const [selected, setSelected] = useState(new Set(models.map(m => m.id).filter(id => suggestedIds.has(id))));
+    const [selected, setSelected] = useState(
+      new Set(models.map(m => m.id).filter(id => suggestedIds.has(id)))
+    );
     const [cursor, setCursor] = useState(0);
 
     useInput((input, key) => {
@@ -100,115 +175,194 @@ async function runWizard() {
       }
     });
 
+    const rows = models.map((m, i) => {
+      const isCursor = i === cursor;
+      const isSelected = selected.has(m.id);
+      const isSuggested = suggestedIds.has(m.id);
+
+      const checkbox = isSelected
+        ? React.createElement(Text, { color: '#f5f0e8' }, '◼ ')
+        : React.createElement(Text, { color: '#8a8270' }, '◻ ');
+
+      const nameColor = isCursor ? '#f5f0e8' : isSelected ? '#e6e0d4' : '#8a8270';
+
+      return React.createElement(
+        Box,
+        { key: m.id, flexDirection: 'row' },
+        React.createElement(Text, { color: '#3f3d34' }, '│  '),
+        isCursor
+          ? React.createElement(Text, { color: '#c7a228' }, '❯ ')
+          : React.createElement(Text, null, '  '),
+        checkbox,
+        React.createElement(Text, { color: nameColor }, (m.name || '').padEnd(18).slice(0, 18)),
+        React.createElement(Text, null, '  '),
+        React.createElement(Text, { color: '#6b6456' }, (m.sizeGB + ' GB').padEnd(8)),
+        React.createElement(Text, { color: '#8a8270' }, m.description || ''),
+        isSuggested
+          ? React.createElement(Text, { color: '#c7a228' }, '  ★')
+          : null
+      );
+    });
+
+    const hintRow = React.createElement(
+      Box,
+      { flexDirection: 'row' },
+      React.createElement(Text, { color: '#3f3d34' }, '│  '),
+      React.createElement(Text, { color: '#6b6456' }, 'space toggles · enter confirms')
+    );
+
     return React.createElement(
       Box,
       { flexDirection: 'column' },
-      React.createElement(Text, { bold: true, color: '#f5f0e8' }, 'Select models to download:'),
-      React.createElement(Text, { dimColor: true }, 'Arrow keys: move  Space: toggle  Enter: confirm'),
-      React.createElement(Text, null, ''),
-      ...models.map((m, i) => {
-        const isCursor = i === cursor;
-        const isSelected = selected.has(m.id);
-        const isSuggested = suggestedIds.has(m.id);
-        const checkbox = isSelected ? '[x]' : '[ ]';
-        const prefix = isCursor ? '> ' : '  ';
-        const label = m.name + ' (' + m.sizeGB + 'gb) - ' + m.description +
-          (isSuggested ? ' *' : '');
-        return React.createElement(
-          Text,
-          { key: m.id, color: isCursor ? '#2e8b48' : (isSelected ? '#f5f0e8' : '#6b5f52') },
-          prefix + checkbox + ' ' + label
-        );
-      }),
-      React.createElement(Text, null, ''),
-      React.createElement(Text, { dimColor: true }, '* suggested for your RAM'),
+      React.createElement(
+        Box,
+        { flexDirection: 'row' },
+        React.createElement(Text, { color: '#c7a228' }, '◆ '),
+        React.createElement(Text, { color: '#f5f0e8' }, 'Select models to download')
+      ),
+      ...rows,
+      hintRow
     );
   }
 
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // Intro static frame
+  // -------------------------------------------------------------------------
+
+  function IntroFrame() {
+    const llamaLines = [
+      '  ╔══╗   ',
+      '  ║  ║   ',
+      '  ╚╗ ╔╝  ',
+      '   ║ ║   ',
+      '  ██████ ',
+      '  ██████ ',
+      '  ██████ ',
+      '  █  █   ',
+      '  █  █   ',
+    ];
+
+    const colorLine = (line) =>
+      React.createElement(
+        Text,
+        null,
+        ...line.split('').map((ch, ci) => {
+          if ('╔╗╚╝║═'.includes(ch)) return React.createElement(Text, { key: ci, color: '#c7a228' }, ch);
+          if (ch === '█' || ch === '▓') return React.createElement(Text, { key: ci, color: '#f5f0e8' }, ch);
+          return React.createElement(Text, { key: ci }, ch);
+        })
+      );
+
+    return React.createElement(
+      Box,
+      { flexDirection: 'column' },
+      React.createElement(Text, { color: '#c7a228' }, '┌'),
+      ...llamaLines.map((l, i) =>
+        React.createElement(Box, { key: i, flexDirection: 'row' },
+          React.createElement(Text, { color: '#3f3d34' }, '  '),
+          colorLine(l)
+        )
+      ),
+      React.createElement(Text, { color: '#3f3d34' }, '│'),
+      React.createElement(
+        Box,
+        { flexDirection: 'row' },
+        React.createElement(Text, { color: '#3f3d34' }, '  '),
+        React.createElement(
+          Text,
+          { backgroundColor: '#f5f0e8', color: '#16150f', bold: true },
+          ' LlamaRanch '
+        ),
+        React.createElement(Text, null, ' '),
+        React.createElement(Text, { color: '#6b6456' }, 'setup wizard · v' + VERSION)
+      ),
+      React.createElement(Text, { color: '#3f3d34' }, '│'),
+      React.createElement(
+        Box,
+        { flexDirection: 'row' },
+        React.createElement(Text, { color: '#3f3d34' }, '  '),
+        React.createElement(Text, { color: '#6b6456' }, 'A quiet ranch for your local models. Nothing leaves the valley.')
+      ),
+      React.createElement(Text, { color: '#3f3d34' }, '│')
+    );
+  }
+
+  // -------------------------------------------------------------------------
   // Main WizardApp component
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
 
   function WizardApp() {
-    const [step, setStep] = useState('welcome');
+    // step state machine
+    // intro -> confirm -> detect-running -> detect-done -> engine-running ->
+    // engine-done -> model-select -> download-running -> download-done ->
+    // config-writing -> config-done -> app-install-running -> app-install-done -> outro
+    const [step, setStep] = useState('confirm');
+
+    // detect
     const [detectResult, setDetectResult] = useState(null);
+
+    // engine
     const [enginePath, setEnginePath] = useState(null);
     const [engineLines, setEngineLines] = useState([]);
-    const [engineDone, setEngineDone] = useState(false);
     const [engineManual, setEngineManual] = useState(null);
+
+    // models
     const [selectedModels, setSelectedModels] = useState([]);
-    const [downloadIndex, setDownloadIndex] = useState(0);
-    const [downloadLine, setDownloadLine] = useState('');
+    const [modelsDone, setModelsDone] = useState(false);
+    const [downloadPercents, setDownloadPercents] = useState({});
     const [downloadedModels, setDownloadedModels] = useState([]);
     const [failedModels, setFailedModels] = useState([]);
+
+    // config
     const [configPath, setConfigPath] = useState('');
     const [configData, setConfigData] = useState(null);
-    const [appInstallResult, setAppInstallResult] = useState(null);
+
+    // app install
     const [appLines, setAppLines] = useState([]);
-    const [appDone, setAppDone] = useState(false);
+    const [appInstallResult, setAppInstallResult] = useState(null);
+
+    // outro
+    const [outroKey, setOutroKey] = useState(false);
+
+    // error
     const [errorMsg, setErrorMsg] = useState(null);
+
     const { exit } = useApp();
+    const spinFrame = useSpinner();
 
-    // Handle key input at the top level
+    // Top-level key handler (global)
     useInput((input, key) => {
-      // Ctrl+C always exits
-      if (key.ctrl && input === 'c') {
-        exit();
+      if (key.ctrl && input === 'c') { exit(); return; }
+
+      if (step === 'confirm' && key.return) {
+        setStep('detect-running');
         return;
       }
 
-      if (step === 'welcome' && key.return) {
-        setStep('detect');
-        return;
-      }
-
-      if (step === 'detect-done' && key.return) {
-        setStep('engine');
-        return;
-      }
-
-      if (step === 'engine-skip' && key.return) {
-        setEnginePath(detectResult.llamaServer.path);
-        setStep('model-select');
-        return;
-      }
-
-      if (step === 'engine-manual' && key.return) {
-        setStep('model-select');
-        return;
-      }
-
-      if (step === 'config-done' && key.return) {
-        setStep('app-install');
-        return;
-      }
-
-      if (step === 'app-manual' && key.return) {
-        setStep('finish');
-        return;
-      }
-
-      if ((step === 'finish' || step === 'error') && (key.return || input === 'q')) {
+      if (step === 'outro' || step === 'error') {
         exit();
         return;
       }
     });
 
-    // Step: detect
+    // -----------------------------------------------------------------------
+    // Effects: one per async step
+    // -----------------------------------------------------------------------
+
+    // detect-running
     useEffect(() => {
-      if (step !== 'detect') return;
+      if (step !== 'detect-running') return;
       let cancelled = false;
       const run = async () => {
         try {
           const result = await detect();
-          await new Promise(resolve => setTimeout(resolve, 400));
           if (!cancelled) {
             setDetectResult(result);
             setStep('detect-done');
           }
         } catch (err) {
           if (!cancelled) {
-            setErrorMsg('Environment detection failed: ' + err.message + '\nTry running again or check your system.');
+            setErrorMsg('Environment detection failed: ' + err.message);
             setStep('error');
           }
         }
@@ -217,18 +371,24 @@ async function runWizard() {
       return () => { cancelled = true; };
     }, [step]);
 
-    // Step: engine
+    // After detect-done auto-advance to engine-running after short delay
     useEffect(() => {
-      if (step !== 'engine') return;
+      if (step !== 'detect-done') return;
+      const t = setTimeout(() => setStep('engine-running'), 700);
+      return () => clearTimeout(t);
+    }, [step]);
+
+    // engine-running
+    useEffect(() => {
+      if (step !== 'engine-running') return;
       if (!detectResult) return;
 
-      // If already found, show skip message
       if (detectResult.llamaServer?.found === true) {
-        setStep('engine-skip');
+        setEnginePath(detectResult.llamaServer.path);
+        setStep('engine-done');
         return;
       }
 
-      // Not found: start install
       let cancelled = false;
       const run = async () => {
         try {
@@ -240,21 +400,18 @@ async function runWizard() {
               if (!cancelled) setEngineLines(prev => [...prev, line]);
             },
           });
-
           if (!cancelled) {
-            setEngineDone(true);
             if (result.manualRequired) {
               setEngineManual(result.instructions || 'Install llama.cpp manually: https://github.com/ggml-org/llama.cpp');
-              setStep('engine-manual');
             } else {
               setEnginePath(result.path);
-              setStep('model-select');
             }
+            setStep('engine-done');
           }
         } catch (err) {
           if (!cancelled) {
             setEngineManual('Engine install failed: ' + err.message + '\n\nInstall manually: https://github.com/ggml-org/llama.cpp');
-            setStep('engine-manual');
+            setStep('engine-done');
           }
         }
       };
@@ -262,11 +419,19 @@ async function runWizard() {
       return () => { cancelled = true; };
     }, [step]);
 
-    // Step: model-download
+    // engine-done auto-advances to model-select
     useEffect(() => {
-      if (step !== 'model-download') return;
+      if (step !== 'engine-done') return;
+      const t = setTimeout(() => setStep('model-select'), 400);
+      return () => clearTimeout(t);
+    }, [step]);
+
+    // download-running
+    useEffect(() => {
+      if (step !== 'download-running') return;
       if (selectedModels.length === 0) {
-        setStep('config-write');
+        setModelsDone(true);
+        setStep('download-done');
         return;
       }
 
@@ -275,38 +440,39 @@ async function runWizard() {
       const downloaded = [];
       const failed = [];
 
-      const runDownloads = async () => {
-        try {
-          for (let i = 0; i < selectedModels.length; i++) {
-            if (cancelled) return;
-            const model = selectedModels[i];
-            setDownloadIndex(i);
-            setDownloadLine('Starting ' + model.name + '...');
+      const initPercents = {};
+      for (const m of selectedModels) initPercents[m.id] = 0;
+      setDownloadPercents(initPercents);
 
+      const run = async () => {
+        try {
+          for (const model of selectedModels) {
+            if (cancelled) return;
             try {
               await downloadModel(model, modelsDir, {
                 onProgress: (evt) => {
                   if (cancelled) return;
+                  let pct = null;
                   if (evt.type === 'skip') {
-                    setDownloadLine(model.name + ': already downloaded');
-                  } else if (evt.type === 'progress' && evt.percent !== null) {
-                    setDownloadLine('Downloading ' + model.name + '... ' + evt.percent + '%');
-                  } else if (evt.type === 'progress') {
-                    const mb = evt.downloaded ? Math.round(evt.downloaded / (1024 * 1024) * 10) / 10 : 0;
-                    setDownloadLine('Downloading ' + model.name + '... ' + mb + ' MB');
+                    pct = 100;
                   } else if (evt.type === 'done') {
-                    setDownloadLine(model.name + ': done');
-                  } else if (evt.type === 'error') {
-                    setDownloadLine(model.name + ': error - ' + evt.message);
+                    pct = 100;
+                  } else if (evt.type === 'progress') {
+                    if (evt.percent !== null && typeof evt.percent === 'number') {
+                      pct = evt.percent;
+                    } else if (evt.downloaded && evt.total) {
+                      pct = Math.round((evt.downloaded / evt.total) * 100);
+                    }
+                  }
+                  if (pct !== null) {
+                    setDownloadPercents(prev => ({ ...prev, [model.id]: pct }));
                   }
                 }
               });
               downloaded.push(model);
+              setDownloadPercents(prev => ({ ...prev, [model.id]: 100 }));
             } catch (err) {
-              const hfUrl = 'https://huggingface.co/' + model.repo + '/resolve/main/' + model.file;
-              failed.push({ model, error: err.message, hfUrl });
-              setDownloadLine(model.name + ': failed - ' + err.message);
-              await new Promise(r => setTimeout(r, 1200));
+              failed.push({ model, error: err.message, hfUrl: 'https://huggingface.co/' + model.repo + '/resolve/main/' + model.file });
             }
           }
         } catch (err) {
@@ -316,45 +482,40 @@ async function runWizard() {
             return;
           }
         }
-
         if (!cancelled) {
           setDownloadedModels(downloaded);
           setFailedModels(failed);
-          setStep('config-write');
+          setModelsDone(true);
+          setStep('download-done');
         }
       };
-
-      runDownloads();
+      run();
       return () => { cancelled = true; };
     }, [step]);
 
-    // Step: config-write
+    // download-done auto-advances to config-writing
     useEffect(() => {
-      if (step !== 'config-write') return;
-      let cancelled = false;
+      if (step !== 'download-done') return;
+      const t = setTimeout(() => setStep('config-writing'), 400);
+      return () => clearTimeout(t);
+    }, [step]);
 
+    // config-writing
+    useEffect(() => {
+      if (step !== 'config-writing') return;
+      let cancelled = false;
       const run = async () => {
         try {
           const modelsDir = getModelsDir();
-
-          // Only count actually downloaded models (not failed ones) for general model selection
-          const successfulChatModels = downloadedModels.filter(m => m.group === 'chat');
-          const generalModelObj = successfulChatModels.length > 0
-            ? successfulChatModels.reduce((a, b) => a.sizeGB <= b.sizeGB ? a : b)
+          const successfulChat = downloadedModels.filter(m => m.group === 'chat');
+          const generalModelObj = successfulChat.length > 0
+            ? successfulChat.reduce((a, b) => a.sizeGB <= b.sizeGB ? a : b)
             : downloadedModels.length > 0
               ? downloadedModels.reduce((a, b) => a.sizeGB <= b.sizeGB ? a : b)
               : null;
-
           const serverBin = enginePath || detectResult?.llamaServer?.path || null;
-          // Only write a general_model when the file actually exists; never set it from a failed download
           const generalModel = generalModelObj ? generalModelObj.file : null;
-
-          const { configPath: cp, config } = await writeConfig({
-            serverBin,
-            modelsDir,
-            generalModel,
-            port: 2276,
-          });
+          const { configPath: cp, config } = await writeConfig({ serverBin, modelsDir, generalModel, port: 2276 });
           if (!cancelled) {
             setConfigPath(cp);
             setConfigData(config);
@@ -372,11 +533,17 @@ async function runWizard() {
       return () => { cancelled = true; };
     }, [step]);
 
-    // Step: app-install
+    // config-done auto-advances to app-install-running
     useEffect(() => {
-      if (step !== 'app-install') return;
-      if (!detectResult) return;
+      if (step !== 'config-done') return;
+      const t = setTimeout(() => setStep('app-install-running'), 600);
+      return () => clearTimeout(t);
+    }, [step]);
 
+    // app-install-running
+    useEffect(() => {
+      if (step !== 'app-install-running') return;
+      if (!detectResult) return;
       let cancelled = false;
       const run = async () => {
         try {
@@ -385,21 +552,14 @@ async function runWizard() {
               if (!cancelled) setAppLines(prev => [...prev, msg]);
             }
           });
-
           if (!cancelled) {
             setAppInstallResult(result);
-            setAppDone(true);
-            if (result.manualRequired) {
-              setStep('app-manual');
-            } else {
-              setStep('finish');
-            }
+            setStep('app-install-done');
           }
         } catch (err) {
           if (!cancelled) {
             setAppInstallResult({ manualRequired: true, instructions: 'Download from https://github.com/madalintat/LlamaRanch/releases' });
-            setAppDone(true);
-            setStep('app-manual');
+            setStep('app-install-done');
           }
         }
       };
@@ -407,319 +567,388 @@ async function runWizard() {
       return () => { cancelled = true; };
     }, [step]);
 
-    // -------------------------------------------------------------------------
-    // Render each step
-    // -------------------------------------------------------------------------
+    // app-install-done auto-advances to outro
+    useEffect(() => {
+      if (step !== 'app-install-done') return;
+      const t = setTimeout(() => setStep('outro'), 500);
+      return () => clearTimeout(t);
+    }, [step]);
 
-    // Error screen
-    if (step === 'error') {
-      const lines = (errorMsg || 'An unexpected error occurred.').split('\n');
-      return React.createElement(
-        Box,
-        { flexDirection: 'column', padding: 1 },
-        React.createElement(Text, { bold: true, color: '#c7a228' }, 'Something went wrong'),
-        React.createElement(Text, null, ''),
-        ...lines.map((line, i) =>
-          React.createElement(Text, { key: 'err-' + i, color: '#f5f0e8' }, line)
-        ),
-        React.createElement(Text, null, ''),
-        React.createElement(Text, { color: '#6b5f52' }, 'Press Enter or q to exit'),
-      );
-    }
+    // outro: auto-exit after 2s, or on any key (handled in top-level useInput)
+    useEffect(() => {
+      if (step !== 'outro') return;
+      setOutroKey(true);
+      const t = setTimeout(() => exit(), 2000);
+      return () => clearTimeout(t);
+    }, [step]);
 
-    // Welcome
-    if (step === 'welcome') {
-      return React.createElement(
-        Box,
-        { flexDirection: 'column', padding: 1 },
-        React.createElement(Text, { bold: true, color: '#f5f0e8' }, 'Welcome to LlamaRanch Setup'),
-        React.createElement(Text, null, ''),
-        React.createElement(Text, { color: '#6b5f52' }, 'This wizard will install the engine, download starter models,'),
-        React.createElement(Text, { color: '#6b5f52' }, 'write your config, and install the desktop app.'),
-        React.createElement(Text, null, ''),
-        React.createElement(Text, { color: '#2e8b48' }, 'Press Enter to begin setup'),
-      );
-    }
+    // -----------------------------------------------------------------------
+    // Rendering helpers
+    // -----------------------------------------------------------------------
 
-    // Detect (spinner)
-    if (step === 'detect') {
-      return React.createElement(
-        Box,
-        { flexDirection: 'column', padding: 1 },
+    // OS label
+    const osLabel = (r) => {
+      if (!r) return '';
+      if (r.os === 'macos') return 'macOS';
+      if (r.os === 'windows') return 'Windows';
+      return 'Linux';
+    };
+
+    // GPU short label
+    const gpuLabel = (r) => {
+      if (!r) return '';
+      if (r.gpu?.type === 'metal') return 'Apple Metal';
+      if (r.gpu?.type === 'cuda') return 'NVIDIA CUDA' + (r.gpu.vramGB ? ' (' + r.gpu.vramGB + ' GB)' : '');
+      if (r.gpu?.type === 'vulkan') return 'Vulkan GPU';
+      return 'CPU only';
+    };
+
+    // -----------------------------------------------------------------------
+    // Render
+    // -----------------------------------------------------------------------
+
+    const rows = [];
+
+    // Intro frame (always shown)
+    rows.push(React.createElement(IntroFrame, { key: 'intro' }));
+
+    // Confirm prompt
+    if (step === 'confirm') {
+      rows.push(
         React.createElement(
-          Text,
-          null,
-          React.createElement(Spinner, { type: 'dots' }),
-          React.createElement(Text, { color: '#f5f0e8' }, '  Detecting your environment...'),
-        ),
+          Box,
+          { key: 'confirm', flexDirection: 'row' },
+          React.createElement(Text, { color: '#c7a228' }, '◆ '),
+          React.createElement(Text, { color: '#f5f0e8' }, 'Ready to set up LlamaRanch?  '),
+          React.createElement(Text, { color: '#6b6456' }, '[enter ↵]')
+        )
       );
     }
 
-    // Detect done (show results, wait for Enter)
-    if (step === 'detect-done') {
-      const summary = detectResult ? formatDetectResult(detectResult) : '';
-      const summaryLines = summary.split('\n');
-      return React.createElement(
-        Box,
-        { flexDirection: 'column', padding: 1 },
-        React.createElement(Text, { bold: true, color: '#2e8b48' }, 'Environment detected'),
-        React.createElement(Text, null, ''),
-        ...summaryLines.map((line, i) =>
-          React.createElement(Text, { key: 'det-' + i }, line)
-        ),
-      );
+    // detect-running
+    if (['detect-running', 'detect-done', 'engine-running', 'engine-done',
+         'model-select', 'download-running', 'download-done',
+         'config-writing', 'config-done', 'app-install-running',
+         'app-install-done', 'outro'].includes(step)) {
+
+      const isRunning = step === 'detect-running';
+      const isDone = !isRunning;
+
+      if (isRunning) {
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'detect-spin', flexDirection: 'row' },
+            React.createElement(Text, { color: '#f5f0e8' }, spinFrame + ' '),
+            React.createElement(Text, { color: '#f5f0e8' }, 'Detecting your environment')
+          )
+        );
+      } else {
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'detect-done', flexDirection: 'row' },
+            React.createElement(Text, { color: '#cbb78a' }, '◇ '),
+            React.createElement(Text, { color: '#cbb78a' }, 'Detecting your environment')
+          )
+        );
+        if (detectResult) {
+          rows.push(React.createElement(KVRow, { key: 'kv-os', label: 'os', value: osLabel(detectResult) + ' · ' + detectResult.arch }));
+          rows.push(React.createElement(KVRow, { key: 'kv-node', label: 'node', value: detectResult.nodeVersion }));
+          rows.push(React.createElement(KVRow, { key: 'kv-ram', label: 'ram', value: detectResult.totalRamGB + ' GB' }));
+          rows.push(React.createElement(KVRow, { key: 'kv-gpu', label: 'gpu', value: gpuLabel(detectResult) }));
+          const llamaVal = detectResult.llamaServer?.found
+            ? detectResult.llamaServer.path
+            : 'not found';
+          const llamaTag = detectResult.llamaServer?.found ? null : '→ build';
+          rows.push(React.createElement(KVRow, { key: 'kv-llama', label: 'llama-server', value: llamaVal, tag: llamaTag }));
+          const appVal = detectResult.appInstalled?.found
+            ? detectResult.appInstalled.path
+            : 'not found';
+          const appTag = detectResult.appInstalled?.found ? null : '→ install';
+          rows.push(React.createElement(KVRow, { key: 'kv-app', label: 'desktop app', value: appVal, tag: appTag }));
+        }
+      }
     }
 
-    // Engine: already found, skip
-    if (step === 'engine-skip') {
-      return React.createElement(
-        Box,
-        { flexDirection: 'column', padding: 1 },
-        React.createElement(Text, { bold: true, color: '#2e8b48' }, 'llama-server found'),
-        React.createElement(Text, { dimColor: true }, detectResult?.llamaServer?.path || ''),
-        detectResult?.llamaServer?.version
-          ? React.createElement(Text, { dimColor: true }, 'version: ' + detectResult.llamaServer.version)
-          : null,
-        React.createElement(Text, null, ''),
-        React.createElement(Text, { color: '#6b5f52' }, 'Press Enter to continue'),
-      );
+    // engine step
+    if (['engine-running', 'engine-done', 'model-select', 'download-running',
+         'download-done', 'config-writing', 'config-done',
+         'app-install-running', 'app-install-done', 'outro'].includes(step)) {
+
+      const isRunning = step === 'engine-running';
+
+      if (isRunning) {
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'eng-spin', flexDirection: 'row' },
+            React.createElement(Text, { color: '#f5f0e8' }, spinFrame + ' '),
+            React.createElement(Text, { color: '#f5f0e8' }, 'Installing engine')
+          )
+        );
+        for (let i = Math.max(0, engineLines.length - 6); i < engineLines.length; i++) {
+          rows.push(React.createElement(SubLog, { key: 'engline-' + i, text: engineLines[i] }));
+        }
+      } else {
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'eng-done', flexDirection: 'row' },
+            React.createElement(Text, { color: '#cbb78a' }, '◇ '),
+            React.createElement(Text, { color: '#cbb78a' }, 'Installing engine')
+          )
+        );
+        if (detectResult?.llamaServer?.found) {
+          rows.push(React.createElement(SubLog, { key: 'eng-found', text: 'llama-server found at ' + detectResult.llamaServer.path }));
+        } else if (engineManual) {
+          rows.push(
+            React.createElement(
+              Box,
+              { key: 'eng-warn', flexDirection: 'row' },
+              React.createElement(Text, { color: '#c7a228' }, '▲ '),
+              React.createElement(Text, { color: '#f5f0e8' }, 'Manual install required: ' + engineManual.split('\n')[0])
+            )
+          );
+        } else if (enginePath) {
+          rows.push(React.createElement(SubLog, { key: 'eng-path', text: 'installed at ' + enginePath }));
+        }
+      }
     }
 
-    // Engine: installing
-    if (step === 'engine') {
-      return React.createElement(
-        Box,
-        { flexDirection: 'column', padding: 1 },
-        React.createElement(
-          Text,
-          null,
-          React.createElement(Spinner, { type: 'dots' }),
-          React.createElement(Text, { color: '#f5f0e8' }, '  Installing llama-server...'),
-        ),
-        React.createElement(Text, null, ''),
-        ...engineLines.slice(-8).map((line, i) =>
-          React.createElement(Text, { key: 'eng-' + i, dimColor: true }, line)
-        ),
-      );
-    }
-
-    // Engine: manual required
-    if (step === 'engine-manual') {
-      const manualLines = (engineManual || '').split('\n');
-      return React.createElement(
-        Box,
-        { flexDirection: 'column', padding: 1 },
-        React.createElement(Text, { bold: true, color: '#c7a228' }, 'Manual installation required'),
-        React.createElement(Text, null, ''),
-        ...engineLines.slice(-6).map((line, i) =>
-          React.createElement(Text, { key: 'engm-' + i, dimColor: true }, line)
-        ),
-        React.createElement(Text, null, ''),
-        ...manualLines.map((line, i) =>
-          React.createElement(Text, { key: 'engmi-' + i, color: '#f5f0e8' }, line)
-        ),
-        React.createElement(Text, null, ''),
-        React.createElement(Text, { color: '#6b5f52' }, 'Press Enter to continue without engine'),
-      );
-    }
-
-    // Model select
+    // model-select
     if (step === 'model-select') {
       const suggested = detectResult ? suggestModels(detectResult.totalRamGB) : [];
-      return React.createElement(
-        Box,
-        { flexDirection: 'column', padding: 1 },
+      rows.push(
         React.createElement(ModelPicker, {
+          key: 'model-picker',
           models: MODEL_CATALOG,
           suggested,
           onDone: (picked) => {
             setSelectedModels(picked);
-            setStep('model-download');
+            setStep('download-running');
           }
-        }),
+        })
       );
     }
 
-    // Model download
-    if (step === 'model-download') {
-      const model = selectedModels[downloadIndex];
-      return React.createElement(
-        Box,
-        { flexDirection: 'column', padding: 1 },
-        React.createElement(Text, { bold: true, color: '#f5f0e8' }, 'Downloading models...'),
-        React.createElement(Text, null, ''),
+    // model-select done (collapsed)
+    if (['download-running', 'download-done', 'config-writing', 'config-done',
+         'app-install-running', 'app-install-done', 'outro'].includes(step)) {
+      rows.push(
         React.createElement(
-          Text,
-          { dimColor: true },
-          (downloadIndex + 1) + '/' + selectedModels.length + ': ' + (model?.name || ''),
-        ),
+          Box,
+          { key: 'model-sel-done', flexDirection: 'row' },
+          React.createElement(Text, { color: '#cbb78a' }, '◇ '),
+          React.createElement(Text, { color: '#cbb78a' }, 'Select models to download'),
+          React.createElement(Text, { color: '#8a8270' }, '   ' + selectedModels.length + ' selected')
+        )
+      );
+    }
+
+    // download-running
+    if (step === 'download-running') {
+      rows.push(
         React.createElement(
-          Text,
-          null,
-          React.createElement(Spinner, { type: 'dots' }),
-          React.createElement(Text, { color: '#2e8b48' }, '  ' + (downloadLine || '...')),
-        ),
+          Box,
+          { key: 'dl-spin', flexDirection: 'row' },
+          React.createElement(Text, { color: '#f5f0e8' }, spinFrame + ' '),
+          React.createElement(Text, { color: '#f5f0e8' }, 'Downloading from Hugging Face')
+        )
       );
+      for (const model of selectedModels) {
+        const pct = downloadPercents[model.id] || 0;
+        const nameCol = (model.name || '').padEnd(18).slice(0, 18);
+        const pctStr = String(Math.round(pct)).padStart(3) + '%';
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'dl-row-' + model.id, flexDirection: 'row' },
+            React.createElement(Text, { color: '#3f3d34' }, '│   '),
+            React.createElement(Text, { color: '#8a8270' }, nameCol),
+            React.createElement(Text, null, '  '),
+            React.createElement(ProgressBar, { percent: pct }),
+            React.createElement(Text, null, '  '),
+            React.createElement(Text, { color: '#6b6456' }, pctStr)
+          )
+        );
+      }
     }
 
-    // Config write (auto, no user input needed yet)
-    if (step === 'config-write') {
-      return React.createElement(
-        Box,
-        { flexDirection: 'column', padding: 1 },
+    // download-done (collapsed)
+    if (['download-done', 'config-writing', 'config-done',
+         'app-install-running', 'app-install-done', 'outro'].includes(step)) {
+      rows.push(
         React.createElement(
-          Text,
-          null,
-          React.createElement(Spinner, { type: 'dots' }),
-          React.createElement(Text, { color: '#f5f0e8' }, '  Writing config...'),
-        ),
+          Box,
+          { key: 'dl-done', flexDirection: 'row' },
+          React.createElement(Text, { color: '#cbb78a' }, '◇ '),
+          React.createElement(Text, { color: '#cbb78a' }, 'Downloading from Hugging Face'),
+          React.createElement(Text, { color: '#8a8270' }, '   ' + downloadedModels.length + ' downloaded')
+        )
       );
     }
 
-    // Config done
-    if (step === 'config-done') {
-      return React.createElement(
-        Box,
-        { flexDirection: 'column', padding: 1 },
-        React.createElement(Text, { bold: true, color: '#2e8b48' }, 'Config written'),
-        React.createElement(Text, null, ''),
-        React.createElement(Text, { color: '#f5f0e8' }, 'Path: ' + configPath),
-        configData?.error
-          ? React.createElement(Text, { color: '#c7a228' }, 'Warning: ' + configData.error)
-          : null,
-        React.createElement(Text, null, ''),
-        React.createElement(Text, { color: '#6b5f52' }, 'Press Enter to install desktop app'),
-      );
-    }
-
-    // App install (spinner)
-    if (step === 'app-install') {
-      return React.createElement(
-        Box,
-        { flexDirection: 'column', padding: 1 },
+    // config-writing
+    if (step === 'config-writing') {
+      rows.push(
         React.createElement(
-          Text,
-          null,
-          React.createElement(Spinner, { type: 'dots' }),
-          React.createElement(Text, { color: '#f5f0e8' }, '  Installing LlamaRanch desktop app...'),
-        ),
-        React.createElement(Text, null, ''),
-        ...appLines.slice(-6).map((line, i) =>
-          React.createElement(Text, { key: 'app-' + i, dimColor: true }, line)
-        ),
+          Box,
+          { key: 'cfg-spin', flexDirection: 'row' },
+          React.createElement(Text, { color: '#f5f0e8' }, spinFrame + ' '),
+          React.createElement(Text, { color: '#f5f0e8' }, 'Writing config')
+        )
       );
     }
 
-    // App install: manual required
-    if (step === 'app-manual') {
-      return React.createElement(
-        Box,
-        { flexDirection: 'column', padding: 1 },
-        React.createElement(Text, { bold: true, color: '#c7a228' }, 'Manual app installation required'),
-        React.createElement(Text, null, ''),
-        ...appLines.slice(-5).map((line, i) =>
-          React.createElement(Text, { key: 'appm-' + i, dimColor: true }, line)
-        ),
-        React.createElement(Text, null, ''),
-        appInstallResult?.instructions
-          ? React.createElement(Text, { color: '#f5f0e8' }, appInstallResult.instructions)
-          : null,
-        React.createElement(Text, null, ''),
-        React.createElement(Text, { color: '#6b5f52' }, 'Press Enter to finish setup'),
+    // config-done (collapsed)
+    if (['config-done', 'app-install-running', 'app-install-done', 'outro'].includes(step)) {
+      rows.push(
+        React.createElement(
+          Box,
+          { key: 'cfg-done', flexDirection: 'row' },
+          React.createElement(Text, { color: '#cbb78a' }, '◇ '),
+          React.createElement(Text, { color: '#cbb78a' }, 'Config written'),
+          React.createElement(Text, null, '  '),
+          React.createElement(Text, { color: '#6b6456' }, configPath)
+        )
       );
     }
 
-    // Finish
-    if (step === 'finish') {
-      const modelsDir = getModelsDir();
+    // app-install-running
+    if (step === 'app-install-running') {
+      rows.push(
+        React.createElement(
+          Box,
+          { key: 'app-spin', flexDirection: 'row' },
+          React.createElement(Text, { color: '#f5f0e8' }, spinFrame + ' '),
+          React.createElement(Text, { color: '#f5f0e8' }, 'Installing desktop app')
+        )
+      );
+      for (let i = Math.max(0, appLines.length - 5); i < appLines.length; i++) {
+        rows.push(React.createElement(SubLog, { key: 'appline-' + i, text: appLines[i] }));
+      }
+    }
+
+    // app-install-done (collapsed)
+    if (['app-install-done', 'outro'].includes(step)) {
+      if (appInstallResult?.manualRequired) {
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'app-warn', flexDirection: 'row' },
+            React.createElement(Text, { color: '#c7a228' }, '▲ '),
+            React.createElement(Text, { color: '#f5f0e8' }, 'Desktop app: manual install required')
+          )
+        );
+        if (appInstallResult.instructions) {
+          rows.push(React.createElement(SubLog, { key: 'app-instr', text: appInstallResult.instructions }));
+        }
+      } else {
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'app-done', flexDirection: 'row' },
+            React.createElement(Text, { color: '#cbb78a' }, '◇ '),
+            React.createElement(Text, { color: '#cbb78a' }, 'Installing desktop app')
+          )
+        );
+      }
+    }
+
+    // outro
+    if (step === 'outro') {
+      const serverBin = enginePath || detectResult?.llamaServer?.path || null;
+      const generalModelFile = downloadedModels.length > 0 ? downloadedModels[0].file : null;
       const appPath = detectResult?.os === 'macos'
         ? '/Applications/LlamaRanch.app'
         : detectResult?.os === 'linux'
           ? '~/.local/bin/LlamaRanch.AppImage'
           : 'LlamaRanch';
 
-      const appInstalled = appInstallResult?.installed === true ||
-        appInstallResult?.skipped === true ||
-        detectResult?.appInstalled?.found === true;
-
-      const serverBin = enginePath || detectResult?.llamaServer?.path || null;
-      const engineOk = !!serverBin;
-
-      // Gate "ready" on having a working engine
-      if (!engineOk) {
-        return React.createElement(
+      rows.push(React.createElement(Text, { key: 'outro-gap', color: '#3f3d34' }, '│'));
+      rows.push(
+        React.createElement(
           Box,
-          { flexDirection: 'column', padding: 1 },
-          React.createElement(Text, { bold: true, color: '#c7a228' }, 'Almost there.'),
-          React.createElement(Text, null, ''),
-          React.createElement(Text, { color: '#f5f0e8' }, 'Config: ' + configPath),
-          React.createElement(Text, null, ''),
-          React.createElement(Text, { bold: true, color: '#c7a228' }, 'Still needed:'),
-          React.createElement(Text, { color: '#f5f0e8' }, '  llama-server (engine) is not installed.'),
-          React.createElement(Text, { color: '#f5f0e8' }, '  macOS: brew install llama.cpp'),
-          React.createElement(Text, { color: '#f5f0e8' }, '  Linux: https://github.com/ggml-org/llama.cpp/releases'),
-          React.createElement(Text, { color: '#f5f0e8' }, '  Windows: download a .zip, add llama-server.exe to PATH'),
-          React.createElement(Text, null, ''),
-          failedModels.length > 0
-            ? React.createElement(
-                Box,
-                { flexDirection: 'column' },
-                React.createElement(Text, { bold: true, color: '#c7a228' }, 'Models that failed to download:'),
-                ...failedModels.map((f, i) =>
-                  React.createElement(Text, { key: 'fm-' + i, color: '#f5f0e8' }, '  ' + f.model.name + ': ' + f.hfUrl)
-                ),
-                React.createElement(Text, null, ''),
-              )
-            : null,
-          React.createElement(Text, { dimColor: true }, 'nothing leaves the valley'),
-          React.createElement(Text, null, ''),
-          React.createElement(Text, { color: '#6b5f52' }, 'Press Enter or q to exit'),
+          { key: 'outro-head', flexDirection: 'row' },
+          React.createElement(Text, { color: '#c7a228' }, '└ '),
+          React.createElement(Text, { color: '#f5f0e8', bold: true }, 'The ranch is up.')
+        )
+      );
+      if (serverBin) {
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'outro-serve', flexDirection: 'row' },
+            React.createElement(Text, null, '   '),
+            React.createElement(Text, { color: '#f5f0e8', bold: true }, 'serve  '),
+            React.createElement(Text, { color: '#f5f0e8' }, '127.0.0.1:2276/v1'),
+            generalModelFile
+              ? React.createElement(Text, { color: '#f5f0e8' }, ' · ' + generalModelFile)
+              : null,
+            React.createElement(Text, { color: '#6b6456' }, ' · local')
+          )
         );
       }
-
-      return React.createElement(
-        Box,
-        { flexDirection: 'column', padding: 1 },
-        React.createElement(Text, { bold: true, color: '#2e8b48' }, 'LlamaRanch is ready.'),
-        React.createElement(Text, null, ''),
-        React.createElement(Text, { color: '#f5f0e8' }, 'Config:   ' + configPath),
-        React.createElement(Text, { color: '#f5f0e8' }, 'Engine:   ' + serverBin),
-        React.createElement(Text, { color: '#f5f0e8' }, 'Models:   ' + modelsDir),
-        React.createElement(Text, null, ''),
-        failedModels.length > 0
-          ? React.createElement(
-              Box,
-              { flexDirection: 'column' },
-              React.createElement(Text, { bold: true, color: '#c7a228' }, 'Models that failed to download:'),
-              ...failedModels.map((f, i) =>
-                React.createElement(Text, { key: 'fm-' + i, color: '#6b5f52' }, '  ' + f.model.name + ': ' + f.hfUrl)
-              ),
-              React.createElement(Text, null, ''),
-            )
-          : null,
-        React.createElement(Text, { color: '#2e8b48' }, 'Start headless server:'),
-        React.createElement(Text, { bold: true, color: '#f5f0e8' }, '  llamaranch-wizard serve'),
-        React.createElement(Text, null, ''),
-        appInstalled
-          ? React.createElement(
-              Box,
-              { flexDirection: 'column' },
-              React.createElement(Text, { color: '#2e8b48' }, 'Open the app:'),
-              React.createElement(Text, { bold: true, color: '#f5f0e8' }, '  ' + appPath),
-              React.createElement(Text, null, ''),
-            )
-          : null,
-        React.createElement(Text, { dimColor: true }, 'nothing leaves the valley'),
-        React.createElement(Text, null, ''),
-        React.createElement(Text, { color: '#6b5f52' }, 'Press Enter or q to exit'),
+      rows.push(
+        React.createElement(
+          Box,
+          { key: 'outro-app', flexDirection: 'row' },
+          React.createElement(Text, null, '   '),
+          React.createElement(Text, { color: '#f5f0e8', bold: true }, 'app    '),
+          React.createElement(Text, { color: '#f5f0e8' }, appPath)
+        )
+      );
+      rows.push(React.createElement(Text, { key: 'outro-gap2', color: '#3f3d34' }, '│'));
+      rows.push(
+        React.createElement(
+          Box,
+          { key: 'outro-cmd1', flexDirection: 'row' },
+          React.createElement(Text, null, '   '),
+          React.createElement(Text, { color: '#c7a228' }, 'llamaranch chat'),
+          React.createElement(Text, { color: '#6b6456' }, '     # start a local conversation')
+        )
+      );
+      rows.push(
+        React.createElement(
+          Box,
+          { key: 'outro-cmd2', flexDirection: 'row' },
+          React.createElement(Text, null, '   '),
+          React.createElement(Text, { color: '#c7a228' }, 'llamaranch ui'),
+          React.createElement(Text, { color: '#6b6456' }, '       # open the desktop app')
+        )
+      );
+      rows.push(
+        React.createElement(
+          Box,
+          { key: 'outro-caret', flexDirection: 'row' },
+          React.createElement(Text, { color: '#c7a228' }, '❯')
+        )
       );
     }
 
-    return null;
-  }
+    // error
+    if (step === 'error') {
+      rows.push(
+        React.createElement(
+          Box,
+          { key: 'err-head', flexDirection: 'row' },
+          React.createElement(Text, { color: '#c7a228' }, '▲ '),
+          React.createElement(Text, { color: '#f5f0e8' }, errorMsg || 'An unexpected error occurred.')
+        )
+      );
+      rows.push(
+        React.createElement(
+          Box,
+          { key: 'err-hint', flexDirection: 'row' },
+          React.createElement(Text, { color: '#3f3d34' }, '│ '),
+          React.createElement(Text, { color: '#6b6456' }, 'Press any key to exit')
+        )
+      );
+    }
 
-  // Print logo before rendering Ink app
-  renderLogo();
+    return React.createElement(Box, { flexDirection: 'column' }, ...rows);
+  }
 
   render(React.createElement(WizardApp, null));
 }
@@ -738,16 +967,24 @@ if (cmd === '--help' || cmd === '-h') {
   process.exit(0);
 } else if (cmd === 'serve') {
   const { runServe } = await import('./serve.js');
+  // Branded header
+  renderLogo();
+  console.log(chalk.hex('#c7a228')('  serve') + chalk.hex('#6b6456')('  starting llama-server...'));
+  console.log('');
   await runServe();
   process.exit(0);
 } else if (cmd === 'update') {
   const { runUpdate } = await import('./update.js');
+  // Branded header
+  renderLogo();
+  console.log(chalk.hex('#c7a228')('  update') + chalk.hex('#6b6456')('  checking for new releases...'));
+  console.log('');
   await runUpdate();
   process.exit(0);
 } else if (!cmd || cmd === 'setup') {
   await runWizard();
 } else {
-  console.error(`Unknown command: ${cmd}`);
-  console.error('Run with --help for usage.');
+  console.error(chalk.hex('#c7a228')('▲ ') + 'Unknown command: ' + cmd);
+  console.error(chalk.hex('#6b6456')('  Run with --help for usage.'));
   process.exit(1);
 }
