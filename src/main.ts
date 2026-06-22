@@ -59,7 +59,7 @@ let view: "installed" | "discover" = "installed";
 const dl = new Map<string, { done: number; total: number }>();
 let pollTimer: number | undefined;
 
-// Module-level dither instance — set in init() before first render.
+// Module-level dither instance - set in init() before first render.
 let dither: Dither;
 
 /** Sync the hairline band canvas data-color to the resolved CSS var. */
@@ -110,7 +110,7 @@ function renderInstalled() {
   host.innerHTML = "";
   if (models.length === 0) {
     const msg = router.status === "running"
-      ? "no models yet — try discover"
+      ? "no models yet, try discover"
       : "starting router…";
     host.innerHTML = `<div class="empty">${msg}</div>`;
     return;
@@ -332,10 +332,10 @@ async function hydrateCfg(id: string) {
   // Context tier picker
   const max = info.native_ctx || 262144;
   const mem = (ctx: number) =>
-    info.kv_per_token > 0 ? gb(info.file_bytes + ctx * info.kv_per_token) : "—";
+    info.kv_per_token > 0 ? gb(info.file_bytes + ctx * info.kv_per_token) : "n/a";
   const ctxLabel = document.createElement("div");
   ctxLabel.className = "cfg-expander__label";
-  ctxLabel.textContent = info.native_ctx ? `Context — max ${tierLabel(info.native_ctx)}` : "Context";
+  ctxLabel.textContent = info.native_ctx ? `Context · max ${tierLabel(info.native_ctx)}` : "Context";
   host.appendChild(ctxLabel);
 
   const pills = document.createElement("div");
@@ -376,7 +376,7 @@ async function hydrateCfg(id: string) {
   const actions = document.createElement("div");
   actions.className = "cfg-expander__actions";
 
-  // Delete — ghost left
+  // Delete - ghost left
   const delBtn = document.createElement("button");
   delBtn.className = "ubtn";
   delBtn.textContent = "delete";
@@ -421,7 +421,7 @@ async function hydrateCfg(id: string) {
 
 function render() {
   setHeader();
-  // (no resetGlyphs — per-model glyphs dropped)
+  // (no resetGlyphs - per-model glyphs dropped)
   const ready = router.status === "running";
   const webuiBtn = $("webui") as HTMLButtonElement;
   webuiBtn.disabled = !ready;
@@ -658,7 +658,7 @@ async function cmdkActivate(ms: ModelView[]) {
   const m = ms[cmdkSelected];
   if (!m) { closeCmdk(); return; }
   if (LOADED(m.status)) {
-    // Already serving — just close
+    // Already serving - just close
     closeCmdk();
     return;
   }
@@ -722,7 +722,7 @@ async function init() {
   };
   $("webui").onclick = () => invoke("open_webui");
 
-  // ⌘K hint button — labeled based on OS
+  // ⌘K hint button - labeled based on OS
   const cmdkHint = $("cmdk-hint") as HTMLButtonElement;
   const isMac = document.documentElement.dataset.os === "macos";
   cmdkHint.textContent = isMac ? "⌘K" : "Ctrl K";

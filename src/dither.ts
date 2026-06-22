@@ -1,4 +1,4 @@
-// Dither material engine — Bayer-ordered dithering of procedural density
+// Dither material engine - Bayer-ordered dithering of procedural density
 // functions and photographs, driven by a single shared rAF at ~22 fps.
 // Scans canvas[data-glyph] and [data-counter] in the document; no framework,
 // no npm deps. Port of the DCLogic component in brand-exploration.html.
@@ -362,7 +362,7 @@ export class Dither {
       };
     }
 
-    // scan — horizontal signal lines, fading at edges (the "alive" material)
+    // scan - horizontal signal lines, fading at edges (the "alive" material)
     return (nx: number, ny: number) => {
       const lines =
         0.5 + 0.5 * Math.sin((ny + tt * 0.5) * Math.PI * 5 + seed);

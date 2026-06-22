@@ -26,7 +26,7 @@ type ToolInfo = {
 
 // ── Toggle pill helper ────────────────────────────────────────────
 // Keeps the pill `.toggle` in sync with the hidden `<input type=checkbox>`.
-// The config save reads the hidden checkbox directly — behavior unchanged.
+// The config save reads the hidden checkbox directly - behavior unchanged.
 function bindToggle(toggleId: string, checkId: string, ledId: string) {
   const toggle = document.getElementById(toggleId)!;
   const check = $(checkId);
@@ -123,7 +123,7 @@ async function load() {
     const tools = await invoke<ToolInfo[]>("list_tools");
     renderTools(tools);
   } catch {
-    /* backend not ready yet — leave static placeholder */
+    /* backend not ready yet - leave static placeholder */
   }
 
   fit();
@@ -142,7 +142,7 @@ async function save() {
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
 
-  // We must send the full Config — load existing to preserve fields we don't expose
+  // We must send the full Config - load existing to preserve fields we don't expose
   let existingCfg: any = {};
   try { existingCfg = await invoke<any>("get_config"); } catch {}
 

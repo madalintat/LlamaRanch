@@ -55,7 +55,7 @@ function prettyName(id: string): string {
     .toLowerCase();
 }
 
-// Mount dither engine on DOMContentLoaded (already fired — we're a module)
+// Mount dither engine on DOMContentLoaded (already fired - we're a module)
 const dither = mountDither();
 
 // OS-aware ⌘K hint
@@ -208,7 +208,7 @@ async function refreshPool() {
     }
     setActiveModel(view.active ?? "");
   } catch {
-    /* router not ready yet — leave the strip empty */
+    /* router not ready yet - leave the strip empty */
   }
 }
 
@@ -267,7 +267,7 @@ async function init() {
       if (payload.session !== session) return;
       const ev = payload.event;
       if (ev.kind === "routed") {
-        bubble("trace", `routed to ${ev.model_id} · ${ev.category} — ${ev.reason}`);
+        bubble("trace", `routed to ${ev.model_id} · ${ev.category} · ${ev.reason}`);
         refreshPool();
       } else if (ev.kind === "tool_call") {
         bubble("tool", `${ev.name}(${ev.args})`);
@@ -320,7 +320,7 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
-// New chat button — start a fresh session
+// New chat button - start a fresh session
 newChatBtn.addEventListener("click", async () => {
   try {
     await startNewSession();

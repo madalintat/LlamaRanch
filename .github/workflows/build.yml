@@ -2,7 +2,7 @@ name: build
 
 # Builds LlamaRanch on macOS (Apple Silicon), Linux, and Windows, x86_64 and
 # arm64 (Tauri can't cross-compile, so each target builds on its own native
-# runner; macOS bundles are ad-hoc signed — no Apple notarization yet). On a v* tag
+# runner; macOS bundles are ad-hoc signed - no Apple notarization yet). On a v* tag
 # the signed installers + updater latest.json are attached to one GitHub
 # Release; on manual runs they are uploaded as workflow artifacts.
 on:

@@ -75,7 +75,7 @@ pub fn run() {
             brain::pool::model_pool,
         ])
         .setup(|app| {
-            // macOS: menubar-only app — no Dock icon, no Cmd-Tab entry.
+            // macOS: menubar-only app - no Dock icon, no Cmd-Tab entry.
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
@@ -140,7 +140,7 @@ pub fn run() {
                     let _ = window.hide();
                     api.prevent_close();
                 }
-                // Popover dismiss — only the main panel hides on blur. (Gating to
+                // Popover dismiss - only the main panel hides on blur. (Gating to
                 // "main" keeps a Settings-window blur from stamping the debounce
                 // and swallowing the next tray click.)
                 #[cfg(target_os = "macos")]
@@ -258,7 +258,7 @@ fn show_popover<R: Runtime>(app: &AppHandle<R>, rect: tauri::Rect) {
     }
 }
 
-/// Toggle the popover: hide if visible, else show under the tray icon —
+/// Toggle the popover: hide if visible, else show under the tray icon -
 /// unless a hide-on-blur happened within the debounce window (the click that
 /// caused the blur), in which case do nothing (stay closed).
 fn toggle_popover<R: Runtime>(app: &AppHandle<R>, rect: tauri::Rect) {

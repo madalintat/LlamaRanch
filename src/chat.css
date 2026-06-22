@@ -1,5 +1,5 @@
 /* ============================================================
-   chat.css  — Brand re-skin for the LlamaRanch chat window
+   chat.css - Brand re-skin for the LlamaRanch chat window
    All colors via var(--…) tokens from src/brand/tokens.css
    ============================================================ */
 
@@ -320,7 +320,7 @@ body {
   word-wrap: break-word;
 }
 
-/* User bubble — right-aligned, rounded with flat bottom-right */
+/* User bubble - right-aligned, rounded with flat bottom-right */
 .msg--user {
   align-self: flex-end;
   max-width: 72%;
@@ -332,7 +332,7 @@ body {
   color: var(--ink);
 }
 
-/* Assistant turn — left, brand serif heading + body */
+/* Assistant turn - left, brand serif heading + body */
 .msg--assistant {
   align-self: flex-start;
   max-width: 80%;
@@ -354,7 +354,7 @@ body {
   padding: 0;
 }
 
-/* Tool call / result — mono tool-step card */
+/* Tool call / result - mono tool-step card */
 .msg--tool {
   align-self: stretch;
   font-family: var(--mono);
@@ -385,7 +385,7 @@ body {
 }
 
 .composer {
-  /* form element — no extra styles needed */
+  /* form element - no extra styles needed */
 }
 
 .composer__field {

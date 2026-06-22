@@ -1,6 +1,6 @@
 // Minimal GGUF metadata reader: parses only the header key/value block (never
 // tensor data) to learn a model's layer count, native context, KV heads, and
-// head dim — enough to estimate KV-cache memory. std only.
+// head dim - enough to estimate KV-cache memory. std only.
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read};

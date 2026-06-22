@@ -1,4 +1,4 @@
-/* dither.js — plain-JS dither engine for LlamaRanch website.
+/* dither.js - plain-JS dither engine for LlamaRanch website.
  * Ported from docs/superpowers/design/brand-exploration.html (lines 733–916).
  * Handles canvas[data-glyph="photo"] elements: loads the image referenced by
  * data-src, renders a Bayer-dithered dot-matrix with a vertical sweep animation

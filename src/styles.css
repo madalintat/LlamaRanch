@@ -1,4 +1,4 @@
-/* LlamaRanch Popover — brand skin.
+/* LlamaRanch Popover - brand skin.
    Palette and component primitives live in src/brand/tokens.css and
    src/brand/components.css (imported via src/brand/theme.ts in main.ts).
    This file styles popover chrome + model rows only. */
@@ -77,7 +77,7 @@ html, body {
 
 .head__spacer { flex: 1; }
 
-/* Running status — led--sm + mono label */
+/* Running status - led--sm + mono label */
 .head__status {
   display: inline-flex;
   align-items: center;
@@ -95,7 +95,7 @@ html, body {
   white-space: nowrap;
   color: var(--muted);
 }
-/* Status states — only the label color changes; the LED is always led--sm */
+/* Status states - only the label color changes; the LED is always led--sm */
 .head__status--error   .head__status-label { color: var(--ink); }
 .head__status--starting .head__status-label { color: var(--muted); }
 .head__status--running  .head__status-label { color: var(--ink); }
@@ -124,7 +124,7 @@ html, body {
 .head__close:hover { color: var(--ink); background: var(--line-3); }
 
 /* ── Hairline ──────────────────────────────────────────────────── */
-/* .hairline is defined in components.css — add popover-specific borders */
+/* .hairline is defined in components.css - add popover-specific borders */
 .hairline {
   border-top: 1px solid var(--line-2);
   border-bottom: 1px solid var(--line-2);
@@ -152,7 +152,7 @@ html, body {
   text-align: left;
 }
 
-/* .endpoint is defined in components.css — overrides for popover context */
+/* .endpoint is defined in components.css - overrides for popover context */
 .bar__copy .endpoint {
   flex: 1;
   min-width: 0;
@@ -232,7 +232,7 @@ html, body {
 }
 .row:last-of-type { border-bottom: none; }
 
-/* "scan" dither canvas behind serving row — added by JS as absolute */
+/* "scan" dither canvas behind serving row - added by JS as absolute */
 .row--serving { /* overflow:hidden already on .row */ }
 
 .row__body {
@@ -255,19 +255,19 @@ html, body {
 /* .meta defined in components.css; just needs margin-top */
 .row__body .meta { margin-top: 3px; }
 
-/* Action ubtn — position:relative so it sits above the scan canvas */
+/* Action ubtn - position:relative so it sits above the scan canvas */
 .row__action {
   position: relative;
   flex: none;
 }
 
-/* LED — position:relative above canvas */
+/* LED - position:relative above canvas */
 .row__led {
   position: relative;
   flex: none;
 }
 
-/* Scan canvas — absolute fill behind serving row */
+/* Scan canvas - absolute fill behind serving row */
 .row__scan {
   position: absolute;
   inset: 0;
@@ -277,7 +277,7 @@ html, body {
   pointer-events: none;
 }
 
-/* Config toggle ubtn — revealed on hover */
+/* Config toggle ubtn - revealed on hover */
 .row__cfg-btn {
   position: relative;
   flex: none;
@@ -484,7 +484,7 @@ html, body {
 
 .foot__spacer { flex: 1; }
 
-/* ── Settings window — brand skin ──────────────────────────────── */
+/* ── Settings window - brand skin ──────────────────────────────── */
 
 /* App shell override: settings uses --panel bg */
 #app:has(.s-body) {
@@ -828,7 +828,7 @@ button:focus-visible {
   pointer-events: none;
 }
 
-/* .partno — reuses brand component class, relative so it floats above canvas */
+/* .partno - reuses brand component class, relative so it floats above canvas */
 .cmdk-row .partno {
   position: relative;
   flex: none;
@@ -892,7 +892,7 @@ button:focus-visible {
   white-space: nowrap;
 }
 
-/* Small filled square — ■ LOCAL */
+/* Small filled square - ■ LOCAL */
 .cmdk-footer__sq {
   display: inline-block;
   width: 7px;
