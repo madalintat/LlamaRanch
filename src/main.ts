@@ -90,15 +90,18 @@ function setHeader() {
   }
   const loaded = models.filter((m) => LOADED(m.status));
   const loading = models.find((m) => BUSY(m.status));
-  el.classList.add("head__status--running");
-  if (loaded.length > 1) {
-    label.textContent = `serving ${loaded.length}`;
-  } else if (loaded.length === 1) {
-    label.textContent = `serving ${prettyName(loaded[0].name || loaded[0].id)}`;
-  } else if (loading) {
+  if (loading) {
+    el.classList.add("head__status--starting");
     label.textContent = "loading";
   } else {
-    label.textContent = "running";
+    el.classList.add("head__status--running");
+    if (loaded.length > 1) {
+      label.textContent = `serving ${loaded.length}`;
+    } else if (loaded.length === 1) {
+      label.textContent = `serving ${prettyName(loaded[0].name || loaded[0].id)}`;
+    } else {
+      label.textContent = "running";
+    }
   }
 }
 
@@ -530,6 +533,7 @@ async function init() {
 
   dither = mountDither();
   updateHairlineColor(); // sync canvas data-color to current theme
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => updateHairlineColor());
 
   // Footer: "LLAMARANCH <appVersion> · LLAMA.CPP b<build>"
   const rawVer = (await invoke<string>("llama_cpp_version")) || "";
