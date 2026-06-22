@@ -613,12 +613,32 @@
 
 /* Mobile: sidebar collapses */
 @media (max-width: 680px) {
+  .docs-shell { overflow-x: hidden; }
+
   .docs-nav-toggle {
     display: inline-flex;
   }
 
   .docs-body {
     flex-direction: column;
+    align-items: stretch; /* fill width in column mode, do not size to widest child */
+  }
+
+  .docs-main { width: 100%; }
+  .docs-content { max-width: 100%; }
+
+  /* keep long code lines + tables inside the viewport */
+  .doc-code,
+  .doc-code-body,
+  .docs-content pre {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .doc-table-wrap,
+  .docs-content .doc-table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
   }
 
   .docs-sidebar {
