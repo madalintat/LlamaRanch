@@ -20,44 +20,44 @@
         <section class="s-section">
           <div class="s-section__label label">Tools &amp; connectors</div>
 
-          <!-- 01 Web research -->
-          <div class="s-row">
-            <span class="partno">01</span>
-            <div class="s-row__body">
-              <div class="s-row__name">Web research</div>
-              <div class="meta">SearXNG · summarize &amp; cite pages</div>
-            </div>
-            <span class="tag">ONLINE</span>
-            <div class="toggle toggle--on" aria-label="Web research enabled" title="Web research"></div>
-          </div>
+          <!-- Rendered dynamically from list_tools in settings.ts -->
+          <div id="s-tools-list"></div>
 
-          <!-- 02 Filesystem -->
-          <div class="s-row">
-            <span class="partno">02</span>
-            <div class="s-row__body">
-              <div class="s-row__name">Filesystem</div>
-              <div class="meta">~/Projects · read &amp; write</div>
-            </div>
-            <span class="tag">LOCAL</span>
-            <div class="toggle toggle--on" aria-label="Filesystem enabled" title="Filesystem"></div>
-          </div>
-
-          <!-- 03 GitHub MCP (off) -->
+          <!-- MCP placeholder (Phase 3) -->
           <div class="s-row s-row--muted">
-            <span class="partno">03</span>
+            <span class="partno s-tools-mcp-partno">—</span>
             <div class="s-row__body">
-              <div class="s-row__name s-row__name--off">GitHub MCP</div>
-              <div class="meta">Issues, PRs, repo search</div>
+              <div class="s-row__name s-row__name--off">MCP servers</div>
+              <div class="meta">Phase 3 — coming soon</div>
             </div>
             <span class="tag tag--faint">ONLINE</span>
-            <div class="toggle toggle--off" aria-label="GitHub MCP disabled" title="GitHub MCP"></div>
+            <div class="toggle toggle--off" aria-label="MCP disabled" title="MCP servers"></div>
           </div>
 
-          <!-- Add MCP server row -->
-          <div class="s-row s-row--add">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-            <span class="s-row__add-label">Add MCP server…</span>
+          <!-- Offline mode pill -->
+          <div class="s-toggle-row" id="s-offline-row">
+            <span class="led led--idle" id="s-offline-led"></span>
+            <div class="s-toggle-row__body">
+              <div class="s-toggle-row__name">Offline mode</div>
+              <div class="s-toggle-row__sub meta">Disable all internet-reaching tools.</div>
+            </div>
+            <div class="toggle toggle--off" id="s-offline-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
+            <input type="checkbox" id="s-offline" class="s-hidden-check" />
           </div>
+
+          <!-- SearXNG URL -->
+          <label class="s-field-wrap">
+            <span class="label s-field-wrap__label">SearXNG URL (for web search)</span>
+            <input id="s-searxng" class="field" type="text" placeholder="http://localhost:8888" />
+          </label>
+
+          <!-- Allowed folders -->
+          <label class="s-field-wrap">
+            <span class="label s-field-wrap__label">Allowed folders for file read (one per line)</span>
+            <textarea id="s-allowed-dirs" class="field" rows="3"
+              placeholder="/Users/you/Documents&#10;/Users/you/Projects"
+              style="resize:vertical;font-family:inherit;"></textarea>
+          </label>
         </section>
 
         <!-- ── Server ─────────────────────────────────────────── -->

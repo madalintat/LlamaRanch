@@ -52,23 +52,15 @@
 
         <span class="rail__spacer"></span>
 
-        <!-- tools -->
+        <!-- tools — rendered from list_tools -->
         <div class="rail__tools">
           <div class="label rail__section-label">Tools</div>
-          <div class="rail__tool-row">
-            <span class="led led--on"></span>
-            <span class="rail__tool-name">Web research</span>
-            <span class="mono rail__tool-tag">ONLINE</span>
-          </div>
-          <div class="rail__tool-row">
-            <span class="led led--on"></span>
-            <span class="rail__tool-name">Filesystem</span>
-            <span class="mono rail__tool-tag">LOCAL</span>
-          </div>
+          <div id="rail-tools-list"></div>
+          <!-- MCP placeholder (Phase 3 — always inert) -->
           <div class="rail__tool-row rail__tool-row--off">
             <span class="led led--idle"></span>
-            <span class="rail__tool-name">GitHub MCP</span>
-            <span class="mono rail__tool-tag">ONLINE</span>
+            <span class="rail__tool-name">MCP</span>
+            <span class="mono rail__tool-tag" style="opacity:.4;">SOON</span>
           </div>
         </div>
       </aside>
@@ -104,8 +96,8 @@
                   placeholder="Ask anything — it runs on your machine…"></textarea>
               </div>
               <div class="composer__toolbar">
-                <span class="chip chip--on">web research</span>
-                <span class="chip">mcp</span>
+                <span id="chip-web-research" class="chip">web research</span>
+                <span id="chip-mcp" class="chip chip--inert" title="MCP — Phase 3, coming soon" style="opacity:.45;cursor:default;">mcp</span>
                 <span class="composer__spacer"></span>
                 <select id="model-pick" class="composer__model-pick mono">
                   <option value="">Auto</option>
@@ -130,6 +122,7 @@
           <div class="mono privacy__sub">this conversation, right now</div>
         </div>
         <div class="privacy__rows">
+          <!-- model row — always local -->
           <div class="privacy__row">
             <span class="privacy__led privacy__led--on"></span>
             <div class="privacy__info">
@@ -138,29 +131,16 @@
             </div>
             <span class="mono privacy__badge">LOCAL</span>
           </div>
-          <div class="privacy__row">
-            <span class="privacy__led privacy__led--idle"></span>
-            <div class="privacy__info">
-              <div class="privacy__info-name">Web research</div>
-              <div class="privacy__info-desc">Reaches the internet only when it searches.</div>
-            </div>
-            <span class="mono privacy__badge privacy__badge--muted">ONLINE</span>
-          </div>
-          <div class="privacy__row">
-            <span class="privacy__led privacy__led--on"></span>
-            <div class="privacy__info">
-              <div class="privacy__info-name">Filesystem</div>
-              <div class="privacy__info-desc">Reads only the folders you allow.</div>
-            </div>
-            <span class="mono privacy__badge">LOCAL</span>
-          </div>
+          <!-- tool rows rendered from list_tools -->
+          <div id="privacy-tools-list"></div>
+          <!-- MCP placeholder (Phase 3 — always off) -->
           <div class="privacy__row privacy__row--off">
             <span class="privacy__led privacy__led--off"></span>
             <div class="privacy__info">
-              <div class="privacy__info-name">GitHub MCP</div>
-              <div class="privacy__info-desc">Off. Would reach github.com.</div>
+              <div class="privacy__info-name">MCP servers</div>
+              <div class="privacy__info-desc">Phase 3 — coming soon.</div>
             </div>
-            <span class="mono privacy__badge privacy__badge--off">OFF</span>
+            <span class="mono privacy__badge privacy__badge--off">SOON</span>
           </div>
         </div>
         <span class="privacy__spacer"></span>

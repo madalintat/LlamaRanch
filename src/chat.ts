@@ -14,6 +14,14 @@ type BrainEvent =
   | { kind: "tool_call"; name: string; args: string }
   | { kind: "tool_result"; name: string; ok: boolean; preview: string };
 
+type ToolInfo = {
+  name: string;
+  label: string;
+  scope: string;   // "local" | "online"
+  enabled: boolean;
+  note: string;
+};
+
 const pool = document.getElementById("pool") as HTMLDivElement;
 const log = document.getElementById("log") as HTMLDivElement;
 const input = document.getElementById("input") as HTMLTextAreaElement;
@@ -27,6 +35,8 @@ const lcdModel = document.getElementById("lcd-model") as HTMLSpanElement;
 const lcdStatus = document.getElementById("lcd-status") as HTMLSpanElement;
 const lcdKbd = document.getElementById("lcd-kbd") as HTMLSpanElement;
 const privacyModel = document.getElementById("privacy-model") as HTMLSpanElement;
+const offlineToggle = document.getElementById("offline-toggle") as HTMLDivElement;
+const chipWebResearch = document.getElementById("chip-web-research") as HTMLSpanElement;
 
 type PoolView = { resident: { id: string; status: string; pinned: boolean }[]; active: string | null };
 
@@ -69,6 +79,115 @@ function setActiveModel(id: string): void {
   lcdModel.textContent = name || "no model";
   if (lcdStatus) lcdStatus.textContent = name ? "SERVING" : "idle";
   if (privacyModel) privacyModel.textContent = name || "local";
+}
+
+/** Render tool rows in the rail and privacy panel, and update the web-research chip. */
+function renderTools(tools: ToolInfo[]): void {
+  const railList = document.getElementById("rail-tools-list");
+  const privacyList = document.getElementById("privacy-tools-list");
+
+  if (railList) {
+    railList.innerHTML = "";
+    for (const t of tools) {
+      const row = document.createElement("div");
+      const off = !t.enabled;
+      row.className = "rail__tool-row" + (off ? " rail__tool-row--off" : "");
+      const ledClass = off ? "led led--idle" : "led led--on";
+      row.innerHTML = `
+        <span class="${ledClass}"></span>
+        <span class="rail__tool-name">${t.label}</span>
+        <span class="mono rail__tool-tag">${t.scope.toUpperCase()}</span>
+      `;
+      if (!t.enabled && t.note) row.title = t.note;
+      railList.appendChild(row);
+    }
+  }
+
+  if (privacyList) {
+    privacyList.innerHTML = "";
+    for (const t of tools) {
+      const on = t.enabled;
+      const row = document.createElement("div");
+      row.className = "privacy__row" + (on ? "" : " privacy__row--off");
+
+      const ledClass = on
+        ? (t.scope === "local" ? "privacy__led privacy__led--on" : "privacy__led privacy__led--idle")
+        : "privacy__led privacy__led--off";
+
+      let badgeClass = "mono privacy__badge";
+      let badgeText = t.scope.toUpperCase();
+      let descText = "";
+      if (!on) {
+        badgeClass = "mono privacy__badge privacy__badge--off";
+        badgeText = "OFF";
+        descText = t.note || "Disabled.";
+      } else if (t.scope === "online") {
+        badgeClass = "mono privacy__badge privacy__badge--muted";
+        descText = "Reaches the internet when used.";
+      } else {
+        descText = "Stays on your machine.";
+      }
+
+      row.innerHTML = `
+        <span class="${ledClass}"></span>
+        <div class="privacy__info">
+          <div class="privacy__info-name">${t.label}</div>
+          <div class="privacy__info-desc">${descText}</div>
+        </div>
+        <span class="${badgeClass}">${badgeText}</span>
+      `;
+      privacyList.appendChild(row);
+    }
+  }
+
+  // Update web-research chip: enabled = at least one of web_fetch / web_search is on
+  if (chipWebResearch) {
+    const webOn = tools.some(
+      (t) => (t.name === "web_fetch" || t.name === "web_search") && t.enabled
+    );
+    chipWebResearch.classList.toggle("chip--on", webOn);
+  }
+}
+
+/** Refresh tool list from backend and re-render. */
+async function refreshTools(): Promise<void> {
+  try {
+    const tools = await invoke<ToolInfo[]>("list_tools");
+    renderTools(tools);
+
+    // Sync offline toggle visual state from backend config
+    try {
+      const cfg = await invoke<any>("get_config");
+      const isOffline: boolean = cfg.offline_mode ?? false;
+      offlineToggle.classList.toggle("toggle--on", isOffline);
+      offlineToggle.classList.toggle("toggle--off", !isOffline);
+      offlineToggle.setAttribute("aria-checked", String(isOffline));
+    } catch { /* ignore */ }
+  } catch { /* router not ready yet */ }
+}
+
+// Wire offline toggle in privacy panel
+if (offlineToggle) {
+  offlineToggle.setAttribute("role", "checkbox");
+  offlineToggle.setAttribute("tabindex", "0");
+  offlineToggle.setAttribute("aria-label", "Offline mode");
+  offlineToggle.classList.add("toggle--off"); // initial state
+
+  async function toggleOffline(): Promise<void> {
+    try {
+      const cfg = await invoke<any>("get_config");
+      const nowOffline: boolean = !(cfg.offline_mode ?? false);
+      await invoke("set_config", {
+        newCfg: { ...cfg, offline_mode: nowOffline },
+      });
+      await refreshTools();
+    } catch { /* ignore */ }
+  }
+
+  offlineToggle.addEventListener("click", toggleOffline);
+  offlineToggle.addEventListener("keydown", (e) => {
+    if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggleOffline(); }
+  });
 }
 
 async function refreshPool() {
@@ -143,6 +262,7 @@ async function init() {
   try {
     await startNewSession();
     loadPicker();
+    refreshTools();
     await listen<{ session: string; event: BrainEvent }>("chat:event", ({ payload }) => {
       if (payload.session !== session) return;
       const ev = payload.event;

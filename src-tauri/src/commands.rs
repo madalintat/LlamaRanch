@@ -11,6 +11,67 @@ use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+#[derive(Serialize)]
+pub struct ToolInfo {
+    pub name: String,
+    pub label: String,
+    pub scope: String,  // "local" | "online"
+    pub enabled: bool,
+    pub note: String,
+}
+
+#[tauri::command]
+pub fn list_tools(cfg: State<AppConfig>) -> Vec<ToolInfo> {
+    let c = cfg.0.lock().unwrap().clone();
+    vec![
+        ToolInfo {
+            name: "get_time".into(),
+            label: "Clock".into(),
+            scope: "local".into(),
+            enabled: true,
+            note: String::new(),
+        },
+        ToolInfo {
+            name: "calculate".into(),
+            label: "Calculator".into(),
+            scope: "local".into(),
+            enabled: true,
+            note: String::new(),
+        },
+        ToolInfo {
+            name: "read_file".into(),
+            label: "Filesystem".into(),
+            scope: "local".into(),
+            enabled: !c.allowed_dirs.is_empty(),
+            note: if c.allowed_dirs.is_empty() {
+                "grant a folder in Settings to enable".into()
+            } else {
+                String::new()
+            },
+        },
+        ToolInfo {
+            name: "web_fetch".into(),
+            label: "Web fetch".into(),
+            scope: "online".into(),
+            enabled: !c.offline_mode,
+            note: if c.offline_mode { "offline".into() } else { String::new() },
+        },
+        ToolInfo {
+            name: "web_search".into(),
+            label: "Web search".into(),
+            scope: "online".into(),
+            enabled: !c.offline_mode && !c.searxng_url.is_empty(),
+            note: if c.offline_mode {
+                "offline".into()
+            } else if c.searxng_url.is_empty() {
+                "set SearXNG URL in Settings".into()
+            } else {
+                String::new()
+            },
+        },
+    ]
+}
+
 pub struct AppConfig(pub Mutex<Config>);
 
 #[derive(Serialize)]
