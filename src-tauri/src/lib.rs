@@ -59,7 +59,6 @@ pub fn run() {
             commands::router_status,
             commands::load_model,
             commands::unload_model,
-            commands::open_webui,
             commands::get_config,
             commands::set_config,
             commands::restart_router,

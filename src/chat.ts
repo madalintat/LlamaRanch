@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { mountDither } from "./dither";
 import "./brand/theme";
 import { tagOS } from "./platform";
+import { prettyName } from "./pretty";
 
 tagOS();
 
@@ -49,19 +50,6 @@ const modelPopupBackdrop = document.getElementById("model-popup-backdrop") as HT
 type PoolView = { resident: { id: string; status: string; pinned: boolean }[]; active: string | null };
 
 type ModelView = { id: string; name: string; group: string; local: boolean; need_download: boolean };
-
-// Strip org prefix, .gguf extension, quant suffixes like :Q4_0, then clean separators.
-function prettyName(id: string): string {
-  return id
-    .split("/").pop()!   // drop "org/"
-    .split(":")[0]        // drop ":Q4_0" quant suffix
-    .replace(/\.gguf$/i, "") // drop .gguf extension
-    .replace(/[-_]/g, " ")  // dashes/underscores -> spaces
-    .replace(/\bGGUF\b/gi, "") // remove standalone GGUF token
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
 
 // Mount dither engine on DOMContentLoaded (already fired - we're a module)
 const dither = mountDither();
@@ -237,12 +225,20 @@ async function loadPicker() {
   try {
     const models = await invoke<ModelView[]>("list_models");
     cachedModels = models.filter((x) => x.local || !x.need_download);
-    // Also populate the composer select
+    // Preserve the currently selected value so a re-call doesn't reset the picker.
+    const selected = modelPick.value;
+    // Clear all options beyond the first (the "Auto"/default placeholder).
+    while (modelPick.options.length > 1) modelPick.remove(1);
+    // Repopulate the composer select.
     for (const m of cachedModels) {
       const opt = document.createElement("option");
       opt.value = m.id;
       opt.textContent = prettyName(m.name || m.id);
       modelPick.appendChild(opt);
+    }
+    // Restore selection if still present.
+    if (selected && cachedModels.some((m) => m.id === selected)) {
+      modelPick.value = selected;
     }
   } catch {
     /* leave just "Auto" */
@@ -338,6 +334,8 @@ async function pickAndLoadModel(modelId: string): Promise<void> {
     await invoke("load_model", { modelId });
     // Poll pool to confirm status (setActiveModel inside will set modelState).
     await refreshPool();
+    // Refresh picker in case new models became available after this load.
+    loadPicker();
   } catch (err) {
     // Surface load error as a chat bubble
     bubble("error", `model load failed: ${String(err)}`);
@@ -363,10 +361,8 @@ function isPrivacyCollapsed(): boolean {
   return localStorage.getItem(STORAGE_KEY_PRIVACY) === "1";
 }
 
-function applyRailState(collapsed: boolean, animate: boolean): void {
+function applyRailState(collapsed: boolean): void {
   railEl.classList.toggle("rail--collapsed", collapsed);
-  if (animate) railEl.classList.add("rail--animating");
-  else railEl.classList.remove("rail--animating");
   // Update chevron direction
   const icon = railCollapseBtn.querySelector(".rail__collapse-icon");
   if (icon) icon.innerHTML = collapsed ? "&#8250;" : "&#8249;";
@@ -374,10 +370,8 @@ function applyRailState(collapsed: boolean, animate: boolean): void {
   railCollapseBtn.title = collapsed ? "Expand left panel" : "Collapse left panel";
 }
 
-function applyPrivacyState(collapsed: boolean, animate: boolean): void {
+function applyPrivacyState(collapsed: boolean): void {
   privacyPanel.classList.toggle("privacy--collapsed", collapsed);
-  if (animate) privacyPanel.classList.add("privacy--animating");
-  else privacyPanel.classList.remove("privacy--animating");
   // Update chevron direction
   const icon = privacyCollapseBtn.querySelector(".privacy__collapse-icon");
   if (icon) icon.innerHTML = collapsed ? "&#8249;" : "&#8250;";
@@ -388,13 +382,13 @@ function applyPrivacyState(collapsed: boolean, animate: boolean): void {
 function toggleRail(): void {
   const next = !isRailCollapsed();
   localStorage.setItem(STORAGE_KEY_RAIL, next ? "1" : "0");
-  applyRailState(next, true);
+  applyRailState(next);
 }
 
 function togglePrivacy(): void {
   const next = !isPrivacyCollapsed();
   localStorage.setItem(STORAGE_KEY_PRIVACY, next ? "1" : "0");
-  applyPrivacyState(next, true);
+  applyPrivacyState(next);
 }
 
 // Wire collapse buttons
@@ -402,8 +396,8 @@ railCollapseBtn.addEventListener("click", toggleRail);
 privacyCollapseBtn.addEventListener("click", togglePrivacy);
 
 // Restore collapsed state on load (no animation - instant)
-applyRailState(isRailCollapsed(), false);
-applyPrivacyState(isPrivacyCollapsed(), false);
+applyRailState(isRailCollapsed());
+applyPrivacyState(isPrivacyCollapsed());
 
 // ============================================================
 // Session + messaging

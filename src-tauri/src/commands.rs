@@ -269,15 +269,6 @@ pub fn unload_model(model_id: String, cfg: State<AppConfig>) -> Result<(), Strin
 }
 
 #[tauri::command]
-pub fn open_webui(app: AppHandle, cfg: State<AppConfig>) -> Result<(), String> {
-    use tauri_plugin_opener::OpenerExt;
-    let port = cfg.0.lock().unwrap().port;
-    app.opener()
-        .open_url(format!("http://127.0.0.1:{port}"), None::<&str>)
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
 pub fn get_config(cfg: State<AppConfig>) -> Config {
     cfg.0.lock().unwrap().clone()
 }
