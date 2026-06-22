@@ -13,13 +13,14 @@ export const LLAMA_INSTALL_DIR = os.homedir() + '/.llamaranch/llama.cpp';
 // JSON fetch helper (follows redirects, always https for GitHub API)
 // ---------------------------------------------------------------------------
 
-async function fetchJSON(url) {
+async function fetchJSON(url, redirectCount = 0) {
+  if (redirectCount > 5) throw new Error('Too many redirects');
   return new Promise((resolve, reject) => {
     const protocol = url.startsWith('https://') ? https : http;
     protocol.get(url, { headers: { 'User-Agent': 'llamaranch-wizard/0.1.0' } }, (res) => {
       if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
         res.resume();
-        fetchJSON(res.headers.location).then(resolve).catch(reject);
+        fetchJSON(res.headers.location, redirectCount + 1).then(resolve).catch(reject);
         return;
       }
       let data = '';

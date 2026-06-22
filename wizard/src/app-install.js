@@ -171,7 +171,15 @@ async function installAssetFile(assetPath, assetName, onProgress) {
       }
 
       onProgress?.('Mounted at ' + mountPoint + '. Copying app...');
-      await execa('bash', ['-c', 'cp -R "' + mountPoint + '"/*.app /Applications/']);
+      // Use find + cp to avoid shell glob injection from mountPoint
+      const { stdout: appName } = await execa('find', [mountPoint, '-maxdepth', '1', '-name', '*.app', '-print', '-quit']);
+      const foundApp = appName.trim();
+      if (!foundApp) {
+        onProgress?.('No .app found in mounted DMG.');
+        await execa('hdiutil', ['detach', mountPoint]).catch(() => {});
+        return { installed: false, manualRequired: true, instructions: 'Download from ' + RELEASES_URL };
+      }
+      await execa('cp', ['-R', foundApp, '/Applications/']);
       onProgress?.('App copied to /Applications.');
 
       try {
@@ -241,11 +249,12 @@ async function installAssetFile(assetPath, assetName, onProgress) {
     };
   }
 
-  // .exe: launch Windows installer
+  // .exe: launch Windows installer (detached so wizard exits independently)
   if (assetName.endsWith('.exe')) {
     onProgress?.('Launching Windows installer...');
     try {
-      execa(assetPath, { detached: true });
+      const child = execa(assetPath, { detached: true, stdio: 'ignore' });
+      child.unref();
       return { installed: true, path: assetPath, skipped: false };
     } catch (err) {
       onProgress?.('Failed to launch installer: ' + err.message);

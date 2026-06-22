@@ -23,6 +23,10 @@ export async function runServe({ port, host } = {}) {
   const modelFile = config.general_model ? path.basename(config.general_model) : null;
   const modelPath = modelFile && config.models_dir ? path.join(config.models_dir, modelFile) : null;
   const effectiveModel = modelPath && fs.existsSync(modelPath) ? modelPath : null;
+  if (modelPath && !effectiveModel) {
+    console.log(chalk.yellow('  Warning: model file not found at ' + modelPath));
+    console.log(chalk.dim('  Starting server without a default model.'));
+  }
 
   const effectivePort = port || config.port || 2276;
   const effectiveHost = host || (config.expose_to_network ? '0.0.0.0' : '127.0.0.1');
