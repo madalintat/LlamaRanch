@@ -7,29 +7,131 @@
   </head>
   <body>
     <div id="app">
-      <header class="head">
-        <div class="brand" data-tauri-drag-region>
-          <span class="brand__name">Settings</span>
-        </div>
-        <div class="head__drag" data-tauri-drag-region></div>
-        <button class="head__close" id="s-close" title="Close" aria-label="Close">&times;</button>
+      <header class="s-head" data-tauri-drag-region>
+        <img class="s-head__logo" src="/src/assets/llama.svg" alt="" width="20" height="20" />
+        <span class="s-head__title serif">Settings</span>
+        <div class="s-head__spacer" data-tauri-drag-region></div>
+        <button class="s-head__close" id="s-close" title="Close" aria-label="Close">&times;</button>
       </header>
 
-      <main class="settings-body">
-        <label class="field-group">Port<input id="s-port" type="number" /></label>
-        <label class="field-group">Models directory<input id="s-models" type="text" /></label>
-        <label class="field-group">llama-server binary<input id="s-bin" type="text" /></label>
-        <label class="field-group">Unload idle model after (seconds, 0 = never)<input id="s-idle" type="number" min="0" /></label>
-        <label class="field-group">Max models loaded at once<input id="s-models-max" type="number" min="1" max="16" step="1" /></label>
-        <label class="field-group">Hugging Face token (for downloads, optional)<input id="s-hf" type="password" placeholder="hf_..." /></label>
-        <label class="check"><input id="s-expose" type="checkbox" /> Expose server to local network</label>
-        <label class="check"><input id="s-autostart" type="checkbox" /> Start LlamaRanch on login</label>
-        <div class="error hidden" id="s-error"></div>
-      </main>
+      <div class="s-body">
 
-      <footer class="foot">
-        <span class="foot__spacer"></span>
-        <button class="btn btn--quiet" id="s-cancel">Cancel</button>
+        <!-- ── Tools & connectors ─────────────────────────────── -->
+        <section class="s-section">
+          <div class="s-section__label label">Tools &amp; connectors</div>
+
+          <!-- 01 Web research -->
+          <div class="s-row">
+            <span class="partno">01</span>
+            <div class="s-row__body">
+              <div class="s-row__name">Web research</div>
+              <div class="meta">SearXNG · summarize &amp; cite pages</div>
+            </div>
+            <span class="tag">ONLINE</span>
+            <div class="toggle toggle--on" aria-label="Web research enabled" title="Web research"></div>
+          </div>
+
+          <!-- 02 Filesystem -->
+          <div class="s-row">
+            <span class="partno">02</span>
+            <div class="s-row__body">
+              <div class="s-row__name">Filesystem</div>
+              <div class="meta">~/Projects · read &amp; write</div>
+            </div>
+            <span class="tag">LOCAL</span>
+            <div class="toggle toggle--on" aria-label="Filesystem enabled" title="Filesystem"></div>
+          </div>
+
+          <!-- 03 GitHub MCP (off) -->
+          <div class="s-row s-row--muted">
+            <span class="partno">03</span>
+            <div class="s-row__body">
+              <div class="s-row__name s-row__name--off">GitHub MCP</div>
+              <div class="meta">Issues, PRs, repo search</div>
+            </div>
+            <span class="tag tag--faint">ONLINE</span>
+            <div class="toggle toggle--off" aria-label="GitHub MCP disabled" title="GitHub MCP"></div>
+          </div>
+
+          <!-- Add MCP server row -->
+          <div class="s-row s-row--add">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            <span class="s-row__add-label">Add MCP server…</span>
+          </div>
+        </section>
+
+        <!-- ── Server ─────────────────────────────────────────── -->
+        <section class="s-section">
+          <div class="s-section__label label">Server</div>
+
+          <!-- Port + Models dir two-up -->
+          <div class="s-field-row s-field-row--2up">
+            <label class="s-field-wrap">
+              <span class="label s-field-wrap__label">Port</span>
+              <input id="s-port" class="field" type="number" />
+            </label>
+            <label class="s-field-wrap s-field-wrap--grow">
+              <span class="label s-field-wrap__label">Models directory</span>
+              <input id="s-models" class="field" type="text" placeholder="~/.local/share/llamaranch" />
+            </label>
+          </div>
+
+          <!-- llama-server binary -->
+          <label class="s-field-wrap">
+            <span class="label s-field-wrap__label">llama-server binary</span>
+            <input id="s-bin" class="field" type="text" placeholder="/usr/local/bin/llama-server" />
+          </label>
+
+          <!-- Unload idle + Max models two-up -->
+          <div class="s-field-row s-field-row--2up">
+            <label class="s-field-wrap">
+              <span class="label s-field-wrap__label">Unload idle after (s, 0=never)</span>
+              <input id="s-idle" class="field" type="number" min="0" />
+            </label>
+            <label class="s-field-wrap">
+              <span class="label s-field-wrap__label">Max models loaded</span>
+              <input id="s-models-max" class="field" type="number" min="1" max="16" step="1" />
+            </label>
+          </div>
+
+          <!-- HF token -->
+          <label class="s-field-wrap">
+            <span class="label s-field-wrap__label">Hugging Face token (optional)</span>
+            <input id="s-hf" class="field" type="password" placeholder="hf_…" />
+          </label>
+
+          <!-- Expose to network -->
+          <div class="s-toggle-row" id="s-expose-row">
+            <span class="led led--idle" id="s-expose-led"></span>
+            <div class="s-toggle-row__body">
+              <div class="s-toggle-row__name">Expose to network</div>
+              <div class="s-toggle-row__sub meta">Bind 0.0.0.0 — other devices can connect. Off by default.</div>
+            </div>
+            <div class="toggle toggle--off" id="s-expose-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
+            <!-- hidden checkbox keeps config wiring unchanged -->
+            <input type="checkbox" id="s-expose" class="s-hidden-check" />
+          </div>
+
+          <!-- Start on login -->
+          <div class="s-toggle-row" id="s-autostart-row">
+            <span class="led led--idle" id="s-autostart-led"></span>
+            <div class="s-toggle-row__body">
+              <div class="s-toggle-row__name">Start on login</div>
+              <div class="s-toggle-row__sub meta">Launch LlamaRanch automatically at startup.</div>
+            </div>
+            <div class="toggle toggle--off" id="s-autostart-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
+            <!-- hidden checkbox keeps config wiring unchanged -->
+            <input type="checkbox" id="s-autostart" class="s-hidden-check" />
+          </div>
+
+        </section>
+
+        <div class="error hidden" id="s-error"></div>
+      </div>
+
+      <footer class="s-foot">
+        <span class="s-foot__spacer"></span>
+        <button class="btn btn--ghost" id="s-cancel">Cancel</button>
         <button class="btn btn--primary" id="s-save">Save</button>
       </footer>
     </div>

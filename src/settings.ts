@@ -7,19 +7,53 @@ import {
   disable as autoDisable,
   isEnabled as autoIsEnabled,
 } from "@tauri-apps/plugin-autostart";
-import "@fontsource/inter/400.css";
-import "@fontsource/inter/500.css";
-import "@fontsource/inter/600.css";
-import "@fontsource/space-grotesk/500.css";
-import "@fontsource/space-grotesk/600.css";
-import "@fontsource/space-grotesk/700.css";
+import "./brand/theme.ts";
 import "./styles.css";
 
 tagOS(); // match the main window: Linux opaque, macOS/Windows frosted
 
 const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
 const win = getCurrentWindow();
-const fit = () => fitWindow(380, 620);
+const fit = () => fitWindow(400, 680);
+
+// ── Toggle pill helper ────────────────────────────────────────────
+// Keeps the pill `.toggle` in sync with the hidden `<input type=checkbox>`.
+// The config save reads the hidden checkbox directly — behavior unchanged.
+function bindToggle(toggleId: string, checkId: string, ledId: string) {
+  const toggle = document.getElementById(toggleId)!;
+  const check = $(checkId);
+  const led = document.getElementById(ledId)!;
+
+  function syncUI(on: boolean) {
+    toggle.classList.toggle("toggle--on", on);
+    toggle.classList.toggle("toggle--off", !on);
+    toggle.setAttribute("aria-checked", String(on));
+    led.classList.toggle("led--on", on);
+    led.classList.toggle("led--idle", !on);
+  }
+
+  toggle.addEventListener("click", () => {
+    check.checked = !check.checked;
+    syncUI(check.checked);
+  });
+
+  toggle.addEventListener("keydown", (e) => {
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      check.checked = !check.checked;
+      syncUI(check.checked);
+    }
+  });
+
+  // Returns a setter so load() can drive initial state.
+  return (on: boolean) => {
+    check.checked = on;
+    syncUI(on);
+  };
+}
+
+const setExpose    = bindToggle("s-expose-toggle",    "s-expose",    "s-expose-led");
+const setAutostart = bindToggle("s-autostart-toggle", "s-autostart", "s-autostart-led");
 
 async function load() {
   const cfg = await invoke<any>("get_config");
@@ -29,8 +63,8 @@ async function load() {
   $("s-idle").value = String(cfg.sleep_idle_seconds ?? 0);
   $("s-models-max").value = String(cfg.models_max ?? 1);
   $("s-hf").value = cfg.hf_token ?? "";
-  $("s-expose").checked = cfg.expose_to_network;
-  try { $("s-autostart").checked = await autoIsEnabled(); } catch {}
+  setExpose(cfg.expose_to_network);
+  try { setAutostart(await autoIsEnabled()); } catch {}
   fit();
 }
 
