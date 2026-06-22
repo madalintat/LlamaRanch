@@ -41,8 +41,16 @@
         <div class="hero-eyebrow">open source / 100% local / MIT</div>
         <h1 class="hero-headline">A quiet ranch for your local models.</h1>
         <p class="hero-body">Every llama.cpp model on your machine, in one tray, behind a single private endpoint. No cloud. No keys. Nothing leaves the valley.</p>
+        <div class="hero-install">
+          <div class="install-cmd">
+            <span class="install-prompt">$</span>
+            <code class="install-text">npx @llamaranch/wizard</code>
+            <button class="install-copy" type="button" data-copy="npx @llamaranch/wizard" aria-label="Copy install command">Copy</button>
+          </div>
+          <div class="install-note">One command. Installs the engine, your models, and the app.</div>
+        </div>
         <div class="hero-actions">
-          <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="btn-primary">Download</a>
+          <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="btn-outline">Download manually</a>
           <a href="https://github.com/madalintat/LlamaRanch#readme" class="btn-outline">Read the docs</a>
         </div>
         <div class="hero-note">↳ macOS · Linux · Windows · runs only on your machine</div>
@@ -257,7 +265,13 @@
       <div class="section-inner">
         <div class="section-eyebrow" data-reveal data-reveal-rule>Download</div>
         <h2 class="section-headline" data-reveal style="--d:.08s">Get LlamaRanch.</h2>
-        <p class="section-body" data-reveal style="--d:.14s">Signed installers · in-app auto-update.</p>
+        <p class="section-body" data-reveal style="--d:.14s">The fast way: one command sets up the engine, your models, and the app. Or grab an installer by hand below.</p>
+        <div class="install-cmd install-cmd-wide" data-reveal style="--d:.2s">
+          <span class="install-prompt">$</span>
+          <code class="install-text">npx @llamaranch/wizard</code>
+          <button class="install-copy" type="button" data-copy="npx @llamaranch/wizard" aria-label="Copy install command">Copy</button>
+        </div>
+        <div class="install-note install-note-wide" data-reveal style="--d:.26s">Runs on macOS, Linux, and Windows. To update later: <code class="code-chip">npx @llamaranch/wizard update</code></div>
       </div>
       <div class="download-grid">
         <div class="download-card" data-reveal>

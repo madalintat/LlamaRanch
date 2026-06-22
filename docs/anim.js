@@ -37,3 +37,23 @@
   // [data-reveal-rule] elements also get [data-reveal], so the .in
   // class propagates to the ::before pseudo as well - no extra work needed.
 })();
+
+// ── Copy-to-clipboard for the install command (runs regardless of motion) ──
+(function () {
+  'use strict';
+  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var text = btn.getAttribute('data-copy');
+      if (!navigator.clipboard || !navigator.clipboard.writeText) return;
+      navigator.clipboard.writeText(text).then(function () {
+        var orig = btn.textContent;
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(function () {
+          btn.textContent = orig;
+          btn.classList.remove('copied');
+        }, 1500);
+      }).catch(function () {});
+    });
+  });
+})();
