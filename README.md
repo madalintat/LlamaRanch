@@ -82,9 +82,17 @@ Every platform is first class and updates itself in place (see [Updating](#updat
 
 ## Install
 
-Grab your build from [**Releases**](https://github.com/madalintat/LlamaRanch/releases/latest).
+### The fast way: one command
 
-You'll also need a `llama-server` from llama.cpp:
+```sh
+npx @llamaranch/wizard
+```
+
+Runs on macOS, Linux, and Windows. The wizard detects your hardware, installs llama.cpp with the right backend, suggests and downloads models that fit your memory, writes your config, and installs the LlamaRanch app. When it finishes, open the app and everything is ready. If a step can't run on its own (no Homebrew, an odd distro), it tells you exactly what to do by hand. Want it headless on a server? `npx @llamaranch/wizard serve` starts the endpoint straight from the terminal.
+
+### By hand
+
+Grab your build from [**Releases**](https://github.com/madalintat/LlamaRanch/releases/latest). You'll also need a `llama-server` from llama.cpp:
 
 - **macOS:** `brew install llama.cpp`
 - **Linux / Windows:** a prebuilt from [llama.cpp Releases](https://github.com/ggml-org/llama.cpp/releases/latest) (CPU, CUDA, Vulkan, Metal)
@@ -93,7 +101,13 @@ First run finds `llama-server` on your PATH. Open the tray popover, pick a model
 
 ## Updating
 
-LlamaRanch checks [Releases](https://github.com/madalintat/LlamaRanch/releases/latest) when it starts. When a newer signed build is out, a banner appears inside the app.
+The quickest way, on any OS:
+
+```sh
+npx @llamaranch/wizard update
+```
+
+It pulls the latest release and reinstalls the app for you. The app also updates itself: LlamaRanch checks [Releases](https://github.com/madalintat/LlamaRanch/releases/latest) when it starts, and when a newer signed build is out a banner appears inside the app.
 
 - **macOS `.dmg`, Windows `.exe` / `.msi`, and the Linux `.AppImage`** update in place. Click **Update** in the banner; the app downloads the new build, checks its signature, and relaunches into it.
 - **Linux `.deb`:** download the new package from Releases and install it over the old one: `sudo dpkg -i LlamaRanch_*.deb`.
