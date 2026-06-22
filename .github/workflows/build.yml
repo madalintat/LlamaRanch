@@ -44,6 +44,12 @@ jobs:
     if: ${{ !cancelled() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped') }}
     strategy:
       fail-fast: false
+      # Serialize the matrix. tauri-action read-modify-writes the shared
+      # updater manifest (latest.json) on the draft release once per leg;
+      # parallel legs clobber each other's platform entries and race the
+      # asset-update API (intermittent "Not Found" 404). One leg at a time
+      # keeps latest.json complete across macOS/Linux/Windows (x64 + arm64).
+      max-parallel: 1
       matrix:
         include:
           - platform: macos-latest     # macOS (Apple Silicon, arm64)
