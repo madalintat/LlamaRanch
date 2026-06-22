@@ -1,171 +1,144 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>LlamaRanch, run local LLMs from your Linux tray</title>
-<meta name="description" content="A quiet ranch for your local models. LlamaRanch runs llama.cpp models from your Linux tray behind one private, OpenAI-compatible endpoint. Auto-fit, vision, and a built-in catalog. Nothing leaves your machine." />
-<link rel="icon" href="assets/llama.svg" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="site.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LlamaRanch — A quiet ranch for your local models</title>
+  <meta name="description" content="Every llama.cpp model on your machine, in one tray, behind a single private endpoint. No cloud. No keys. Nothing leaves the valley." />
+  <link rel="icon" href="assets/llama.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<header class="nav">
-  <div class="wrap">
-    <a class="brand" href="#top"><img src="assets/llama.svg" width="30" height="30" alt="" /><span>Llama<b>Ranch</b></span></a>
-    <nav class="nav__links">
-      <a href="#features">Features</a>
-      <a href="#models">Models</a>
-      <a href="#install">Install</a>
-      <a class="nav__gh" href="https://github.com/madalintat/LlamaRanch">GitHub</a>
+  <!-- ── NAV ── -->
+  <div class="nav-outer">
+    <nav class="site-nav">
+      <a href="/" class="nav-logo" aria-label="LlamaRanch home">
+        <img src="assets/llama.svg" alt="" width="26" height="26" />
+        <span class="wordmark">Llama<span>Ranch</span></span>
+      </a>
+      <ul class="nav-links">
+        <li class="nav-features"><a href="#features">Features</a></li>
+        <li class="nav-models"><a href="#models">Models</a></li>
+        <li class="nav-install"><a href="#install">Install</a></li>
+        <li><a href="https://github.com/madalintat/LlamaRanch" class="nav-github" target="_blank" rel="noopener">GitHub ↗</a></li>
+      </ul>
     </nav>
   </div>
-</header>
 
-<main id="top">
+  <!-- ── PAGE container ── -->
+  <main class="page">
 
-  <section class="hero">
-    <div class="wrap">
-      <div class="promo" style="background-image:url(assets/hero.jpg)">
-        <div class="promo__bar">
-          <img src="assets/llama.svg" alt="" />
-          <span class="spacer"></span>
-          <span>Tue  09:58</span>
+    <!-- ── HERO ── -->
+    <section class="hero">
+      <img
+        src="assets/ranch-dither.jpg"
+        alt=""
+        class="hero-bg"
+        aria-hidden="true"
+      />
+      <div class="hero-content">
+        <div class="hero-eyebrow">open source / 100% local / MIT</div>
+        <h1 class="hero-headline">A quiet ranch for your local models.</h1>
+        <p class="hero-body">Every llama.cpp model on your machine, in one tray, behind a single private endpoint. No cloud. No keys. Nothing leaves the valley.</p>
+        <div class="hero-actions">
+          <a href="https://github.com/madalintat/LlamaRanch/releases" class="btn-primary">Download</a>
+          <a href="#" class="btn-outline">Read the docs</a>
         </div>
-        <img class="promo__panel" src="assets/screenshot.png" alt="LlamaRanch panel with your installed models" />
+        <div class="hero-note">↳ macOS · Linux · Windows · runs only on your machine</div>
       </div>
+    </section>
 
-      <div class="hero__intro">
-        <p class="eyebrow">open source · 100% local · MIT</p>
-        <h1>A quiet ranch for<br />your local models.</h1>
-        <p class="lede">LlamaRanch keeps every <a href="https://github.com/ggml-org/llama.cpp">llama.cpp</a> model on your machine in one tray and serves them behind a single private endpoint. No cloud. No API keys. Just your hardware, doing the thinking.</p>
-        <div class="cta">
-          <a class="btn btn--solid" href="https://github.com/madalintat/LlamaRanch/releases/latest">Download</a>
-          <a class="btn btn--ghost" href="https://github.com/madalintat/LlamaRanch">View on GitHub</a>
-          <a class="btn btn--ghost" href="https://huggingface.co/models?apps=llama.cpp&sort=trending"><img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="" />Browse models</a>
+    <!-- ── WORKS WITH ── -->
+    <div class="works-with">
+      <span class="works-with-label">Works with</span>
+      <span class="works-with-items">Open WebUI&nbsp;&nbsp;·&nbsp;&nbsp;Continue&nbsp;&nbsp;·&nbsp;&nbsp;Zed&nbsp;&nbsp;·&nbsp;&nbsp;Cline&nbsp;&nbsp;·&nbsp;&nbsp;curl&nbsp;&nbsp;·&nbsp;&nbsp;OpenAI SDKs</span>
+    </div>
+
+    <!-- ── FEATURES ── -->
+    <section class="features" id="features">
+      <div class="feature">
+        <div class="feature-num">01</div>
+        <div class="feature-title">Hardware aware</div>
+        <p class="feature-body">llama.cpp's <code class="code-chip">--fit</code> sizes layers and context to the memory you actually have.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-num">02</div>
+        <div class="feature-title">One-click serving</div>
+        <p class="feature-body">Models load on demand and unload when idle. One server, switched in a click.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-num">03</div>
+        <div class="feature-title">OpenAI compatible</div>
+        <p class="feature-body">Point any client at the local endpoint. A genuine drop-in, no rewrites.</p>
+      </div>
+    </section>
+
+    <!-- ── ENDPOINT code block ── -->
+    <div class="endpoint" id="install">
+      <div class="endpoint-panel">
+        <div class="endpoint-comment"># point any client at one private endpoint</div>
+        <div><span class="endpoint-prompt">$</span> curl http://127.0.0.1:2276/v1/models<span class="endpoint-caret">&nbsp;</span></div>
+      </div>
+    </div>
+
+    <!-- ── FOOTER ── -->
+    <footer class="site-footer">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <a href="/" class="footer-logo" aria-label="LlamaRanch home">
+            <img src="assets/llama.svg" alt="" width="26" height="26" />
+            <span class="wordmark">Llama<span>Ranch</span></span>
+          </a>
+          <p class="footer-tagline">A quiet ranch for your local models. Load one, chat, and nothing ever leaves the valley.</p>
         </div>
-        <p class="linux-badge">🐧 built for Linux, runs on your machine only</p>
-        <p class="mac-note">Linux and Windows 10 / 11. On a Mac? Use <a href="https://github.com/ggml-org/Llama-macOS">Llama</a>, the macOS app by ggml-org.</p>
+        <nav class="footer-nav" aria-label="Footer navigation">
+          <div>
+            <div class="footer-col-head">Product</div>
+            <div class="footer-col-links">
+              <a href="#features">Features</a>
+              <a href="#models">Models</a>
+              <a href="#install">Install</a>
+            </div>
+          </div>
+          <div>
+            <div class="footer-col-head">Source</div>
+            <div class="footer-col-links">
+              <a href="https://github.com/madalintat/LlamaRanch" target="_blank" rel="noopener">GitHub ↗</a>
+              <a href="https://github.com/madalintat/LlamaRanch/releases" target="_blank" rel="noopener">Releases</a>
+              <a href="https://github.com/madalintat/LlamaRanch/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a>
+            </div>
+          </div>
+          <div>
+            <div class="footer-col-head">Family</div>
+            <div class="footer-col-links">
+              <a href="https://huggingface.co/" target="_blank" rel="noopener">Hugging Face ↗</a>
+              <a href="#">Llama for macOS</a>
+              <a href="https://github.com/ggml-org/llama.cpp" target="_blank" rel="noopener">llama.cpp ↗</a>
+            </div>
+          </div>
+        </nav>
       </div>
-    </div>
-  </section>
-
-  <section id="features">
-    <div class="wrap">
-      <h2 class="section-title">Everything, handled.</h2>
-      <div class="feat">
-        <div class="feat__item"><h3>Hardware aware</h3><p>llama.cpp's <code>--fit</code> sizes GPU layers and context to the memory you actually have. Nothing to tune.</p></div>
-        <div class="feat__item"><h3>One click serving</h3><p>Models load on demand and unload when idle. One server, switched in a click.</p></div>
-        <div class="feat__item"><h3>Text and vision</h3><p>Multimodal models are detected and paired with their projector automatically. Chat about images.</p></div>
-        <div class="feat__item"><h3>Big models too</h3><p>Models larger than your VRAM run split across GPU and RAM, no offload math required.</p></div>
-        <div class="feat__item"><h3>OpenAI compatible</h3><p>Point Continue, Zed, Open WebUI, or your own scripts at the local endpoint. Drop in.</p></div>
-        <div class="feat__item"><h3>Built in catalog</h3><p>Find models that fit your machine and pull them from Hugging Face, with a token for gated repos.</p></div>
-        <div class="feat__item"><h3>Stays current</h3><p>Checks for new signed releases on launch and updates from inside the app, with a heads-up notification.</p></div>
+      <div class="footer-bottom">
+        <span>BUILT ON LLAMA.CPP · MIT · RUNS 100% ON YOUR MACHINE</span>
+        <span>© 2026</span>
       </div>
-    </div>
-  </section>
-
-  <section class="works">
-    <div class="wrap">
-      <h2 class="section-title">Works with your tools.</h2>
-      <p>Any OpenAI-compatible client, pointed at <code>http://127.0.0.1:2276/v1</code>.</p>
-      <div class="chips">
-        <span>Open WebUI</span><span>Continue</span><span>Cline</span><span>Zed</span><span>VS Code</span><span>Chatbox</span><span>curl</span><span>OpenAI SDKs</span>
+      <!-- dithered horizon canvas -->
+      <div class="footer-horizon">
+        <canvas
+          data-glyph="photo"
+          data-src="assets/cover.jpg"
+          data-crop="0,0.16,1,0.54"
+          data-fade="up"
+          data-cell="3.4"
+          data-color="#1b1a13"
+          aria-hidden="true"
+        ></canvas>
       </div>
-    </div>
-  </section>
+    </footer>
 
-  <section id="models" class="models">
-    <div class="wrap">
-      <div>
-        <h2 class="section-title">Bring any GGUF.</h2>
-        <p>Drop a <code>.gguf</code> file in your models folder, or grab one from the Discover tab. Anything that runs in llama.cpp runs here.</p>
-        <div class="hf-row">
-          <a class="hf-btn" href="https://huggingface.co/models?apps=llama.cpp&sort=trending"><img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="" />Trending on Hugging Face</a>
-          <a class="hf-btn" href="https://huggingface.co/ggml-org"><img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="" />Official GGUFs</a>
-        </div>
-      </div>
-      <ul class="models__list">
-        <li><span>Qwen3</span><em>chat</em></li>
-        <li><span>Qwen2.5 Coder</span><em>code</em></li>
-        <li><span>Gemma 3 / 4</span><em>chat, vision</em></li>
-        <li><span>Llama 3.2</span><em>chat</em></li>
-        <li><span>MiniCPM-V</span><em>vision</em></li>
-        <li><span>Qwen3 Embedding</span><em>embed</em></li>
-      </ul>
-    </div>
-  </section>
+  </main>
 
-  <section id="install" class="install">
-    <div class="wrap">
-      <h2 class="section-title">Install</h2>
-      <div class="install__cols">
-        <div>
-          <h3>Download the installer</h3>
-          <pre><code># Linux
-sudo dpkg -i LlamaRanch_*.deb
-
-# Windows 10 / 11
-run the .exe installer</code></pre>
-          <p>Grab the build for your OS from the latest release, then launch LlamaRanch and turn on Start on login in Settings.</p>
-        </div>
-        <div>
-          <h3>Build from source</h3>
-          <pre><code>git clone https://github.com/madalintat/LlamaRanch
-cd LlamaRanch
-npm install
-npm run tauri build -- --no-bundle</code></pre>
-          <p>Needs Rust, Node 18+, and a built <code>llama-server</code> from llama.cpp.</p>
-        </div>
-      </div>
-      <p class="dl"><a class="btn btn--solid" href="https://github.com/madalintat/LlamaRanch/releases/latest">Get the latest release</a></p>
-    </div>
-  </section>
-
-  <section class="roadmap">
-    <div class="wrap">
-      <h2 class="section-title">On the trail</h2>
-      <p class="roadmap__done">Shipped: Linux and Windows installers, in-app auto-updates, the model catalog, text and vision.</p>
-      <ul class="roadmap__list">
-        <li>A bigger, richer model catalog</li>
-        <li>Multiple models loaded at once</li>
-        <li>Per-model settings (context length, sampling)</li>
-        <li>ARM64 builds</li>
-      </ul>
-    </div>
-  </section>
-
-  <section class="family">
-    <div class="wrap">
-      <h2 class="section-title">Built with the llama.cpp crew</h2>
-      <p>LlamaRanch runs on llama.cpp by ggml-org, and follows the trail of their macOS app, Llama. Same engine, a new pasture on Linux. Big thanks to the folks keeping local AI fast and open.</p>
-      <div class="family__links">
-        <a href="https://github.com/ggml-org/llama.cpp">llama.cpp</a>
-        <a href="https://github.com/ggml-org/Llama-macOS">Llama for macOS</a>
-        <a href="https://github.com/ggml-org">ggml-org</a>
-      </div>
-    </div>
-  </section>
-
-</main>
-
-<footer class="foot">
-  <div class="wrap">
-    <a class="brand" href="#top"><img src="assets/llama.svg" width="26" height="26" alt="" /><span>Llama<b>Ranch</b></span></a>
-    <div class="foot__links">
-      <a href="https://github.com/madalintat/LlamaRanch">GitHub</a>
-      <a href="https://github.com/madalintat/LlamaRanch/releases">Releases</a>
-      <a href="https://github.com/madalintat/LlamaRanch/blob/main/CONTRIBUTING.md">Contributing</a>
-      <a href="https://github.com/ggml-org/Llama-macOS">Llama (macOS)</a>
-      <a href="https://github.com/ggml-org/llama.cpp">llama.cpp</a>
-      <a href="https://huggingface.co/models?apps=llama.cpp">Hugging Face</a>
-    </div>
-    <p class="foot__note">Built on llama.cpp. MIT licensed. Runs 100% on your machine.</p>
-  </div>
-</footer>
-
+  <script src="dither.js"></script>
 </body>
 </html>

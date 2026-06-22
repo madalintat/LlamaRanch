@@ -370,7 +370,7 @@ body {
 .msg--error {
   align-self: stretch;
   background: rgba(232,115,106,.12);
-  color: #e8736a;
+  color: var(--error);
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 13px;
@@ -580,4 +580,8 @@ body {
 html[data-theme="dark"] .empty-state__dither {
   mix-blend-mode: screen;
   opacity: .35;
+}
+html[data-theme="light"] .empty-state__dither {
+  mix-blend-mode: multiply;
+  opacity: .5;
 }

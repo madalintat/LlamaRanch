@@ -46,6 +46,15 @@ pub struct Config {
     /// Small embedding model used by the router's fast-path gate.
     #[serde(default = "default_embedding_model")]
     pub embedding_model: String,
+    /// Folders that read_file may access. Empty = no file access.
+    #[serde(default)]
+    pub allowed_dirs: Vec<String>,
+    /// SearXNG base URL for web_search. Empty = web search disabled.
+    #[serde(default)]
+    pub searxng_url: String,
+    /// When true, online tools (web_fetch, web_search) are excluded from the registry.
+    #[serde(default)]
+    pub offline_mode: bool,
 }
 
 fn home() -> PathBuf {
@@ -213,6 +222,9 @@ impl Default for Config {
             model_config: BTreeMap::new(),
             general_model: default_general_model(),
             embedding_model: default_embedding_model(),
+            allowed_dirs: Vec::new(),
+            searxng_url: String::new(),
+            offline_mode: false,
         }
     }
 }

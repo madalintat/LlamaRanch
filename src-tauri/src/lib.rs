@@ -68,6 +68,7 @@ pub fn run() {
             commands::delete_model,
             commands::model_info,
             commands::set_model_config,
+            commands::list_tools,
             brain::chat_new_session,
             brain::chat_send,
             brain::chat_cancel,
