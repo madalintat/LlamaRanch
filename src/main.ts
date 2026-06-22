@@ -423,9 +423,9 @@ function render() {
   setHeader();
   // (no resetGlyphs - per-model glyphs dropped)
   const ready = router.status === "running";
-  const webuiBtn = $("webui") as HTMLButtonElement;
-  webuiBtn.disabled = !ready;
-  webuiBtn.title = ready ? "" : "Router is starting";
+  const agentBtn = $("agent-btn") as HTMLButtonElement;
+  agentBtn.disabled = !ready;
+  agentBtn.title = ready ? "" : "Router is starting";
   $("tab-installed").classList.toggle("tab--active", view === "installed");
   $("tab-discover").classList.toggle("tab--active", view === "discover");
   if (view === "installed") renderInstalled();
@@ -443,7 +443,13 @@ let lastSig = "";
 
 function showError(msg: string) {
   const err = $("error");
-  err.textContent = msg.replace(/^error:\s*/, "");
+  const raw = msg.replace(/^error:\s*/, "");
+  const isConnErr = /connection|refused|tcp|timed? ?out/i.test(raw);
+  if (isConnErr) {
+    err.innerHTML = `<span class="error__friendly">The model server is not ready yet. Give it a few seconds and try again.</span><br><span class="error__raw">${raw}</span>`;
+  } else {
+    err.textContent = raw;
+  }
   err.classList.remove("hidden");
 }
 
@@ -720,7 +726,12 @@ async function init() {
     label.textContent = "copied";
     setTimeout(() => (label.textContent = prev), 1200);
   };
-  $("webui").onclick = () => invoke("open_webui");
+
+  // AGENT button: opens the in-app chat window
+  $("agent-btn").onclick = async () => {
+    const w = await WebviewWindow.getByLabel("chat");
+    if (w) { await w.show(); await w.setFocus(); }
+  };
 
   // ⌘K hint button - labeled based on OS
   const cmdkHint = $("cmdk-hint") as HTMLButtonElement;
@@ -802,11 +813,6 @@ async function init() {
     if (e.target === $("cmdk-overlay")) closeCmdk();
   });
 
-  // Chat lives in its own window (defined in tauri.conf.json); just reveal it.
-  $("chat-btn").onclick = async () => {
-    const w = await WebviewWindow.getByLabel("chat");
-    if (w) { await w.show(); await w.setFocus(); }
-  };
   // Settings lives in its own window (defined in tauri.conf.json); just reveal it.
   $("settings-btn").onclick = async () => {
     const w = await WebviewWindow.getByLabel("settings");
@@ -814,6 +820,9 @@ async function init() {
   };
   // The Settings window emits this after saving; refresh the panel to match.
   await listen("config-changed", async () => { await refresh(); startPolling(); });
+
+  // Global OS shortcut (registered by Rust) emits "open-cmdk" to show the command bar.
+  await listen("open-cmdk", () => openCmdk());
 
   await listen<{ id: string; done: number; total: number }>("download:progress", (e) => {
     dl.set(e.payload.id, { done: e.payload.done, total: e.payload.total });
