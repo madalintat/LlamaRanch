@@ -87,6 +87,12 @@ function setActiveModel(id: string): void {
   lcdModel.textContent = name || "no model";
   if (lcdStatus) lcdStatus.textContent = name ? "SERVING" : "idle";
   if (privacyModel) privacyModel.textContent = name || "local";
+  // Update authoritative model state based on whether a model is active.
+  if (id) {
+    modelState = "ready";
+  } else if (modelState !== "loading") {
+    modelState = "idle";
+  }
 }
 
 /** Render tool rows in the rail and privacy panel, and update the web-research chip. */
@@ -220,6 +226,10 @@ async function refreshPool() {
   }
 }
 
+// Authoritative model-load state: "idle" = nothing loaded, "loading" = load in
+// progress, "ready" = at least one model is serving.
+let modelState: "idle" | "loading" | "ready" = "idle";
+
 // Cache of available models for the popup
 let cachedModels: ModelView[] = [];
 
@@ -316,6 +326,9 @@ async function pickAndLoadModel(modelId: string): Promise<void> {
   // Update the composer select to match
   modelPick.value = modelId;
 
+  // Mark as loading before the async call so the send gate can block.
+  modelState = "loading";
+
   // Update LCD to show loading state
   lcdModel.textContent = prettyName(modelId) || modelId;
   if (lcdStatus) lcdStatus.textContent = "loading";
@@ -323,12 +336,13 @@ async function pickAndLoadModel(modelId: string): Promise<void> {
 
   try {
     await invoke("load_model", { modelId });
-    // Poll pool to confirm status
+    // Poll pool to confirm status (setActiveModel inside will set modelState).
     await refreshPool();
   } catch (err) {
     // Surface load error as a chat bubble
     bubble("error", `model load failed: ${String(err)}`);
-    // Reset LCD
+    // Reset LCD and state
+    modelState = "idle";
     lcdModel.textContent = "no model";
     if (lcdStatus) lcdStatus.textContent = "idle";
     titlebarModel.textContent = "new chat · no model loaded";
@@ -478,11 +492,16 @@ form.addEventListener("submit", async (e) => {
   const text = input.value.trim();
   if (!text) return;
 
-  // If no model is loaded and none selected, show a gentle hint
   const picked = modelPick.value || null;
-  const noModelLoaded = lcdStatus && lcdStatus.textContent === "idle" && !picked;
-  if (noModelLoaded) {
-    // Show a gentle inline hint rather than silently failing
+
+  // Block send while a model is still loading.
+  if (modelState === "loading") {
+    bubble("error", "a model is still loading, hold on.");
+    return;
+  }
+
+  // If no model is ready and none explicitly selected, nudge the user.
+  if (modelState === "idle" && !picked) {
     bubble("error", "load a model first. click the LCD or press Cmd+K to pick one.");
     openModelPopup();
     return;

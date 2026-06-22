@@ -445,8 +445,19 @@ function showError(msg: string) {
   const err = $("error");
   const raw = msg.replace(/^error:\s*/, "");
   const isConnErr = /connection|refused|tcp|timed? ?out/i.test(raw);
+  // Build DOM nodes to avoid innerHTML injection of untrusted error text.
+  err.textContent = "";
   if (isConnErr) {
-    err.innerHTML = `<span class="error__friendly">The model server is not ready yet. Give it a few seconds and try again.</span><br><span class="error__raw">${raw}</span>`;
+    const friendly = document.createElement("span");
+    friendly.className = "error__friendly";
+    friendly.textContent = "The model server is not ready yet. Give it a few seconds and try again.";
+    const br = document.createElement("br");
+    const detail = document.createElement("span");
+    detail.className = "error__raw";
+    detail.textContent = raw;
+    err.appendChild(friendly);
+    err.appendChild(br);
+    err.appendChild(detail);
   } else {
     err.textContent = raw;
   }
@@ -730,7 +741,15 @@ async function init() {
   // AGENT button: opens the in-app chat window
   $("agent-btn").onclick = async () => {
     const w = await WebviewWindow.getByLabel("chat");
-    if (w) { await w.show(); await w.setFocus(); }
+    if (w) {
+      await w.show();
+      if (typeof (w as any).unminimize === "function") {
+        await (w as any).unminimize();
+      }
+      await w.setFocus();
+    } else {
+      showError("Could not open the chat window.");
+    }
   };
 
   // ⌘K hint button - labeled based on OS

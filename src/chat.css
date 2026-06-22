@@ -122,7 +122,9 @@ body {
   position: absolute;
   right: 0;
   top: 10px;
-  z-index: 10;
+  /* Must be above the model-popup-backdrop (z-index 99) so a single chevron
+     click both closes the popup and toggles the rail, no double-click needed. */
+  z-index: 101;
   width: 24px;
   height: 26px;
   border: none;
@@ -166,7 +168,9 @@ body {
   position: relative;
   height: 68px;
   border-radius: 9px;
-  padding: 10px 12px;
+  /* Right padding is widened to keep the Cmd+K badge clear of the collapse
+     button (24 px wide, positioned at right:0). */
+  padding: 10px 32px 10px 12px;
   cursor: pointer;
   transition: opacity .12s;
 }
@@ -600,7 +604,9 @@ body {
   position: absolute;
   left: 0;
   top: 10px;
-  z-index: 10;
+  /* Must be above the model-popup-backdrop (z-index 99) so a single chevron
+     click both closes the popup and toggles the privacy panel. */
+  z-index: 101;
   width: 24px;
   height: 26px;
   border: none;

@@ -137,6 +137,16 @@ pub fn run() {
                 "CmdOrCtrl+K",
                 |app, _shortcut, event| {
                     if event.state == ShortcutState::Pressed {
+                        // If any app window is currently focused, let that
+                        // window's own in-window Cmd+K handler take over.
+                        // is_focused() is best-effort; on error, fall through.
+                        let any_focused = app
+                            .webview_windows()
+                            .values()
+                            .any(|w| w.is_focused().unwrap_or(false));
+                        if any_focused {
+                            return;
+                        }
                         if let Some(win) = app.get_webview_window("main") {
                             let _ = win.show();
                             let _ = win.set_focus();
