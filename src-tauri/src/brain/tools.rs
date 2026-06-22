@@ -242,7 +242,7 @@ impl Tool for ReadFile {
             .ok_or("missing 'path'")?;
         // Cheap lexical pre-check (rejects `..` components and non-root paths).
         if !path_allowed(path, &self.roots) {
-            return Err("access to that path is not allowed — grant the folder in Settings".into());
+            return Err("access to that path is not allowed. Grant the folder in Settings".into());
         }
         // Canonicalize to resolve symlinks, then re-verify against canonicalized roots.
         let real = std::fs::canonicalize(path).map_err(|e| e.to_string())?;
@@ -252,7 +252,7 @@ impl Tool for ReadFile {
                 .unwrap_or(false)
         });
         if !allowed {
-            return Err("access to that path is not allowed — grant the folder in Settings".into());
+            return Err("access to that path is not allowed. Grant the folder in Settings".into());
         }
         const CAP: usize = 64 * 1024;
         let content = std::fs::read(path).map_err(|e| e.to_string())?;
@@ -321,7 +321,7 @@ struct WebSearch { endpoint: String }
 impl Tool for WebSearch {
     fn name(&self) -> &str { "web_search" }
     fn description(&self) -> &str {
-        "Search the web via a configured SearXNG instance. Returns top results as title — url\\nsnippet."
+        "Search the web via a configured SearXNG instance. Returns top results as title · url\\nsnippet."
     }
     fn parameters(&self) -> Value {
         json!({
@@ -332,7 +332,7 @@ impl Tool for WebSearch {
     }
     fn run(&self, args: &Value) -> Result<String, String> {
         if self.endpoint.is_empty() {
-            return Err("web search not configured — set a SearXNG URL in Settings".into());
+            return Err("web search not configured. Set a SearXNG URL in Settings".into());
         }
         let query = args.get("query").and_then(|v| v.as_str())
             .ok_or("missing 'query'")?;
@@ -349,7 +349,7 @@ impl Tool for WebSearch {
             let title = r.get("title").and_then(|v| v.as_str()).unwrap_or("(no title)");
             let url = r.get("url").and_then(|v| v.as_str()).unwrap_or("");
             let snippet = r.get("content").and_then(|v| v.as_str()).unwrap_or("");
-            format!("{title} — {url}\n{snippet}")
+            format!("{title} · {url}\n{snippet}")
         }).collect();
         if lines.is_empty() {
             Ok("No results found.".into())
@@ -510,21 +510,21 @@ mod tests {
 
     #[test]
     fn ssrf_ipv4_mapped_ipv6_loopback() {
-        // [::ffff:127.0.0.1] is IPv4-mapped loopback — must be blocked
+        // [::ffff:127.0.0.1] is IPv4-mapped loopback - must be blocked
         assert!(is_blocked_host("[::ffff:127.0.0.1]"));
         assert!(is_blocked_host("[::ffff:127.0.0.1]:8080"));
     }
 
     #[test]
     fn ssrf_trailing_dot_localhost() {
-        // localhost. (trailing-dot FQDN) — must be blocked
+        // localhost. (trailing-dot FQDN) - must be blocked
         assert!(is_blocked_host("localhost."));
         assert!(is_blocked_host("localhost.:9200"));
     }
 
     #[test]
     fn ssrf_expanded_ipv6_loopback() {
-        // 0:0:0:0:0:0:0:1 is the expanded form of ::1 — must be blocked
+        // 0:0:0:0:0:0:0:1 is the expanded form of ::1 - must be blocked
         assert!(is_blocked_host("0:0:0:0:0:0:0:1"));
     }
 

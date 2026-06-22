@@ -156,7 +156,7 @@ pub fn run_turn<E: FnMut(BrainEvent)>(
     registry: &tools::ToolRegistry,
     mut emit: E,
 ) {
-    // Decide (category, reason, model_id) — either a pinned override or routing.
+    // Decide (category, reason, model_id) - either a pinned override or routing.
     let (category, reason, model_id) = if let Some(id) = override_model {
         let cat = installed
             .iter()
@@ -171,7 +171,7 @@ pub fn run_turn<E: FnMut(BrainEvent)>(
             None => match resolver.resolve(Category::General, installed, loaded) {
                 Some(id) => (
                     Category::General,
-                    format!("no {} model installed — using general", decision.category.group()),
+                    format!("no {} model installed, using general", decision.category.group()),
                     id,
                 ),
                 None => {

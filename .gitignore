@@ -29,9 +29,9 @@ src-tauri/target/
 # source art (committed copy lives in docs/assets/)
 image.jpg
 
-# superpowers process scratch (specs/plans/ledgers) — never committed
+# superpowers process scratch (specs/plans/ledgers) - never committed
 docs/superpowers/
 .superpowers/
 
-# Claude Code local artifacts (worktrees, etc.) — never committed
+# Claude Code local artifacts (worktrees, etc.) - never committed
 .claude/

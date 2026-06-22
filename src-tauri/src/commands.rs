@@ -201,7 +201,7 @@ fn to_view(r: server::RouterModel, fs: &[scanner::Model], cached_size: u64) -> M
             id: r.id,
             vision: r.vision || m.mmproj_path.is_some(),
             status: r.status,
-            need_download: false, // it's on disk — never "Get & Load"
+            need_download: false, // it's on disk - never "Get & Load"
         },
         // Not in our models dir. If the router has it cached (need_download =
         // false) it is downloaded and usable now; only a true need_download is
@@ -469,7 +469,7 @@ fn download_file(
 
 /// Remove a model's on-disk files. Local: the gguf (+ mmproj, + empty subdir).
 /// Cached: ONLY this quant's gguf symlink and the blob it points to, then prune
-/// the snapshot dir if it becomes empty — never the whole repo (other quants).
+/// the snapshot dir if it becomes empty - never the whole repo (other quants).
 fn remove_model_files(c: &Config, r: &Resolved) -> Result<(), String> {
     if r.local {
         std::fs::remove_file(&r.path).map_err(|e| e.to_string())?;
