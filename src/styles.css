@@ -486,7 +486,7 @@ html, body {
 
 /* ── Settings window — brand skin ──────────────────────────────── */
 
-/* App shell override: settings uses --paper bg */
+/* App shell override: settings uses --panel bg */
 #app:has(.s-body) {
   background: var(--panel);
 }
@@ -563,6 +563,8 @@ html, body {
   padding: 12px 0;
   border-top: 1px solid var(--line-3);
 }
+
+.s-row--muted { opacity: 0.65; }
 
 .s-row__body { flex: 1; min-width: 0; }
 

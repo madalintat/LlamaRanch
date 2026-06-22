@@ -55,6 +55,14 @@ function bindToggle(toggleId: string, checkId: string, ledId: string) {
 const setExpose    = bindToggle("s-expose-toggle",    "s-expose",    "s-expose-led");
 const setAutostart = bindToggle("s-autostart-toggle", "s-autostart", "s-autostart-led");
 
+// Full-row click forwarding: let any part of the toggle row trigger the pill
+document.getElementById("s-expose-row")?.addEventListener("click", (e) => {
+  if (!(e.target as HTMLElement).closest(".toggle")) document.getElementById("s-expose-toggle")!.click();
+});
+document.getElementById("s-autostart-row")?.addEventListener("click", (e) => {
+  if (!(e.target as HTMLElement).closest(".toggle")) document.getElementById("s-autostart-toggle")!.click();
+});
+
 async function load() {
   const cfg = await invoke<any>("get_config");
   $("s-port").value = String(cfg.port);
