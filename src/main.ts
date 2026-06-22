@@ -718,6 +718,13 @@ async function init() {
     setTimeout(() => (label.textContent = prev), 1200);
   };
   $("webui").onclick = () => invoke("open_webui");
+
+  // ⌘K hint button — labeled based on OS
+  const cmdkHint = $("cmdk-hint") as HTMLButtonElement;
+  const isMac = document.documentElement.dataset.os === "macos";
+  cmdkHint.textContent = isMac ? "⌘K" : "Ctrl K";
+  cmdkHint.onclick = () => openCmdk();
+
   $("quit").onclick = () => exit(0);
 
   $("close-btn").onclick = async () => {
