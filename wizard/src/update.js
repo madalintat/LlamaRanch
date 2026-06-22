@@ -17,12 +17,24 @@ export async function runUpdate() {
   console.log(chalk.dim('Checking for latest release on GitHub...'));
 
   try {
+    const ghHeaders = {
+      'User-Agent': 'llamaranch-wizard/0.1.0',
+      'Accept': 'application/vnd.github+json',
+    };
+    if (process.env.GITHUB_TOKEN) {
+      ghHeaders['Authorization'] = 'Bearer ' + process.env.GITHUB_TOKEN;
+    }
     const res = await fetch('https://api.github.com/repos/madalintat/LlamaRanch/releases/latest', {
-      headers: { 'User-Agent': 'llamaranch-wizard/0.1.0' }
+      headers: ghHeaders,
     });
 
     if (!res.ok) {
-      throw new Error('GitHub API returned ' + res.status);
+      let msg = 'GitHub API returned ' + res.status;
+      try {
+        const body = await res.json();
+        if (body.message) msg += ': ' + body.message;
+      } catch { /* not JSON */ }
+      throw new Error(msg);
     }
 
     const data = await res.json();

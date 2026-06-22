@@ -88,24 +88,41 @@ export function getModelsDir() {
     const appdata = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
     return path.join(appdata, 'llamaranch', 'models');
   }
-  // macOS and Linux: use ~/.local/share/llamaranch/models
+  if (platform === 'darwin') {
+    // Match config.js convention: ~/Library/Application Support/llamaranch/models
+    return path.join(os.homedir(), 'Library', 'Application Support', 'llamaranch', 'models');
+  }
+  // Linux
   return path.join(os.homedir(), '.local', 'share', 'llamaranch', 'models');
 }
 
 // ---------------------------------------------------------------------------
-// Download helper with redirect following
+// HTTPS-only redirect guard
+// ---------------------------------------------------------------------------
+
+function assertHttpsRedirect(from, to) {
+  if (from.startsWith('https://') && !to.startsWith('https://')) {
+    throw new Error('Redirect from https to non-https refused: ' + to);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Download helper: writes to destPath+'.part', renames on success
 // ---------------------------------------------------------------------------
 
 async function downloadFile(url, destPath, onProgress, redirectCount = 0) {
   if (redirectCount > 5) throw new Error('Too many redirects');
 
+  const partPath = destPath + '.part';
   const protocol = url.startsWith('https://') ? https : http;
 
   return new Promise((resolve, reject) => {
     protocol.get(url, { headers: { 'User-Agent': 'llamaranch-wizard/0.1.0' } }, (res) => {
       if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
+        const loc = res.headers.location;
         res.resume();
-        downloadFile(res.headers.location, destPath, onProgress, redirectCount + 1)
+        try { assertHttpsRedirect(url, loc); } catch (e) { reject(e); return; }
+        downloadFile(loc, destPath, onProgress, redirectCount + 1)
           .then(resolve)
           .catch(reject);
         return;
@@ -119,7 +136,17 @@ async function downloadFile(url, destPath, onProgress, redirectCount = 0) {
 
       const totalBytes = parseInt(res.headers['content-length'] || '0', 10) || null;
       let downloaded = 0;
-      const writeStream = fs.createWriteStream(destPath);
+      let writeStream;
+      try {
+        writeStream = fs.createWriteStream(partPath);
+      } catch (err) {
+        reject(err);
+        return;
+      }
+
+      const cleanup = () => {
+        try { fs.unlinkSync(partPath); } catch { /* ignore */ }
+      };
 
       res.on('data', (chunk) => {
         downloaded += chunk.length;
@@ -133,9 +160,17 @@ async function downloadFile(url, destPath, onProgress, redirectCount = 0) {
 
       res.pipe(writeStream);
 
-      writeStream.on('finish', () => resolve(destPath));
-      writeStream.on('error', reject);
-      res.on('error', reject);
+      writeStream.on('finish', () => {
+        try {
+          fs.renameSync(partPath, destPath);
+          resolve(destPath);
+        } catch (err) {
+          cleanup();
+          reject(err);
+        }
+      });
+      writeStream.on('error', (err) => { cleanup(); reject(err); });
+      res.on('error', (err) => { cleanup(); reject(err); });
     }).on('error', reject);
   });
 }
@@ -147,10 +182,15 @@ async function downloadFile(url, destPath, onProgress, redirectCount = 0) {
 export async function downloadModel(model, modelsDir, { onProgress } = {}) {
   const destPath = path.join(modelsDir, model.file);
 
-  // Check if already downloaded
+  // Skip only when the complete final file exists (a .part means a prior run was interrupted)
   if (fs.existsSync(destPath)) {
     onProgress?.({ type: 'skip', message: model.file + ' already downloaded' });
     return destPath;
+  }
+  // Clean up any leftover partial file from a prior interrupted download
+  const partPath = destPath + '.part';
+  if (fs.existsSync(partPath)) {
+    try { fs.unlinkSync(partPath); } catch { /* ignore */ }
   }
 
   // Create modelsDir if needed

@@ -84,29 +84,41 @@ async function detectGpu(normalizedOs, normalizedArch) {
 
 async function detectLlamaServer() {
   const home = os.homedir();
-  const candidates = [
-    null, // sentinel: run `which` first
+  const isWindows = process.platform === 'win32';
+  const binName = isWindows ? 'llama-server.exe' : 'llama-server';
+
+  // Unix candidate paths (no CWD-relative entry to avoid loading an untrusted binary)
+  const unixCandidates = [
     '/opt/homebrew/bin/llama-server',
     '/usr/local/bin/llama-server',
     path.join(home, '.llamaranch', 'llama.cpp', 'llama-server'),
-    './llama-server',
   ];
+
+  // Windows candidate paths
+  const localAppData = process.env.LOCALAPPDATA || '';
+  const windowsCandidates = [
+    localAppData ? path.join(localAppData, 'Programs', 'llama.cpp', 'llama-server.exe') : null,
+    'C:\\Program Files\\llama.cpp\\llama-server.exe',
+    path.join(home, '.llamaranch', 'llama.cpp', 'llama-server.exe'),
+  ].filter(Boolean);
+
+  const candidates = isWindows ? windowsCandidates : unixCandidates;
 
   let foundPath = null;
 
-  // Try `which` first
+  // Try `which` (Unix) or `where` (Windows) first to search PATH
+  const pathTool = isWindows ? 'where' : 'which';
   try {
-    const { stdout } = await execa('which', ['llama-server']);
-    const p = stdout.trim();
+    const { stdout } = await execa(pathTool, [binName]);
+    const p = stdout.trim().split('\n')[0]?.trim(); // `where` can return multiple lines
     if (p) foundPath = p;
   } catch {
     // Not on PATH
   }
 
-  // If `which` failed, try known locations
+  // If path-search failed, try known locations
   if (!foundPath) {
     for (const candidate of candidates) {
-      if (candidate === null) continue; // already tried `which`
       try {
         if (fs.existsSync(candidate)) {
           foundPath = path.resolve(candidate);

@@ -6,6 +6,23 @@ import { renderLogo } from './logo.js';
 const VERSION = '0.1.0';
 const PKG_NAME = '@llamaranch/wizard';
 
+// ---------------------------------------------------------------------------
+// Top-level process error guards (print clean message, never a raw stack trace)
+// ---------------------------------------------------------------------------
+
+process.on('uncaughtException', (err) => {
+  console.error('\n' + chalk.red('Unexpected error: ') + err.message);
+  console.error(chalk.dim('Run with NODE_DEBUG=* for details, or file an issue at https://github.com/madalintat/LlamaRanch'));
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  console.error('\n' + chalk.red('Unexpected error: ') + msg);
+  console.error(chalk.dim('Run with NODE_DEBUG=* for details, or file an issue at https://github.com/madalintat/LlamaRanch'));
+  process.exit(1);
+});
+
 function printHelp() {
   renderLogo();
   console.log(chalk.bold('Usage:'));
@@ -42,6 +59,15 @@ async function runWizard() {
   const { MODEL_CATALOG, suggestModels, downloadModel, getModelsDir } = await import('./models.js');
   const { writeConfig, getConfigPath } = await import('./config.js');
   const { installApp } = await import('./app-install.js');
+
+  // ---------------------------------------------------------------------------
+  // SIGINT: exit cleanly. The temp-then-rename pattern in download helpers
+  // ensures no complete-looking partial file is left with the final name.
+  // .part files may remain but will be cleaned up on next run before download.
+  // ---------------------------------------------------------------------------
+  process.on('SIGINT', () => {
+    process.exit(130);
+  });
 
   // ---------------------------------------------------------------------------
   // ModelPicker: custom multi-select component using useInput
@@ -114,11 +140,13 @@ async function runWizard() {
     const [downloadIndex, setDownloadIndex] = useState(0);
     const [downloadLine, setDownloadLine] = useState('');
     const [downloadedModels, setDownloadedModels] = useState([]);
+    const [failedModels, setFailedModels] = useState([]);
     const [configPath, setConfigPath] = useState('');
     const [configData, setConfigData] = useState(null);
     const [appInstallResult, setAppInstallResult] = useState(null);
     const [appLines, setAppLines] = useState([]);
     const [appDone, setAppDone] = useState(false);
+    const [errorMsg, setErrorMsg] = useState(null);
     const { exit } = useApp();
 
     // Handle key input at the top level
@@ -160,7 +188,7 @@ async function runWizard() {
         return;
       }
 
-      if (step === 'finish' && (key.return || input === 'q')) {
+      if ((step === 'finish' || step === 'error') && (key.return || input === 'q')) {
         exit();
         return;
       }
@@ -171,11 +199,18 @@ async function runWizard() {
       if (step !== 'detect') return;
       let cancelled = false;
       const run = async () => {
-        const result = await detect();
-        await new Promise(resolve => setTimeout(resolve, 400));
-        if (!cancelled) {
-          setDetectResult(result);
-          setStep('detect-done');
+        try {
+          const result = await detect();
+          await new Promise(resolve => setTimeout(resolve, 400));
+          if (!cancelled) {
+            setDetectResult(result);
+            setStep('detect-done');
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setErrorMsg('Environment detection failed: ' + err.message + '\nTry running again or check your system.');
+            setStep('error');
+          }
         }
       };
       run();
@@ -196,23 +231,30 @@ async function runWizard() {
       // Not found: start install
       let cancelled = false;
       const run = async () => {
-        const result = await installEngine(detectResult, {
-          onProgress: (line) => {
-            if (!cancelled) setEngineLines(prev => [...prev, line]);
-          },
-          onSkip: (line) => {
-            if (!cancelled) setEngineLines(prev => [...prev, line]);
-          },
-        });
+        try {
+          const result = await installEngine(detectResult, {
+            onProgress: (line) => {
+              if (!cancelled) setEngineLines(prev => [...prev, line]);
+            },
+            onSkip: (line) => {
+              if (!cancelled) setEngineLines(prev => [...prev, line]);
+            },
+          });
 
-        if (!cancelled) {
-          setEngineDone(true);
-          if (result.manualRequired) {
-            setEngineManual(result.instructions || 'Install llama.cpp manually: https://github.com/ggml-org/llama.cpp');
+          if (!cancelled) {
+            setEngineDone(true);
+            if (result.manualRequired) {
+              setEngineManual(result.instructions || 'Install llama.cpp manually: https://github.com/ggml-org/llama.cpp');
+              setStep('engine-manual');
+            } else {
+              setEnginePath(result.path);
+              setStep('model-select');
+            }
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setEngineManual('Engine install failed: ' + err.message + '\n\nInstall manually: https://github.com/ggml-org/llama.cpp');
             setStep('engine-manual');
-          } else {
-            setEnginePath(result.path);
-            setStep('model-select');
           }
         }
       };
@@ -231,41 +273,53 @@ async function runWizard() {
       let cancelled = false;
       const modelsDir = getModelsDir();
       const downloaded = [];
+      const failed = [];
 
       const runDownloads = async () => {
-        for (let i = 0; i < selectedModels.length; i++) {
-          if (cancelled) return;
-          const model = selectedModels[i];
-          setDownloadIndex(i);
-          setDownloadLine('Starting ' + model.name + '...');
+        try {
+          for (let i = 0; i < selectedModels.length; i++) {
+            if (cancelled) return;
+            const model = selectedModels[i];
+            setDownloadIndex(i);
+            setDownloadLine('Starting ' + model.name + '...');
 
-          try {
-            await downloadModel(model, modelsDir, {
-              onProgress: (evt) => {
-                if (cancelled) return;
-                if (evt.type === 'skip') {
-                  setDownloadLine(model.name + ': already downloaded');
-                } else if (evt.type === 'progress' && evt.percent !== null) {
-                  setDownloadLine('Downloading ' + model.name + '... ' + evt.percent + '%');
-                } else if (evt.type === 'progress') {
-                  const mb = evt.downloaded ? Math.round(evt.downloaded / (1024 * 1024) * 10) / 10 : 0;
-                  setDownloadLine('Downloading ' + model.name + '... ' + mb + ' MB');
-                } else if (evt.type === 'done') {
-                  setDownloadLine(model.name + ': done');
-                } else if (evt.type === 'error') {
-                  setDownloadLine(model.name + ': error - ' + evt.message);
+            try {
+              await downloadModel(model, modelsDir, {
+                onProgress: (evt) => {
+                  if (cancelled) return;
+                  if (evt.type === 'skip') {
+                    setDownloadLine(model.name + ': already downloaded');
+                  } else if (evt.type === 'progress' && evt.percent !== null) {
+                    setDownloadLine('Downloading ' + model.name + '... ' + evt.percent + '%');
+                  } else if (evt.type === 'progress') {
+                    const mb = evt.downloaded ? Math.round(evt.downloaded / (1024 * 1024) * 10) / 10 : 0;
+                    setDownloadLine('Downloading ' + model.name + '... ' + mb + ' MB');
+                  } else if (evt.type === 'done') {
+                    setDownloadLine(model.name + ': done');
+                  } else if (evt.type === 'error') {
+                    setDownloadLine(model.name + ': error - ' + evt.message);
+                  }
                 }
-              }
-            });
-            downloaded.push(model);
-          } catch (err) {
-            setDownloadLine(model.name + ': failed - ' + err.message);
-            await new Promise(r => setTimeout(r, 800));
+              });
+              downloaded.push(model);
+            } catch (err) {
+              const hfUrl = 'https://huggingface.co/' + model.repo + '/resolve/main/' + model.file;
+              failed.push({ model, error: err.message, hfUrl });
+              setDownloadLine(model.name + ': failed - ' + err.message);
+              await new Promise(r => setTimeout(r, 1200));
+            }
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setErrorMsg('Model download step failed unexpectedly: ' + err.message);
+            setStep('error');
+            return;
           }
         }
 
         if (!cancelled) {
           setDownloadedModels(downloaded);
+          setFailedModels(failed);
           setStep('config-write');
         }
       };
@@ -280,20 +334,21 @@ async function runWizard() {
       let cancelled = false;
 
       const run = async () => {
-        const modelsDir = getModelsDir();
-
-        // Pick smallest chat model as general model, or smallest overall
-        const chatModels = selectedModels.filter(m => m.group === 'chat');
-        const generalModelObj = chatModels.length > 0
-          ? chatModels.reduce((a, b) => a.sizeGB <= b.sizeGB ? a : b)
-          : selectedModels.length > 0
-            ? selectedModels.reduce((a, b) => a.sizeGB <= b.sizeGB ? a : b)
-            : null;
-
-        const serverBin = enginePath || detectResult?.llamaServer?.path || null;
-        const generalModel = generalModelObj ? generalModelObj.file : null;
-
         try {
+          const modelsDir = getModelsDir();
+
+          // Only count actually downloaded models (not failed ones) for general model selection
+          const successfulChatModels = downloadedModels.filter(m => m.group === 'chat');
+          const generalModelObj = successfulChatModels.length > 0
+            ? successfulChatModels.reduce((a, b) => a.sizeGB <= b.sizeGB ? a : b)
+            : downloadedModels.length > 0
+              ? downloadedModels.reduce((a, b) => a.sizeGB <= b.sizeGB ? a : b)
+              : null;
+
+          const serverBin = enginePath || detectResult?.llamaServer?.path || null;
+          // Only write a general_model when the file actually exists; never set it from a failed download
+          const generalModel = generalModelObj ? generalModelObj.file : null;
+
           const { configPath: cp, config } = await writeConfig({
             serverBin,
             modelsDir,
@@ -324,19 +379,27 @@ async function runWizard() {
 
       let cancelled = false;
       const run = async () => {
-        const result = await installApp(detectResult, {
-          onProgress: (msg) => {
-            if (!cancelled) setAppLines(prev => [...prev, msg]);
-          }
-        });
+        try {
+          const result = await installApp(detectResult, {
+            onProgress: (msg) => {
+              if (!cancelled) setAppLines(prev => [...prev, msg]);
+            }
+          });
 
-        if (!cancelled) {
-          setAppInstallResult(result);
-          setAppDone(true);
-          if (result.manualRequired) {
+          if (!cancelled) {
+            setAppInstallResult(result);
+            setAppDone(true);
+            if (result.manualRequired) {
+              setStep('app-manual');
+            } else {
+              setStep('finish');
+            }
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setAppInstallResult({ manualRequired: true, instructions: 'Download from https://github.com/madalintat/LlamaRanch/releases' });
+            setAppDone(true);
             setStep('app-manual');
-          } else {
-            setStep('finish');
           }
         }
       };
@@ -347,6 +410,22 @@ async function runWizard() {
     // -------------------------------------------------------------------------
     // Render each step
     // -------------------------------------------------------------------------
+
+    // Error screen
+    if (step === 'error') {
+      const lines = (errorMsg || 'An unexpected error occurred.').split('\n');
+      return React.createElement(
+        Box,
+        { flexDirection: 'column', padding: 1 },
+        React.createElement(Text, { bold: true, color: '#c7a228' }, 'Something went wrong'),
+        React.createElement(Text, null, ''),
+        ...lines.map((line, i) =>
+          React.createElement(Text, { key: 'err-' + i, color: '#f5f0e8' }, line)
+        ),
+        React.createElement(Text, null, ''),
+        React.createElement(Text, { color: '#6b5f52' }, 'Press Enter or q to exit'),
+      );
+    }
 
     // Welcome
     if (step === 'welcome') {
@@ -426,6 +505,7 @@ async function runWizard() {
 
     // Engine: manual required
     if (step === 'engine-manual') {
+      const manualLines = (engineManual || '').split('\n');
       return React.createElement(
         Box,
         { flexDirection: 'column', padding: 1 },
@@ -435,7 +515,9 @@ async function runWizard() {
           React.createElement(Text, { key: 'engm-' + i, dimColor: true }, line)
         ),
         React.createElement(Text, null, ''),
-        React.createElement(Text, { color: '#f5f0e8' }, engineManual || ''),
+        ...manualLines.map((line, i) =>
+          React.createElement(Text, { key: 'engmi-' + i, color: '#f5f0e8' }, line)
+        ),
         React.createElement(Text, null, ''),
         React.createElement(Text, { color: '#6b5f52' }, 'Press Enter to continue without engine'),
       );
@@ -560,14 +642,61 @@ async function runWizard() {
         appInstallResult?.skipped === true ||
         detectResult?.appInstalled?.found === true;
 
+      const serverBin = enginePath || detectResult?.llamaServer?.path || null;
+      const engineOk = !!serverBin;
+
+      // Gate "ready" on having a working engine
+      if (!engineOk) {
+        return React.createElement(
+          Box,
+          { flexDirection: 'column', padding: 1 },
+          React.createElement(Text, { bold: true, color: '#c7a228' }, 'Almost there.'),
+          React.createElement(Text, null, ''),
+          React.createElement(Text, { color: '#f5f0e8' }, 'Config: ' + configPath),
+          React.createElement(Text, null, ''),
+          React.createElement(Text, { bold: true, color: '#c7a228' }, 'Still needed:'),
+          React.createElement(Text, { color: '#f5f0e8' }, '  llama-server (engine) is not installed.'),
+          React.createElement(Text, { color: '#f5f0e8' }, '  macOS: brew install llama.cpp'),
+          React.createElement(Text, { color: '#f5f0e8' }, '  Linux: https://github.com/ggml-org/llama.cpp/releases'),
+          React.createElement(Text, { color: '#f5f0e8' }, '  Windows: download a .zip, add llama-server.exe to PATH'),
+          React.createElement(Text, null, ''),
+          failedModels.length > 0
+            ? React.createElement(
+                Box,
+                { flexDirection: 'column' },
+                React.createElement(Text, { bold: true, color: '#c7a228' }, 'Models that failed to download:'),
+                ...failedModels.map((f, i) =>
+                  React.createElement(Text, { key: 'fm-' + i, color: '#f5f0e8' }, '  ' + f.model.name + ': ' + f.hfUrl)
+                ),
+                React.createElement(Text, null, ''),
+              )
+            : null,
+          React.createElement(Text, { dimColor: true }, 'nothing leaves the valley'),
+          React.createElement(Text, null, ''),
+          React.createElement(Text, { color: '#6b5f52' }, 'Press Enter or q to exit'),
+        );
+      }
+
       return React.createElement(
         Box,
         { flexDirection: 'column', padding: 1 },
         React.createElement(Text, { bold: true, color: '#2e8b48' }, 'LlamaRanch is ready.'),
         React.createElement(Text, null, ''),
         React.createElement(Text, { color: '#f5f0e8' }, 'Config:   ' + configPath),
+        React.createElement(Text, { color: '#f5f0e8' }, 'Engine:   ' + serverBin),
         React.createElement(Text, { color: '#f5f0e8' }, 'Models:   ' + modelsDir),
         React.createElement(Text, null, ''),
+        failedModels.length > 0
+          ? React.createElement(
+              Box,
+              { flexDirection: 'column' },
+              React.createElement(Text, { bold: true, color: '#c7a228' }, 'Models that failed to download:'),
+              ...failedModels.map((f, i) =>
+                React.createElement(Text, { key: 'fm-' + i, color: '#6b5f52' }, '  ' + f.model.name + ': ' + f.hfUrl)
+              ),
+              React.createElement(Text, null, ''),
+            )
+          : null,
         React.createElement(Text, { color: '#2e8b48' }, 'Start headless server:'),
         React.createElement(Text, { bold: true, color: '#f5f0e8' }, '  llamaranch-wizard serve'),
         React.createElement(Text, null, ''),
