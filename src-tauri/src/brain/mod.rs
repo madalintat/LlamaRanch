@@ -200,6 +200,7 @@ pub fn run_turn<E: FnMut(BrainEvent)>(
 
     let mut last_content = String::new();
     for _ in 0..MAX_ITER {
+        mask_old_tool_results(&mut wire, WIRE_BUDGET_CHARS);
         let mut on_token = |piece: String| emit(BrainEvent::Token { text: piece });
         let stepres = match backend.step(&model_id, &wire, &tool_defs, &mut on_token) {
             Ok(s) => s,
@@ -373,6 +374,60 @@ pub fn chat_send<R: Runtime>(
     });
 }
 
+/// Replace the `content` of older `role:"tool"` messages with a placeholder once the
+/// total content size exceeds `budget_chars`, keeping the most recent tool output full
+/// and never touching non-tool messages. Operates oldest-first.
+///
+/// `budget_chars` is approximate: it counts only the `content` field of each message.
+pub fn mask_old_tool_results(wire: &mut Vec<serde_json::Value>, budget_chars: usize) {
+    const PLACEHOLDER: &str = "[older tool output truncated]";
+
+    // Compute total content chars across all messages.
+    let total: usize = wire
+        .iter()
+        .filter_map(|m| m.get("content")?.as_str())
+        .map(|s| s.len())
+        .sum();
+
+    if total <= budget_chars {
+        return;
+    }
+
+    // Collect indices of tool messages oldest → newest.
+    let tool_indices: Vec<usize> = wire
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| m.get("role").and_then(|r| r.as_str()) == Some("tool"))
+        .map(|(i, _)| i)
+        .collect();
+
+    if tool_indices.len() <= 1 {
+        // Never truncate the only (or last) tool message.
+        return;
+    }
+
+    let mut savings_needed = total.saturating_sub(budget_chars);
+    // Walk oldest→newest, but never touch the last tool message.
+    let truncatable = &tool_indices[..tool_indices.len() - 1];
+    for &idx in truncatable {
+        if savings_needed == 0 {
+            break;
+        }
+        let content_len = wire[idx]
+            .get("content")
+            .and_then(|c| c.as_str())
+            .map(|s| s.len())
+            .unwrap_or(0);
+        if content_len > PLACEHOLDER.len() {
+            let saved = content_len - PLACEHOLDER.len();
+            wire[idx]["content"] = serde_json::Value::String(PLACEHOLDER.to_string());
+            savings_needed = savings_needed.saturating_sub(saved);
+        }
+    }
+}
+
+const WIRE_BUDGET_CHARS: usize = 24_000;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -485,6 +540,87 @@ mod tests {
                 Ok(StepResult { content: "The answer is 42.".into(), tool_calls: vec![] })
             }
         }
+    }
+
+    // ── mask_old_tool_results tests ──────────────────────────────────────────
+
+    fn make_tool_msg(id: &str, content: &str) -> serde_json::Value {
+        serde_json::json!({ "role": "tool", "tool_call_id": id, "content": content })
+    }
+    fn make_user_msg(content: &str) -> serde_json::Value {
+        serde_json::json!({ "role": "user", "content": content })
+    }
+    fn make_assistant_msg(content: &str) -> serde_json::Value {
+        serde_json::json!({ "role": "assistant", "content": content })
+    }
+
+    #[test]
+    fn mask_under_budget_wire_unchanged() {
+        let mut wire = vec![
+            make_user_msg("hello"),
+            make_tool_msg("t1", "short result"),
+            make_tool_msg("t2", "another result"),
+        ];
+        let original = wire.clone();
+        // budget larger than total content → nothing changes
+        mask_old_tool_results(&mut wire, 1_000_000);
+        assert_eq!(wire, original);
+    }
+
+    #[test]
+    fn mask_over_budget_truncates_oldest_keeps_newest_full() {
+        // 4 tool messages, each with 1000-char content, plus user/assistant messages.
+        let big = "x".repeat(1000);
+        let mut wire = vec![
+            make_user_msg("user query"),
+            make_assistant_msg("thinking…"),
+            make_tool_msg("t1", &big),
+            make_tool_msg("t2", &big),
+            make_tool_msg("t3", &big),
+            make_tool_msg("t4", &big),
+        ];
+        // Total tool content = 4000 chars. Budget = 500 chars → must truncate.
+        mask_old_tool_results(&mut wire, 500);
+
+        // The last tool message (t4) must remain untouched.
+        assert_eq!(
+            wire[5].get("content").unwrap().as_str().unwrap(),
+            &big,
+            "newest tool result must be kept full"
+        );
+
+        // user and assistant messages must be untouched.
+        assert_eq!(wire[0].get("content").unwrap().as_str().unwrap(), "user query");
+        assert_eq!(wire[1].get("content").unwrap().as_str().unwrap(), "thinking…");
+
+        // At least one older tool message must have been truncated.
+        let placeholder = "[older tool output truncated]";
+        let truncated_count = wire.iter().filter(|m| {
+            m.get("role").and_then(|r| r.as_str()) == Some("tool")
+                && m.get("content").and_then(|c| c.as_str()) == Some(placeholder)
+        }).count();
+        assert!(truncated_count >= 1, "expected at least one truncated tool message");
+
+        // Total content must have decreased (function reduced context rot).
+        let total_after: usize = wire
+            .iter()
+            .filter_map(|m| m.get("content")?.as_str())
+            .map(|s| s.len())
+            .sum();
+        // Since last tool msg alone is 1000 chars which exceeds budget=500, we stop;
+        // but total must be less than before (4000 tool chars + user/assistant).
+        assert!(total_after < 4000 + "user query".len() + "thinking…".len());
+    }
+
+    #[test]
+    fn mask_no_tool_messages_unchanged() {
+        let mut wire = vec![
+            make_user_msg("hi there"),
+            make_assistant_msg("hello back"),
+        ];
+        let original = wire.clone();
+        mask_old_tool_results(&mut wire, 1); // budget 1 char, but no tool msgs
+        assert_eq!(wire, original);
     }
 
     #[test]
