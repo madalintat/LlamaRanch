@@ -16,12 +16,12 @@
       </header>
 
       <main class="settings-body">
-        <label class="field">Port<input id="s-port" type="number" /></label>
-        <label class="field">Models directory<input id="s-models" type="text" /></label>
-        <label class="field">llama-server binary<input id="s-bin" type="text" /></label>
-        <label class="field">Unload idle model after (seconds, 0 = never)<input id="s-idle" type="number" min="0" /></label>
-        <label class="field">Max models loaded at once<input id="s-models-max" type="number" min="1" max="16" step="1" /></label>
-        <label class="field">Hugging Face token (for downloads, optional)<input id="s-hf" type="password" placeholder="hf_..." /></label>
+        <label class="field-group">Port<input id="s-port" type="number" /></label>
+        <label class="field-group">Models directory<input id="s-models" type="text" /></label>
+        <label class="field-group">llama-server binary<input id="s-bin" type="text" /></label>
+        <label class="field-group">Unload idle model after (seconds, 0 = never)<input id="s-idle" type="number" min="0" /></label>
+        <label class="field-group">Max models loaded at once<input id="s-models-max" type="number" min="1" max="16" step="1" /></label>
+        <label class="field-group">Hugging Face token (for downloads, optional)<input id="s-hf" type="password" placeholder="hf_..." /></label>
         <label class="check"><input id="s-expose" type="checkbox" /> Expose server to local network</label>
         <label class="check"><input id="s-autostart" type="checkbox" /> Start LlamaRanch on login</label>
         <div class="error hidden" id="s-error"></div>
