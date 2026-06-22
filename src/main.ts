@@ -696,7 +696,10 @@ async function init() {
 
   dither = mountDither();
   updateHairlineColor(); // sync canvas data-color to current theme
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => updateHairlineColor());
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    updateHairlineColor();
+    render();
+  });
 
   // Footer: "LLAMARANCH <appVersion> · LLAMA.CPP b<build>"
   const rawVer = (await invoke<string>("llama_cpp_version")) || "";
