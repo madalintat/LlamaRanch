@@ -70,7 +70,8 @@ export class Dither {
   refresh(): void {
     this.renderStatic();
     this.collectAnimated();
-    this.animated.forEach((cv) => this.draw(cv, 0));
+    const t = (performance.now() - this.t0) / 1000;
+    this.animated.forEach((cv) => this.draw(cv, t));
   }
 
   private isAnimated(kind: string | undefined): boolean {

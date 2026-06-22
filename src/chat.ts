@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { mountDither } from "./dither";
+import "./brand/theme";
 
 type BrainEvent =
   | { kind: "routed"; model_id: string; category: string; reason: string }
@@ -15,10 +17,33 @@ const input = document.getElementById("input") as HTMLTextAreaElement;
 const send = document.getElementById("send") as HTMLButtonElement;
 const form = document.getElementById("composer") as HTMLFormElement;
 const modelPick = document.getElementById("model-pick") as HTMLSelectElement;
+const emptyState = document.getElementById("empty-state") as HTMLDivElement;
+const newChatBtn = document.getElementById("new-chat") as HTMLButtonElement;
+const titlebarModel = document.getElementById("titlebar-model") as HTMLSpanElement;
+const lcdModel = document.getElementById("lcd-model") as HTMLSpanElement;
+const privacyModel = document.getElementById("privacy-model") as HTMLSpanElement;
 
 type PoolView = { resident: { id: string; status: string; pinned: boolean }[]; active: string | null };
 
 type ModelView = { id: string; name: string; group: string; local: boolean; need_download: boolean };
+
+// Mount dither engine on DOMContentLoaded (already fired — we're a module)
+const dither = mountDither();
+
+/** Show/hide the empty state based on whether the log has any messages. */
+function syncEmptyState(): void {
+  const hasMessages = log.children.length > 0;
+  emptyState.classList.toggle("hidden", hasMessages);
+  log.style.display = hasMessages ? "" : "none";
+}
+
+/** Update the model name shown in titlebar, LCD, and privacy panel. */
+function setActiveModel(name: string): void {
+  const label = name ? `${name} · local` : "new chat · no model loaded";
+  titlebarModel.textContent = label;
+  lcdModel.textContent = name || "no model";
+  if (privacyModel) privacyModel.textContent = name || "local";
+}
 
 async function refreshPool() {
   try {
@@ -32,6 +57,7 @@ async function refreshPool() {
       dot.textContent = `● ${m.id}`;
       pool.appendChild(dot);
     }
+    setActiveModel(view.active ?? "");
   } catch {
     /* router not ready yet — leave the strip empty */
   }
@@ -65,13 +91,27 @@ function bubble(role: string, text = ""): HTMLDivElement {
   el.textContent = text;
   log.appendChild(el);
   log.scrollTop = log.scrollHeight;
+  syncEmptyState();
+  // Refresh dither in case new data-glyph canvases were added
+  dither.refresh();
   return el;
+}
+
+async function startNewSession(): Promise<void> {
+  await invoke("chat_cancel", { sessionId: session }).catch(()=>{});
+  setStreaming(false);
+  session = await invoke<string>("chat_new_session");
+  log.innerHTML = "";
+  current = null;
+  input.value = "";
+  setStreaming(false);
+  syncEmptyState();
+  refreshPool();
 }
 
 async function init() {
   try {
-    session = await invoke<string>("chat_new_session");
-    refreshPool();
+    await startNewSession();
     loadPicker();
     await listen<{ session: string; event: BrainEvent }>("chat:event", ({ payload }) => {
       if (payload.session !== session) return;
@@ -120,4 +160,26 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
+// New chat button — start a fresh session
+newChatBtn.addEventListener("click", async () => {
+  try {
+    await startNewSession();
+  } catch (err) {
+    bubble("error", `new session failed: ${String(err)}`);
+  }
+});
+
+// Also handle chat_cancel if invoked externally (keyboard shortcut etc.)
+async function cancelStream() {
+  try {
+    await invoke("chat_cancel", { sessionId: session });
+  } catch {
+    /* ignore if no stream active */
+  }
+}
+// Expose for potential keybinding hooks
+(window as Window & typeof globalThis & { chat_cancel?: () => void }).chat_cancel = cancelStream;
+
+// Initialize
+syncEmptyState();
 init();
