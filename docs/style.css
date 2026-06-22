@@ -275,10 +275,10 @@ body {
   gap: 10px;
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-bottom: 32px;
+  margin-bottom: 18px;
 }
 .hero-eyebrow::before {
   content: '';
@@ -338,35 +338,35 @@ body {
 .hero-note {
   margin-top: 28px;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--muted);
 }
 
 /* ── Shared section layout helpers ── */
 .section-eyebrow {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--faint);
-  margin-bottom: 16px;
+  color: var(--muted);
+  margin-bottom: 18px;
 }
 .section-headline {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: clamp(28px, 3.2vw, 46px);
+  font-size: clamp(30px, 3.6vw, 50px);
   line-height: 1.1;
   letter-spacing: -0.01em;
   color: var(--ink);
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 .section-body {
-  font-size: 15px;
-  line-height: 1.65;
+  font-size: 16px;
+  line-height: 1.62;
   color: var(--soft);
-  max-width: 48ch;
+  max-width: 46ch;
 }
 .section-inner {
   margin-bottom: 44px;
@@ -384,7 +384,7 @@ body {
 
 /* ── THE AGENT section — 2-col ── */
 .agent-section {
-  padding: clamp(48px, 6vw, 88px) 0;
+  padding: clamp(64px, 8vh, 104px) 0;
   border-top: 1px solid var(--line-2);
   background: var(--panel-2);
   overflow: hidden;
@@ -436,10 +436,11 @@ body {
   border: 1px solid var(--line-4);
 }
 .agent-right {
-  padding: 0;
+  padding: 0 clamp(20px, 5vw, 80px) 0 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  min-width: 0;
 }
 .agent-shot-frame {
   border: 1px solid var(--line-4);
@@ -447,20 +448,18 @@ body {
   box-shadow: 0 30px 70px rgba(30,28,20,.18);
   overflow: hidden;
   width: 100%;
-  max-width: 820px;
-  /* slight scale — bleed into right edge */
-  transform: scale(1.02);
-  transform-origin: right center;
+  max-width: 100%;
 }
 .agent-shot {
   display: block;
   width: 100%;
   height: auto;
+  max-width: 100%;
 }
 
 /* ── MODELS section — 2-col ── */
 .models-section {
-  padding: clamp(48px, 6vw, 88px) 0;
+  padding: clamp(64px, 8vh, 104px) 0;
   border-top: 1px solid var(--line-2);
   background: var(--panel-2);
   overflow: hidden;
@@ -511,7 +510,7 @@ body {
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--muted);
   padding: 6px 14px;
   border: 1px solid var(--line-4);
   border-radius: 4px 0 0 4px;
@@ -531,7 +530,7 @@ body {
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.06em;
-  color: var(--faint);
+  color: var(--muted);
   border: 1px solid var(--line-2);
   border-radius: 4px;
   padding: 5px 10px;
@@ -577,7 +576,7 @@ body {
 .model-num {
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--faint);
+  color: var(--faint); /* decorative part-number prefix — intentionally faint */
   flex: none;
   width: 20px;
 }
@@ -625,7 +624,7 @@ body {
   padding: 12px 20px;
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--faint);
+  color: var(--muted);
   background: var(--panel);
 }
 .model-more a {
@@ -653,7 +652,7 @@ body {
 }
 .mission-inner {
   position: relative;
-  padding: clamp(56px, 8vw, 100px) clamp(20px, 5vw, 80px);
+  padding: clamp(64px, 8vh, 104px) clamp(20px, 5vw, 80px);
   max-width: 680px;
   margin: 0 auto;
 }
@@ -677,7 +676,7 @@ body {
 
 /* ── DOWNLOAD section ── */
 .download-section {
-  padding: clamp(48px, 6vw, 88px) clamp(20px, 5vw, 80px);
+  padding: clamp(64px, 8vh, 104px) clamp(20px, 5vw, 80px);
   border-top: 1px solid var(--line-2);
   background: var(--panel-2);
 }
@@ -709,7 +708,7 @@ body {
 .download-card-num {
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--faint);
+  color: var(--faint); /* decorative part-number — intentionally faint */
 }
 .download-card-led {
   display: inline-block;
@@ -748,8 +747,8 @@ body {
 }
 .download-card-formats {
   font-family: var(--mono);
-  font-size: 11px;
-  color: var(--faint);
+  font-size: 12px;
+  color: var(--muted);
   margin-bottom: 12px;
 }
 .download-btn {
@@ -759,7 +758,7 @@ body {
 
 /* ── WORKS WITH strip ── */
 .works-with {
-  padding: 16px clamp(20px, 5vw, 80px);
+  padding: 22px clamp(20px, 5vw, 80px);
   border-top: 1px solid var(--line-2);
   border-bottom: 1px solid var(--line-2);
   display: flex;
@@ -770,15 +769,16 @@ body {
 }
 .works-with-label {
   font-family: var(--mono);
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
+  font-size: 11px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--muted);
   flex: none;
 }
 .works-with-items {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
   color: var(--soft);
 }
 
@@ -838,7 +838,7 @@ body {
   background: var(--panel-2);
 }
 .feature {
-  padding: clamp(28px, 3vw, 46px) clamp(20px, 4vw, 56px);
+  padding: clamp(40px, 5vw, 64px) clamp(20px, 4vw, 56px);
   border-top: 1px solid var(--line-2);
 }
 .feature:not(:last-child) {
@@ -847,7 +847,7 @@ body {
 .feature-num {
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--faint);
+  color: var(--faint); /* decorative part-number prefix — intentionally faint */
   margin-bottom: 12px;
 }
 .feature-title {
@@ -857,9 +857,9 @@ body {
   color: var(--ink);
 }
 .feature-body {
-  font-size: 13.5px;
-  line-height: 1.55;
-  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.62;
+  color: var(--soft);
 }
 .code-chip {
   font-family: var(--mono);
@@ -871,7 +871,7 @@ body {
 
 /* ── ENDPOINT terminal — 2-col ── */
 .endpoint {
-  padding: clamp(28px, 3vw, 46px) clamp(20px, 5vw, 80px) clamp(36px, 4vw, 56px);
+  padding: clamp(64px, 8vh, 104px) clamp(20px, 5vw, 80px);
   border-top: 1px solid var(--line-2);
   background: var(--panel-2);
 }
@@ -1072,10 +1072,10 @@ body {
 }
 .footer-col-head {
   font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.12em;
+  font-size: 11px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--muted);
   margin-bottom: 14px;
 }
 .footer-col-links {
@@ -1098,7 +1098,7 @@ body {
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.04em;
-  color: var(--faint);
+  color: var(--muted);
   flex-wrap: wrap;
   gap: 8px;
 }
@@ -1178,7 +1178,7 @@ body {
   .works-with { padding: 14px 20px; }
   .features { grid-template-columns: 1fr; }
   .feature { border-right: none !important; }
-  .endpoint { padding: 24px 20px 30px; }
+  .endpoint { padding: 48px 20px; }
 
   .download-grid { grid-template-columns: 1fr; }
 
