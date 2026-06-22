@@ -120,6 +120,7 @@
 /* ── Keyframes ── */
 @keyframes caret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+@keyframes ledPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
 
@@ -146,16 +147,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 40px;
-  border-bottom: 1px solid var(--line-2);
-  border-left: 1px solid var(--line-4);
-  border-right: 1px solid var(--line-4);
+  padding: 18px clamp(20px, 4vw, 64px);
   background: var(--panel-2);
   position: sticky;
   top: 0;
   z-index: 50;
-  max-width: 1120px;
-  margin: 0 auto;
 }
 .nav-logo {
   display: flex;
@@ -221,8 +217,8 @@ body {
 .hero {
   position: relative;
   overflow: hidden;
-  padding: 64px 40px 58px;
-  min-height: 454px;
+  padding: clamp(56px, 8vh, 92px) clamp(20px, 5vw, 80px) clamp(52px, 7vh, 80px);
+  min-height: min(64vh, 560px);
   display: flex;
   align-items: center;
   background: var(--panel-2);
@@ -235,8 +231,8 @@ body {
   object-fit: cover;
   object-position: center right;
   mix-blend-mode: multiply;
-  -webkit-mask-image: linear-gradient(90deg, transparent 24%, #000 60%);
-  mask-image: linear-gradient(90deg, transparent 24%, #000 60%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 12%, #000 50%);
+  mask-image: linear-gradient(90deg, transparent 12%, #000 50%);
   pointer-events: none;
 }
 .hero-content {
@@ -321,7 +317,7 @@ body {
 
 /* ── WORKS WITH strip ── */
 .works-with {
-  padding: 18px 40px;
+  padding: 16px clamp(20px, 5vw, 80px);
   border-top: 1px solid var(--line-2);
   border-bottom: 1px solid var(--line-2);
   display: flex;
@@ -344,6 +340,55 @@ body {
   color: var(--soft);
 }
 
+/* ── LOCAL-FIRST STATUS BAND (signature dark LCD strip + dither dots) ── */
+.status-band {
+  background-color: var(--lcd);
+  background-image: radial-gradient(rgba(242, 239, 230, 0.06) 0.5px, transparent 0.5px);
+  background-size: 4px 4px;
+  padding: clamp(20px, 3vw, 30px) clamp(20px, 5vw, 80px);
+  border-top: 1px solid var(--line-2);
+}
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-family: var(--mono);
+}
+.status-led {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  background: var(--lcd-ink);
+  box-shadow: 0 0 10px rgba(242, 239, 230, 0.5);
+  animation: ledPulse 2.4s ease-in-out infinite;
+}
+.status-endpoint {
+  color: var(--lcd-ink);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+.status-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.status-tag {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--lcd-mut);
+  border: 1px solid #39372e;
+  border-radius: 5px;
+  padding: 3px 8px;
+}
+.status-note {
+  margin-left: auto;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 14.5px;
+  color: var(--lcd-mut);
+}
+
 /* ── FEATURES grid ── */
 .features {
   display: grid;
@@ -351,7 +396,7 @@ body {
   background: var(--panel-2);
 }
 .feature {
-  padding: 30px 40px;
+  padding: clamp(28px, 3vw, 46px) clamp(20px, 4vw, 56px);
   border-top: 1px solid var(--line-2);
 }
 .feature:not(:last-child) {
@@ -384,7 +429,7 @@ body {
 
 /* ── ENDPOINT code block ── */
 .endpoint {
-  padding: 30px 40px 40px;
+  padding: clamp(28px, 3vw, 46px) clamp(20px, 5vw, 80px) clamp(36px, 4vw, 56px);
   border-top: 1px solid var(--line-2);
   background: var(--panel-2);
 }
@@ -413,7 +458,7 @@ body {
 .site-footer {
   position: relative;
   border-top: 1px solid var(--line-2);
-  padding: 42px 40px 0;
+  padding: clamp(40px, 5vw, 60px) clamp(20px, 5vw, 80px) 0;
   overflow: hidden;
   background: var(--panel-2);
 }
@@ -501,14 +546,10 @@ body {
   height: 100%;
 }
 
-/* ── Page container ── */
+/* ── Page container (full-bleed) ── */
 .page {
   background: var(--panel-2);
-  max-width: 1120px;
-  margin: 0 auto;
-  border-left: 1px solid var(--line-4);
-  border-right: 1px solid var(--line-4);
-  box-shadow: 0 14px 40px rgba(30, 28, 20, 0.12);
+  width: 100%;
 }
 
 /* ── Responsive / mobile ── */
