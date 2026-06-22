@@ -672,11 +672,6 @@ html, body {
 
 .s-foot__spacer { flex: 1; }
 
-/* Legacy class stubs — kept so any lingering references don't break */
-.settings-body { padding: 6px 15px 8px; overflow-y: auto; max-height: 480px; }
-.field-group { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 11px; }
-.check { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 6px 0 14px; color: var(--ink); }
-
 /* Focus rings */
 button:focus-visible {
   outline: 1.5px solid var(--ink);
