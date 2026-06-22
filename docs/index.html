@@ -20,7 +20,7 @@
       <ul class="nav-links">
         <li class="nav-features"><a href="#features">Features</a></li>
         <li class="nav-models"><a href="#models">Models</a></li>
-        <li class="nav-install"><a href="#install">Install</a></li>
+        <li class="nav-install"><a href="#download">Install</a></li>
         <li><a href="https://github.com/madalintat/LlamaRanch" class="nav-github" target="_blank" rel="noopener">GitHub ↗</a></li>
       </ul>
     </nav>
@@ -42,7 +42,7 @@
         <h1 class="hero-headline">A quiet ranch for your local models.</h1>
         <p class="hero-body">Every llama.cpp model on your machine, in one tray, behind a single private endpoint. No cloud. No keys. Nothing leaves the valley.</p>
         <div class="hero-actions">
-          <a href="https://github.com/madalintat/LlamaRanch/releases" class="btn-primary">Download</a>
+          <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="btn-primary">Download</a>
           <a href="#" class="btn-outline">Read the docs</a>
         </div>
         <div class="hero-note">↳ macOS · Linux · Windows · runs only on your machine</div>
@@ -70,6 +70,35 @@
       </div>
     </section>
 
+    <!-- ── THE AGENT ── -->
+    <section class="agent-section" id="agent">
+      <div class="section-inner">
+        <div class="section-eyebrow">The Agent</div>
+        <h2 class="section-headline">More than a model server.</h2>
+        <p class="section-body">It routes each task to the right local model, hot-swaps experts to fit memory, and can call tools — web research, file reads — all local-first.</p>
+      </div>
+      <div class="agent-vignette">
+        <div class="agent-panel">
+          <div class="agent-tool-trace">
+            <div class="agent-trace-line"><span class="agent-trace-prompt">&gt;</span> searching web · llama.cpp changelog</div>
+            <div class="agent-trace-line"><span class="agent-trace-prompt">&gt;</span> fetched 3 pages · 7.1s</div>
+            <div class="agent-trace-line agent-trace-done"><span class="agent-trace-prompt">&gt;</span> done — reasoning locally</div>
+          </div>
+          <div class="agent-lead">Three notable changes landed this month.</div>
+          <div class="agent-tags">
+            <span class="agent-tag agent-tag-local">
+              <span class="agent-led agent-led-filled" aria-hidden="true"></span>
+              Model — LOCAL
+            </span>
+            <span class="agent-tag agent-tag-online">
+              <span class="agent-led agent-led-outline" aria-hidden="true"></span>
+              Web research — ONLINE
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ── FEATURES ── -->
     <section class="features" id="features">
       <div class="feature">
@@ -89,6 +118,57 @@
       </div>
     </section>
 
+    <!-- ── MODELS ── -->
+    <section class="models-section" id="models">
+      <div class="section-inner">
+        <div class="section-eyebrow">Models</div>
+        <h2 class="section-headline">25+ curated models, hardware-fit.</h2>
+        <p class="section-body">One-click download, or drop in any <code class="code-chip">.gguf</code>. LlamaRanch auto-fits layers and context to your available memory — no config required.</p>
+      </div>
+      <div class="model-list">
+        <div class="model-row">
+          <span class="model-num">01</span>
+          <span class="model-name">Gemma 3 4B</span>
+          <span class="model-meta">2.4 GB</span>
+          <div class="model-tags">
+            <span class="model-tag">chat</span>
+            <span class="model-tag">vision</span>
+          </div>
+          <span class="model-led model-led-filled" aria-hidden="true"></span>
+        </div>
+        <div class="model-row">
+          <span class="model-num">02</span>
+          <span class="model-name">Qwen3 8B</span>
+          <span class="model-meta">5.0 GB</span>
+          <div class="model-tags">
+            <span class="model-tag">chat</span>
+          </div>
+          <span class="model-led model-led-filled" aria-hidden="true"></span>
+        </div>
+        <div class="model-row">
+          <span class="model-num">03</span>
+          <span class="model-name">Qwen2.5 Coder 14B</span>
+          <span class="model-meta">9.0 GB</span>
+          <div class="model-tags">
+            <span class="model-tag">code</span>
+          </div>
+          <span class="model-led model-led-filled" aria-hidden="true"></span>
+        </div>
+        <div class="model-row">
+          <span class="model-num">04</span>
+          <span class="model-name">Llama 3.2 3B</span>
+          <span class="model-meta">1.9 GB</span>
+          <div class="model-tags">
+            <span class="model-tag">chat</span>
+          </div>
+          <span class="model-led model-led-filled" aria-hidden="true"></span>
+        </div>
+        <div class="model-more">
+          Browse all models on <a href="https://huggingface.co/models?apps=llama.cpp&sort=trending" target="_blank" rel="noopener">Hugging Face ↗</a>
+        </div>
+      </div>
+    </section>
+
     <!-- ── ENDPOINT code block ── -->
     <div class="endpoint" id="install">
       <div class="endpoint-panel">
@@ -96,6 +176,48 @@
         <div><span class="endpoint-prompt">$</span> curl http://127.0.0.1:2276/v1/models<span class="endpoint-caret">&nbsp;</span></div>
       </div>
     </div>
+
+    <!-- ── MISSION ── -->
+    <section class="mission-section" id="mission">
+      <div class="mission-dither" aria-hidden="true"></div>
+      <div class="mission-inner">
+        <div class="section-eyebrow">Mission</div>
+        <blockquote class="mission-quote">Nothing leaves the valley.</blockquote>
+        <p class="mission-body">Local-first, private by default, open source (MIT). Your hardware. Your models. No cloud dependency, no telemetry, no account required. LlamaRanch is a quiet place where your data stays yours.</p>
+      </div>
+    </section>
+
+    <!-- ── DOWNLOAD ── -->
+    <section class="download-section" id="download">
+      <div class="section-inner">
+        <div class="section-eyebrow">Download</div>
+        <h2 class="section-headline">Get LlamaRanch.</h2>
+        <p class="section-body">Signed installers · in-app auto-update.</p>
+      </div>
+      <div class="download-grid">
+        <div class="download-card">
+          <div class="download-card-num">01</div>
+          <h3 class="download-card-os">macOS</h3>
+          <div class="download-card-meta">Apple Silicon</div>
+          <div class="download-card-formats">.dmg</div>
+          <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="btn-primary download-btn" target="_blank" rel="noopener">Download</a>
+        </div>
+        <div class="download-card">
+          <div class="download-card-num">02</div>
+          <h3 class="download-card-os">Linux</h3>
+          <div class="download-card-meta">x86_64 · arm64</div>
+          <div class="download-card-formats">.deb · .AppImage · .rpm</div>
+          <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="btn-primary download-btn" target="_blank" rel="noopener">Download</a>
+        </div>
+        <div class="download-card">
+          <div class="download-card-num">03</div>
+          <h3 class="download-card-os">Windows</h3>
+          <div class="download-card-meta">x86_64 · Arm</div>
+          <div class="download-card-formats">.exe · .msi</div>
+          <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="btn-primary download-btn" target="_blank" rel="noopener">Download</a>
+        </div>
+      </div>
+    </section>
 
     <!-- ── FOOTER ── -->
     <footer class="site-footer">
@@ -113,7 +235,7 @@
             <div class="footer-col-links">
               <a href="#features">Features</a>
               <a href="#models">Models</a>
-              <a href="#install">Install</a>
+              <a href="#download">Install</a>
             </div>
           </div>
           <div>
