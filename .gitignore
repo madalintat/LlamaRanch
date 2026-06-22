@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# npm auth (never commit a token)
+.npmrc
+**/.npmrc
+
 # Tauri build artifacts
 src-tauri/target/
 

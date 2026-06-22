@@ -3,8 +3,33 @@
   "version": "0.1.0",
   "description": "One-command installer for LlamaRanch: engine, models, config, and desktop app",
   "type": "module",
+  "license": "MIT",
+  "author": "cetusian",
+  "homepage": "https://madalintat.github.io/LlamaRanch/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/madalintat/LlamaRanch.git",
+    "directory": "wizard"
+  },
+  "bugs": {
+    "url": "https://github.com/madalintat/LlamaRanch/issues"
+  },
+  "keywords": [
+    "llamaranch",
+    "llama.cpp",
+    "local-llm",
+    "installer",
+    "wizard",
+    "cli"
+  ],
   "bin": {
-    "llamaranch-wizard": "./src/index.js"
+    "llamaranch-wizard": "src/index.js"
+  },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "start": "node src/index.js"
