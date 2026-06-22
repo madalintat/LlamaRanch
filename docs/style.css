@@ -1270,7 +1270,8 @@ body {
   .nav-links { gap: 14px; }
   .nav-links .nav-features,
   .nav-links .nav-models,
-  .nav-links .nav-install { display: none; }
+  .nav-links .nav-install,
+  .nav-links .nav-docs { display: none; }
   .nav-links .nav-github {
     padding: 8px 14px;
     min-height: 44px;

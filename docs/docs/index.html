@@ -684,7 +684,9 @@ npm run tauri dev">Copy</button>
         }
       });
     }, {
-      rootMargin: '-20% 0px -70% 0px',
+      // Wider bottom margin (-55%) so the last section (Roadmap) can intersect
+      // the detection band when scrolled to the bottom of the page.
+      rootMargin: '-15% 0px -55% 0px',
       threshold: 0
     });
 

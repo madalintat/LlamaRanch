@@ -16,6 +16,7 @@ import "./styles.css";
 import { mountDither, Dither } from "./dither";
 import llamaMark from "./assets/llama.svg";
 import { tagOS, fitWindow } from "./platform";
+import { prettyName } from "./pretty";
 
 tagOS();
 
@@ -34,11 +35,6 @@ const $ = (id: string) => document.getElementById(id)!;
 const gb = (n: number) => (n / 1e9).toFixed(1) + " GB";
 const LOADED = (s: string) => s === "loaded" || s === "sleeping";
 const BUSY = (s: string) => s === "loading" || s === "downloading";
-
-// A model's display name strips the "org/" prefix and ":quant" suffix so HF ids
-// (e.g. "ggml-org/gemma-3-4b-it-qat-GGUF:Q4_0") read like "gemma 3 4b it qat".
-const prettyName = (id: string) =>
-  id.split("/").pop()!.split(":")[0].replace(/[-_]/g, " ").replace(/\bGGUF\b/i, "").trim();
 
 type ModelOverride = {
   ctx_size?: number | null; temp?: number | null; top_p?: number | null; top_k?: number | null;
@@ -445,8 +441,19 @@ function showError(msg: string) {
   const err = $("error");
   const raw = msg.replace(/^error:\s*/, "");
   const isConnErr = /connection|refused|tcp|timed? ?out/i.test(raw);
+  // Build DOM nodes to avoid innerHTML injection of untrusted error text.
+  err.textContent = "";
   if (isConnErr) {
-    err.innerHTML = `<span class="error__friendly">The model server is not ready yet. Give it a few seconds and try again.</span><br><span class="error__raw">${raw}</span>`;
+    const friendly = document.createElement("span");
+    friendly.className = "error__friendly";
+    friendly.textContent = "The model server is not ready yet. Give it a few seconds and try again.";
+    const br = document.createElement("br");
+    const detail = document.createElement("span");
+    detail.className = "error__raw";
+    detail.textContent = raw;
+    err.appendChild(friendly);
+    err.appendChild(br);
+    err.appendChild(detail);
   } else {
     err.textContent = raw;
   }
@@ -730,7 +737,15 @@ async function init() {
   // AGENT button: opens the in-app chat window
   $("agent-btn").onclick = async () => {
     const w = await WebviewWindow.getByLabel("chat");
-    if (w) { await w.show(); await w.setFocus(); }
+    if (w) {
+      await w.show();
+      if (typeof (w as any).unminimize === "function") {
+        await (w as any).unminimize();
+      }
+      await w.setFocus();
+    } else {
+      showError("Could not open the chat window.");
+    }
   };
 
   // ⌘K hint button - labeled based on OS
