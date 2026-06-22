@@ -314,7 +314,6 @@ body {
   flex-direction: column;
   gap: 24px;
 }
-.log:empty + .composer-wrap { /* no effect — handled by JS */ }
 
 .msg {
   white-space: pre-wrap;
@@ -341,7 +340,6 @@ body {
   line-height: 1.65;
   color: var(--ink);
   font-family: var(--serif);
-  font-size: 15px;
 }
 
 /* Routing trace line */

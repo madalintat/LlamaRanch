@@ -57,7 +57,7 @@ async function refreshPool() {
       dot.textContent = `● ${m.id}`;
       pool.appendChild(dot);
     }
-    if (view.active) setActiveModel(view.active);
+    setActiveModel(view.active ?? "");
   } catch {
     /* router not ready yet — leave the strip empty */
   }
@@ -98,6 +98,8 @@ function bubble(role: string, text = ""): HTMLDivElement {
 }
 
 async function startNewSession(): Promise<void> {
+  await invoke("chat_cancel", { sessionId: session }).catch(()=>{});
+  setStreaming(false);
   session = await invoke<string>("chat_new_session");
   log.innerHTML = "";
   current = null;
@@ -170,7 +172,7 @@ newChatBtn.addEventListener("click", async () => {
 // Also handle chat_cancel if invoked externally (keyboard shortcut etc.)
 async function cancelStream() {
   try {
-    await invoke("chat_cancel");
+    await invoke("chat_cancel", { sessionId: session });
   } catch {
     /* ignore if no stream active */
   }
