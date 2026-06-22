@@ -14,7 +14,25 @@ tagOS(); // match the main window: Linux opaque, macOS/Windows frosted
 
 const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
 const win = getCurrentWindow();
-const fit = () => fitWindow(400, 780);
+const fit = () => fitWindow(400, 640);
+
+// ── Settings tab switching ────────────────────────────────────────
+type SettingsTab = "tools" | "server";
+
+function switchTab(tab: SettingsTab) {
+  const tabs: SettingsTab[] = ["tools", "server"];
+  tabs.forEach((t) => {
+    const btn = document.getElementById(`s-tab-${t}`)!;
+    const panel = document.getElementById(`s-panel-${t}`)!;
+    const active = t === tab;
+    btn.classList.toggle("tab--active", active);
+    panel.classList.toggle("s-panel--hidden", !active);
+  });
+  fit();
+}
+
+document.getElementById("s-tab-tools")?.addEventListener("click", () => switchTab("tools"));
+document.getElementById("s-tab-server")?.addEventListener("click", () => switchTab("server"));
 
 type ToolInfo = {
   name: string;

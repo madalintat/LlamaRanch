@@ -34,9 +34,17 @@ const titlebarModel = document.getElementById("titlebar-model") as HTMLSpanEleme
 const lcdModel = document.getElementById("lcd-model") as HTMLSpanElement;
 const lcdStatus = document.getElementById("lcd-status") as HTMLSpanElement;
 const lcdKbd = document.getElementById("lcd-kbd") as HTMLSpanElement;
+const lcdEl = document.getElementById("lcd") as HTMLDivElement;
 const privacyModel = document.getElementById("privacy-model") as HTMLSpanElement;
 const offlineToggle = document.getElementById("offline-toggle") as HTMLDivElement;
 const chipWebResearch = document.getElementById("chip-web-research") as HTMLSpanElement;
+const railEl = document.getElementById("rail") as HTMLElement;
+const railCollapseBtn = document.getElementById("rail-collapse-btn") as HTMLButtonElement;
+const privacyPanel = document.getElementById("privacy-panel") as HTMLElement;
+const privacyCollapseBtn = document.getElementById("privacy-collapse-btn") as HTMLButtonElement;
+const modelPopup = document.getElementById("model-popup") as HTMLDivElement;
+const modelPopupList = document.getElementById("model-popup-list") as HTMLDivElement;
+const modelPopupBackdrop = document.getElementById("model-popup-backdrop") as HTMLDivElement;
 
 type PoolView = { resident: { id: string; status: string; pinned: boolean }[]; active: string | null };
 
@@ -48,7 +56,7 @@ function prettyName(id: string): string {
     .split("/").pop()!   // drop "org/"
     .split(":")[0]        // drop ":Q4_0" quant suffix
     .replace(/\.gguf$/i, "") // drop .gguf extension
-    .replace(/[-_]/g, " ")  // dashes/underscores → spaces
+    .replace(/[-_]/g, " ")  // dashes/underscores -> spaces
     .replace(/\bGGUF\b/gi, "") // remove standalone GGUF token
     .replace(/\s+/g, " ")
     .trim()
@@ -58,7 +66,7 @@ function prettyName(id: string): string {
 // Mount dither engine on DOMContentLoaded (already fired - we're a module)
 const dither = mountDither();
 
-// OS-aware ⌘K hint
+// OS-aware Cmd/Ctrl K hint
 if (lcdKbd) {
   const isMac = document.documentElement.dataset.os === "macos";
   lcdKbd.textContent = isMac ? "⌘K" : "Ctrl K";
@@ -199,7 +207,7 @@ async function refreshPool() {
       dot.className = "pooldot";
       if (m.id === view.active) dot.classList.add("active");
       if (m.pinned) dot.classList.add("pinned");
-      // Square LED instead of ● emoji
+      // Square LED instead of emoji
       const led = document.createElement("span");
       led.className = m.id === view.active ? "led led--sm" : "led led--idle";
       dot.appendChild(led);
@@ -212,10 +220,15 @@ async function refreshPool() {
   }
 }
 
+// Cache of available models for the popup
+let cachedModels: ModelView[] = [];
+
 async function loadPicker() {
   try {
     const models = await invoke<ModelView[]>("list_models");
-    for (const m of models.filter((x) => x.local || !x.need_download)) {
+    cachedModels = models.filter((x) => x.local || !x.need_download);
+    // Also populate the composer select
+    for (const m of cachedModels) {
       const opt = document.createElement("option");
       opt.value = m.id;
       opt.textContent = prettyName(m.name || m.id);
@@ -225,6 +238,162 @@ async function loadPicker() {
     /* leave just "Auto" */
   }
 }
+
+// ============================================================
+// Model popup (Cmd+K / LCD click)
+// ============================================================
+
+function buildModelPopup(): void {
+  modelPopupList.innerHTML = "";
+
+  if (cachedModels.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "model-popup__empty mono";
+    empty.textContent = "no downloaded models found";
+    modelPopupList.appendChild(empty);
+    return;
+  }
+
+  for (const m of cachedModels) {
+    const row = document.createElement("button");
+    row.className = "model-popup__row mono";
+    row.dataset.modelId = m.id;
+    row.textContent = prettyName(m.name || m.id);
+    row.addEventListener("click", () => {
+      closeModelPopup();
+      pickAndLoadModel(m.id);
+    });
+    modelPopupList.appendChild(row);
+  }
+}
+
+function openModelPopup(): void {
+  buildModelPopup();
+  modelPopup.classList.add("model-popup--open");
+  modelPopupBackdrop.classList.add("model-popup-backdrop--open");
+  modelPopup.setAttribute("aria-hidden", "false");
+  // Focus first row if present
+  const first = modelPopupList.querySelector<HTMLButtonElement>(".model-popup__row");
+  if (first) first.focus();
+}
+
+function closeModelPopup(): void {
+  modelPopup.classList.remove("model-popup--open");
+  modelPopupBackdrop.classList.remove("model-popup-backdrop--open");
+  modelPopup.setAttribute("aria-hidden", "true");
+}
+
+// LCD click
+if (lcdEl) {
+  lcdEl.addEventListener("click", () => openModelPopup());
+  lcdEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openModelPopup(); }
+  });
+}
+
+// Backdrop click closes popup
+modelPopupBackdrop.addEventListener("click", closeModelPopup);
+
+// Escape closes popup
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && modelPopup.classList.contains("model-popup--open")) {
+    closeModelPopup();
+    return;
+  }
+  // Cmd+K (Mac) or Ctrl+K opens model picker
+  if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    if (modelPopup.classList.contains("model-popup--open")) {
+      closeModelPopup();
+    } else {
+      openModelPopup();
+    }
+  }
+});
+
+/** Load a model by ID, update LCD, and surface errors as chat bubbles. */
+async function pickAndLoadModel(modelId: string): Promise<void> {
+  // Update the composer select to match
+  modelPick.value = modelId;
+
+  // Update LCD to show loading state
+  lcdModel.textContent = prettyName(modelId) || modelId;
+  if (lcdStatus) lcdStatus.textContent = "loading";
+  titlebarModel.textContent = `${prettyName(modelId)} · loading`;
+
+  try {
+    await invoke("load_model", { modelId });
+    // Poll pool to confirm status
+    await refreshPool();
+  } catch (err) {
+    // Surface load error as a chat bubble
+    bubble("error", `model load failed: ${String(err)}`);
+    // Reset LCD
+    lcdModel.textContent = "no model";
+    if (lcdStatus) lcdStatus.textContent = "idle";
+    titlebarModel.textContent = "new chat · no model loaded";
+  }
+}
+
+// ============================================================
+// Collapsible rail + privacy panel (with localStorage persistence)
+// ============================================================
+
+const STORAGE_KEY_RAIL = "lr_rail_collapsed";
+const STORAGE_KEY_PRIVACY = "lr_privacy_collapsed";
+
+function isRailCollapsed(): boolean {
+  return localStorage.getItem(STORAGE_KEY_RAIL) === "1";
+}
+function isPrivacyCollapsed(): boolean {
+  return localStorage.getItem(STORAGE_KEY_PRIVACY) === "1";
+}
+
+function applyRailState(collapsed: boolean, animate: boolean): void {
+  railEl.classList.toggle("rail--collapsed", collapsed);
+  if (animate) railEl.classList.add("rail--animating");
+  else railEl.classList.remove("rail--animating");
+  // Update chevron direction
+  const icon = railCollapseBtn.querySelector(".rail__collapse-icon");
+  if (icon) icon.innerHTML = collapsed ? "&#8250;" : "&#8249;";
+  railCollapseBtn.setAttribute("aria-label", collapsed ? "Expand left panel" : "Collapse left panel");
+  railCollapseBtn.title = collapsed ? "Expand left panel" : "Collapse left panel";
+}
+
+function applyPrivacyState(collapsed: boolean, animate: boolean): void {
+  privacyPanel.classList.toggle("privacy--collapsed", collapsed);
+  if (animate) privacyPanel.classList.add("privacy--animating");
+  else privacyPanel.classList.remove("privacy--animating");
+  // Update chevron direction
+  const icon = privacyCollapseBtn.querySelector(".privacy__collapse-icon");
+  if (icon) icon.innerHTML = collapsed ? "&#8249;" : "&#8250;";
+  privacyCollapseBtn.setAttribute("aria-label", collapsed ? "Expand right panel" : "Collapse right panel");
+  privacyCollapseBtn.title = collapsed ? "Expand right panel" : "Collapse right panel";
+}
+
+function toggleRail(): void {
+  const next = !isRailCollapsed();
+  localStorage.setItem(STORAGE_KEY_RAIL, next ? "1" : "0");
+  applyRailState(next, true);
+}
+
+function togglePrivacy(): void {
+  const next = !isPrivacyCollapsed();
+  localStorage.setItem(STORAGE_KEY_PRIVACY, next ? "1" : "0");
+  applyPrivacyState(next, true);
+}
+
+// Wire collapse buttons
+railCollapseBtn.addEventListener("click", toggleRail);
+privacyCollapseBtn.addEventListener("click", togglePrivacy);
+
+// Restore collapsed state on load (no animation - instant)
+applyRailState(isRailCollapsed(), false);
+applyPrivacyState(isPrivacyCollapsed(), false);
+
+// ============================================================
+// Session + messaging
+// ============================================================
 
 let session = "";
 let current: HTMLDivElement | null = null; // the streaming assistant bubble
@@ -279,7 +448,7 @@ async function init() {
         const led = document.createElement("span");
         led.className = ev.ok ? "led led--sm" : "led led--idle";
         el.appendChild(led);
-        el.append(` ${ev.name} → ${ev.preview}`);
+        el.append(` ${ev.name} -> ${ev.preview}`);
         if (!ev.ok) el.classList.add("msg--error");
         log.appendChild(el);
         log.scrollTop = log.scrollHeight;
@@ -308,9 +477,19 @@ form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = input.value.trim();
   if (!text) return;
+
+  // If no model is loaded and none selected, show a gentle hint
+  const picked = modelPick.value || null;
+  const noModelLoaded = lcdStatus && lcdStatus.textContent === "idle" && !picked;
+  if (noModelLoaded) {
+    // Show a gentle inline hint rather than silently failing
+    bubble("error", "load a model first. click the LCD or press Cmd+K to pick one.");
+    openModelPopup();
+    return;
+  }
+
   bubble("user", text);
   input.value = "";
-  const picked = modelPick.value || null;
   setStreaming(true);
   try {
     await invoke("chat_send", { sessionId: session, message: text, hasImage: false, explicitGroup: null, explicitModel: picked });

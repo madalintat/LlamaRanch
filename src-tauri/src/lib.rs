@@ -15,7 +15,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, PhysicalPosition, Runtime, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Runtime, WindowEvent};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 /// Timestamp of the last hide-on-blur, so a tray click that *caused* the blur
 /// doesn't immediately re-open the window (popover click/blur race).
@@ -45,6 +46,7 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppConfig(Mutex::new(cfg)))
         .manage(shared)
         .manage(commands::Cancels::default())
@@ -124,6 +126,27 @@ pub fn run() {
                 .build(app)?;
 
             start_router(app.handle());
+
+            // Register CmdOrCtrl+K as a global shortcut.
+            // On press: show the main popover and emit "open-cmdk" to let the
+            // frontend open the command bar.
+            // Best-effort: if another app already holds Cmd/Ctrl+K, registration
+            // fails. Log and carry on instead of panicking (the in-window ⌘K still
+            // works); never let this take down app startup.
+            if let Err(e) = app.global_shortcut().on_shortcut(
+                "CmdOrCtrl+K",
+                |app, _shortcut, event| {
+                    if event.state == ShortcutState::Pressed {
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                            let _ = win.emit("open-cmdk", ());
+                        }
+                    }
+                },
+            ) {
+                eprintln!("llamaranch: could not register global Cmd/Ctrl+K ({e}); the in-window shortcut still works.");
+            }
 
             let h = app.handle().clone();
             std::thread::spawn(move || {

@@ -14,10 +14,16 @@
         <button class="s-head__close" id="s-close" title="Close" aria-label="Close">&times;</button>
       </header>
 
+      <!-- Settings tabs -->
+      <div class="tabs s-tabs">
+        <button class="tab tab--active" id="s-tab-tools">Tools</button>
+        <button class="tab" id="s-tab-server">Server</button>
+      </div>
+
       <div class="s-body">
 
-        <!-- ── Tools & connectors ─────────────────────────────── -->
-        <section class="s-section">
+        <!-- ── PANEL: Tools ──────────────────────────────────────── -->
+        <section class="s-section s-panel" id="s-panel-tools">
           <div class="s-section__label label">Tools &amp; connectors</div>
 
           <!-- Rendered dynamically from list_tools in settings.ts -->
@@ -60,8 +66,8 @@
           </label>
         </section>
 
-        <!-- ── Server ─────────────────────────────────────────── -->
-        <section class="s-section">
+        <!-- ── PANEL: Server ─────────────────────────────────────── -->
+        <section class="s-section s-panel s-panel--hidden" id="s-panel-server">
           <div class="s-section__label label">Server</div>
 
           <!-- Port + Models dir two-up -->
@@ -97,7 +103,7 @@
           <!-- HF token -->
           <label class="s-field-wrap">
             <span class="label s-field-wrap__label">Hugging Face token (optional)</span>
-            <input id="s-hf" class="field" type="password" placeholder="hf_…" />
+            <input id="s-hf" class="field" type="password" placeholder="hf_..." />
           </label>
 
           <!-- Expose to network -->

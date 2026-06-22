@@ -21,46 +21,53 @@
     <div class="chat-layout">
 
       <!-- LEFT RAIL -->
-      <aside class="rail">
-        <div class="rail__top">
-          <!-- mini LCD -->
-          <div class="lcd rail__lcd">
-            <canvas data-glyph="scope" data-seed="4" data-cell="1.9" data-color="#c4c0b4"
-              class="rail__lcd-canvas"></canvas>
-            <div class="rail__lcd-row">
-              <span id="lcd-model" class="rail__lcd-name">no model</span>
-              <span id="lcd-kbd" class="mono" style="font-size:8px;letter-spacing:.1em;color:var(--lcd-ink);">⌘K</span>
+      <aside class="rail" id="rail">
+        <!-- collapse toggle at right edge -->
+        <button class="rail__collapse-btn" id="rail-collapse-btn" aria-label="Collapse left panel" title="Collapse left panel">
+          <span class="rail__collapse-icon">&#8249;</span>
+        </button>
+
+        <div class="rail__content">
+          <div class="rail__top">
+            <!-- mini LCD - clickable to open model picker -->
+            <div class="lcd rail__lcd" id="lcd" role="button" tabindex="0" aria-label="Select model (Cmd+K)" title="Click or press Cmd+K to select a model">
+              <canvas data-glyph="scope" data-seed="4" data-cell="1.9" data-color="#c4c0b4"
+                class="rail__lcd-canvas"></canvas>
+              <div class="rail__lcd-row">
+                <span id="lcd-model" class="rail__lcd-name">no model</span>
+                <span id="lcd-kbd" class="mono rail__lcd-kbd">⌘K</span>
+              </div>
+              <div class="rail__lcd-status mono"><span id="lcd-status">idle</span></div>
             </div>
-            <div class="rail__lcd-status mono"><span id="lcd-status">idle</span></div>
+
+            <!-- new chat -->
+            <button id="new-chat" class="rail__new-chat">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              New chat
+            </button>
           </div>
 
-          <!-- new chat -->
-          <button id="new-chat" class="rail__new-chat">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
-            New chat
-          </button>
-        </div>
+          <!-- recent - no history backend yet -->
+          <div class="label rail__section-label">Recent</div>
+          <div class="rail__recent">
+            <div class="rail__recent-item rail__recent-item--muted" style="font-style:italic;">No recent chats yet</div>
+          </div>
 
-        <!-- recent - no history backend yet -->
-        <div class="label rail__section-label">Recent</div>
-        <div class="rail__recent">
-          <div class="rail__recent-item rail__recent-item--muted" style="font-style:italic;">No recent chats yet</div>
-        </div>
+          <span class="rail__spacer"></span>
 
-        <span class="rail__spacer"></span>
-
-        <!-- tools - rendered from list_tools -->
-        <div class="rail__tools">
-          <div class="label rail__section-label">Tools</div>
-          <div id="rail-tools-list"></div>
-          <!-- MCP placeholder (Phase 3 - always inert) -->
-          <div class="rail__tool-row rail__tool-row--off">
-            <span class="led led--idle"></span>
-            <span class="rail__tool-name">MCP</span>
-            <span class="mono rail__tool-tag" style="opacity:.4;">SOON</span>
+          <!-- tools - rendered from list_tools -->
+          <div class="rail__tools">
+            <div class="label rail__section-label">Tools</div>
+            <div id="rail-tools-list"></div>
+            <!-- MCP placeholder (Phase 3 - always inert) -->
+            <div class="rail__tool-row rail__tool-row--off">
+              <span class="led led--idle"></span>
+              <span class="rail__tool-name">MCP</span>
+              <span class="mono rail__tool-tag" style="opacity:.4;">SOON</span>
+            </div>
           </div>
         </div>
       </aside>
@@ -78,9 +85,9 @@
           <h3 class="empty-state__title serif">The ranch is quiet.</h3>
           <p class="empty-state__sub">Load a model and start a chat. It runs on your machine. Nothing ever leaves the valley.</p>
           <div class="empty-state__chips mono">
-            <span class="empty-state__chip">→&nbsp; Summarize a file</span>
-            <span class="empty-state__chip">→&nbsp; Search the web</span>
-            <span class="empty-state__chip">→&nbsp; Explain this code</span>
+            <span class="empty-state__chip">&#8594;&nbsp; Summarize a file</span>
+            <span class="empty-state__chip">&#8594;&nbsp; Search the web</span>
+            <span class="empty-state__chip">&#8594;&nbsp; Explain this code</span>
           </div>
         </div>
 
@@ -93,7 +100,7 @@
             <div class="composer__field">
               <div class="composer__placeholder-row">
                 <textarea id="input" class="composer__input" rows="1"
-                  placeholder="Ask anything, it runs on your machine…"></textarea>
+                  placeholder="Ask anything, it runs on your machine&#8230;"></textarea>
               </div>
               <div class="composer__toolbar">
                 <span id="chip-web-research" class="chip">web research</span>
@@ -116,47 +123,62 @@
       </main>
 
       <!-- RIGHT PRIVACY PANEL -->
-      <aside class="privacy">
-        <div class="privacy__header">
-          <div class="serif privacy__title">Where your data goes</div>
-          <div class="mono privacy__sub">this conversation, right now</div>
-        </div>
-        <div class="privacy__rows">
-          <!-- model row - always local -->
-          <div class="privacy__row">
-            <span class="privacy__led privacy__led--on"></span>
-            <div class="privacy__info">
-              <div class="privacy__info-name">Model · <span id="privacy-model">local</span></div>
-              <div class="privacy__info-desc">On your machine. Never sent anywhere.</div>
+      <aside class="privacy" id="privacy-panel">
+        <!-- collapse toggle at left edge -->
+        <button class="privacy__collapse-btn" id="privacy-collapse-btn" aria-label="Collapse right panel" title="Collapse right panel">
+          <span class="privacy__collapse-icon">&#8250;</span>
+        </button>
+
+        <div class="privacy__content">
+          <div class="privacy__header">
+            <div class="serif privacy__title">Where your data goes</div>
+            <div class="mono privacy__sub">this conversation, right now</div>
+          </div>
+          <div class="privacy__rows">
+            <!-- model row - always local -->
+            <div class="privacy__row">
+              <span class="privacy__led privacy__led--on"></span>
+              <div class="privacy__info">
+                <div class="privacy__info-name">Model · <span id="privacy-model">local</span></div>
+                <div class="privacy__info-desc">On your machine. Never sent anywhere.</div>
+              </div>
+              <span class="mono privacy__badge">LOCAL</span>
             </div>
-            <span class="mono privacy__badge">LOCAL</span>
-          </div>
-          <!-- tool rows rendered from list_tools -->
-          <div id="privacy-tools-list"></div>
-          <!-- MCP placeholder (Phase 3 - always off) -->
-          <div class="privacy__row privacy__row--off">
-            <span class="privacy__led privacy__led--off"></span>
-            <div class="privacy__info">
-              <div class="privacy__info-name">MCP servers</div>
-              <div class="privacy__info-desc">Phase 3, coming soon.</div>
+            <!-- tool rows rendered from list_tools -->
+            <div id="privacy-tools-list"></div>
+            <!-- MCP placeholder (Phase 3 - always off) -->
+            <div class="privacy__row privacy__row--off">
+              <span class="privacy__led privacy__led--off"></span>
+              <div class="privacy__info">
+                <div class="privacy__info-name">MCP servers</div>
+                <div class="privacy__info-desc">Phase 3, coming soon.</div>
+              </div>
+              <span class="mono privacy__badge privacy__badge--off">SOON</span>
             </div>
-            <span class="mono privacy__badge privacy__badge--off">SOON</span>
           </div>
-        </div>
-        <span class="privacy__spacer"></span>
-        <div class="privacy__offline">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <path d="M2 22 22 2M17 6l4-1-1 4M7 18l-4 1 1-4"/>
-          </svg>
-          <div class="privacy__offline-text">
-            <div class="privacy__offline-name">Offline mode</div>
-            <div class="privacy__offline-desc">Cut every tool's internet.</div>
+          <span class="privacy__spacer"></span>
+          <div class="privacy__offline">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M2 22 22 2M17 6l4-1-1 4M7 18l-4 1 1-4"/>
+            </svg>
+            <div class="privacy__offline-text">
+              <div class="privacy__offline-name">Offline mode</div>
+              <div class="privacy__offline-desc">Cut every tool's internet.</div>
+            </div>
+            <div class="toggle toggle--off" id="offline-toggle"></div>
           </div>
-          <div class="toggle toggle--off" id="offline-toggle"></div>
         </div>
       </aside>
 
     </div><!-- .chat-layout -->
+
+    <!-- Model picker popup (Cmd+K / LCD click) -->
+    <div id="model-popup" class="model-popup" aria-hidden="true">
+      <div class="model-popup__header mono">select model</div>
+      <div id="model-popup-list" class="model-popup__list"></div>
+      <div class="model-popup__footer mono">esc to close</div>
+    </div>
+    <div id="model-popup-backdrop" class="model-popup-backdrop"></div>
 
     <script type="module" src="/src/chat.ts"></script>
   </body>
