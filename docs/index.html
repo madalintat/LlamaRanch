@@ -43,7 +43,7 @@
         <p class="hero-body">Every llama.cpp model on your machine, in one tray, behind a single private endpoint. No cloud. No keys. Nothing leaves the valley.</p>
         <div class="hero-actions">
           <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="btn-primary">Download</a>
-          <a href="#" class="btn-outline">Read the docs</a>
+          <a href="https://github.com/madalintat/LlamaRanch#readme" class="btn-outline">Read the docs</a>
         </div>
         <div class="hero-note">↳ macOS · Linux · Windows · runs only on your machine</div>
       </div>
@@ -70,6 +70,9 @@
       </div>
     </section>
 
+    <!-- ── dither divider ── -->
+    <div class="dither-divider" aria-hidden="true"></div>
+
     <!-- ── THE AGENT ── -->
     <section class="agent-section" id="agent">
       <div class="section-inner">
@@ -85,15 +88,28 @@
             <div class="agent-trace-line agent-trace-done"><span class="agent-trace-prompt">&gt;</span> done — reasoning locally</div>
           </div>
           <div class="agent-lead">Three notable changes landed this month.</div>
-          <div class="agent-tags">
-            <span class="agent-tag agent-tag-local">
-              <span class="agent-led agent-led-filled" aria-hidden="true"></span>
-              Model — LOCAL
-            </span>
-            <span class="agent-tag agent-tag-online">
-              <span class="agent-led agent-led-outline" aria-hidden="true"></span>
-              Web research — ONLINE
-            </span>
+          <div class="agent-sources">
+            <span class="agent-source-chip">1 github.com/ggml-org/llama.cpp</span>
+            <span class="agent-source-chip">2 server/README.md</span>
+            <span class="agent-source-chip">3 PR #9412</span>
+          </div>
+          <div class="agent-footer-row">
+            <div class="agent-tags">
+              <span class="agent-tag agent-tag-local">
+                <span class="agent-led agent-led-filled" aria-hidden="true"></span>
+                Model — LOCAL
+              </span>
+              <span class="agent-tag agent-tag-online">
+                <span class="agent-led agent-led-outline" aria-hidden="true"></span>
+                Web research — ONLINE
+              </span>
+            </div>
+            <div class="agent-toggle-wrap">
+              <span class="agent-toggle-label">Offline mode</span>
+              <span class="agent-toggle" role="switch" aria-checked="false" aria-label="Offline mode toggle">
+                <span class="agent-toggle-knob"></span>
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -118,6 +134,9 @@
       </div>
     </section>
 
+    <!-- ── dither divider ── -->
+    <div class="dither-divider" aria-hidden="true"></div>
+
     <!-- ── MODELS ── -->
     <section class="models-section" id="models">
       <div class="section-inner">
@@ -125,14 +144,19 @@
         <h2 class="section-headline">25+ curated models, hardware-fit.</h2>
         <p class="section-body">One-click download, or drop in any <code class="code-chip">.gguf</code>. LlamaRanch auto-fits layers and context to your available memory — no config required.</p>
       </div>
+      <div class="model-list-header">
+        <span class="model-tab model-tab-active">INSTALLED</span>
+        <span class="model-tab">DISCOVER</span>
+        <span class="model-count-chip">&#9645; 4 of 25+</span>
+      </div>
       <div class="model-list">
-        <div class="model-row">
+        <div class="model-row model-row-serving">
           <span class="model-num">01</span>
           <span class="model-name">Gemma 3 4B</span>
           <span class="model-meta">2.4 GB</span>
           <div class="model-tags">
-            <span class="model-tag">chat</span>
-            <span class="model-tag">vision</span>
+            <span class="model-tag">CHAT</span>
+            <span class="model-tag">VISION</span>
           </div>
           <span class="model-led model-led-filled" aria-hidden="true"></span>
         </div>
@@ -141,27 +165,27 @@
           <span class="model-name">Qwen3 8B</span>
           <span class="model-meta">5.0 GB</span>
           <div class="model-tags">
-            <span class="model-tag">chat</span>
+            <span class="model-tag">CHAT</span>
           </div>
-          <span class="model-led model-led-filled" aria-hidden="true"></span>
+          <span class="model-led model-led-outline" aria-hidden="true"></span>
         </div>
         <div class="model-row">
           <span class="model-num">03</span>
           <span class="model-name">Qwen2.5 Coder 14B</span>
           <span class="model-meta">9.0 GB</span>
           <div class="model-tags">
-            <span class="model-tag">code</span>
+            <span class="model-tag">CODE</span>
           </div>
-          <span class="model-led model-led-filled" aria-hidden="true"></span>
+          <span class="model-led model-led-outline" aria-hidden="true"></span>
         </div>
         <div class="model-row">
           <span class="model-num">04</span>
           <span class="model-name">Llama 3.2 3B</span>
           <span class="model-meta">1.9 GB</span>
           <div class="model-tags">
-            <span class="model-tag">chat</span>
+            <span class="model-tag">CHAT</span>
           </div>
-          <span class="model-led model-led-filled" aria-hidden="true"></span>
+          <span class="model-led model-led-outline" aria-hidden="true"></span>
         </div>
         <div class="model-more">
           Browse all models on <a href="https://huggingface.co/models?apps=llama.cpp&sort=trending" target="_blank" rel="noopener">Hugging Face ↗</a>
@@ -169,11 +193,27 @@
       </div>
     </section>
 
-    <!-- ── ENDPOINT code block ── -->
+    <!-- ── ENDPOINT terminal ── -->
     <div class="endpoint" id="install">
       <div class="endpoint-panel">
-        <div class="endpoint-comment"># point any client at one private endpoint</div>
-        <div><span class="endpoint-prompt">$</span> curl http://127.0.0.1:2276/v1/models<span class="endpoint-caret">&nbsp;</span></div>
+        <div class="endpoint-header">
+          <div class="endpoint-dots" aria-hidden="true">
+            <span class="endpoint-dot"></span>
+            <span class="endpoint-dot"></span>
+            <span class="endpoint-dot"></span>
+          </div>
+          <span class="endpoint-header-url">127.0.0.1:2276/v1</span>
+          <div class="endpoint-live">
+            <span class="endpoint-live-led" aria-hidden="true"></span>
+            <span class="endpoint-live-label">LIVE</span>
+          </div>
+        </div>
+        <div class="endpoint-body">
+          <div class="endpoint-comment"># point any client at one private endpoint</div>
+          <div class="endpoint-line"><span class="endpoint-prompt">$</span> curl http://127.0.0.1:2276/v1/models</div>
+          <div class="endpoint-response">{ "data": [ { "id": "gemma-3-4b", "object": "model" } ] }</div>
+          <div class="endpoint-line"><span class="endpoint-prompt">$</span> curl http://127.0.0.1:2276/v1/chat/completions<span class="endpoint-caret">&nbsp;</span></div>
+        </div>
       </div>
     </div>
 
@@ -196,23 +236,44 @@
       </div>
       <div class="download-grid">
         <div class="download-card">
-          <div class="download-card-num">01</div>
+          <div class="download-card-top">
+            <div class="download-card-num">01</div>
+            <span class="download-card-led" aria-hidden="true"></span>
+          </div>
           <h3 class="download-card-os">macOS</h3>
           <div class="download-card-meta">Apple Silicon</div>
+          <div class="download-card-tags">
+            <span class="download-tag">ARM64</span>
+            <span class="download-tag">GPU</span>
+          </div>
           <div class="download-card-formats">.dmg</div>
           <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="btn-primary download-btn" target="_blank" rel="noopener">Download</a>
         </div>
         <div class="download-card">
-          <div class="download-card-num">02</div>
+          <div class="download-card-top">
+            <div class="download-card-num">02</div>
+            <span class="download-card-led" aria-hidden="true"></span>
+          </div>
           <h3 class="download-card-os">Linux</h3>
           <div class="download-card-meta">x86_64 · arm64</div>
+          <div class="download-card-tags">
+            <span class="download-tag">X86_64</span>
+            <span class="download-tag">ARM64</span>
+          </div>
           <div class="download-card-formats">.deb · .AppImage · .rpm</div>
           <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="btn-primary download-btn" target="_blank" rel="noopener">Download</a>
         </div>
         <div class="download-card">
-          <div class="download-card-num">03</div>
+          <div class="download-card-top">
+            <div class="download-card-num">03</div>
+            <span class="download-card-led" aria-hidden="true"></span>
+          </div>
           <h3 class="download-card-os">Windows</h3>
           <div class="download-card-meta">x86_64 · Arm</div>
+          <div class="download-card-tags">
+            <span class="download-tag">X86_64</span>
+            <span class="download-tag">ARM</span>
+          </div>
           <div class="download-card-formats">.exe · .msi</div>
           <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="btn-primary download-btn" target="_blank" rel="noopener">Download</a>
         </div>
@@ -221,6 +282,7 @@
 
     <!-- ── FOOTER ── -->
     <footer class="site-footer">
+      <div class="footer-dither-band" aria-hidden="true"></div>
       <div class="footer-top">
         <div class="footer-brand">
           <a href="/" class="footer-logo" aria-label="LlamaRanch home">
