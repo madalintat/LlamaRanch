@@ -74,11 +74,11 @@ A warm, paper-and-ink interface with a live "dither" material, follow-OS light/d
 
 | OS | Arch | Installers |
 |----|------|-----------|
-| **macOS** | Apple Silicon | `.dmg`, signed |
-| **Linux** | x86_64, arm64 | `.deb`, `.AppImage`, `.rpm` |
+| **macOS** | Apple Silicon | `.dmg` |
+| **Linux** | x86_64, arm64 | `.deb`, `.AppImage` |
 | **Windows** | x86_64, Arm | `.exe`, `.msi` |
 
-All platforms are first-class. Signed releases, in-app auto-update.
+All platforms are first-class, with in-app auto-update. macOS builds are ad-hoc signed but not yet Apple-notarized — on first launch, right-click the app and choose **Open**.
 
 ## Install
 
@@ -133,7 +133,7 @@ LlamaRanch is 100% local by default. Every tool is tagged LOCAL or ONLINE in the
 
 ## Build from source
 
-Needs Rust, Node 18+, and a `llama-server` on your PATH. See the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS.
+Needs Rust, Node, and a `llama-server` on your PATH. See the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS (current Rust/Node minimums live there).
 
 ```sh
 git clone https://github.com/madalintat/LlamaRanch
