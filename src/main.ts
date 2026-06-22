@@ -528,6 +528,169 @@ function startPolling() {
   }, 1500) as unknown as number;
 }
 
+// ── ⌘K Command bar ─────────────────────────────────────────────────────────
+
+let cmdkQuery = "";
+let cmdkSelected = 0;
+
+function cmdkModels(): ModelView[] {
+  const q = cmdkQuery.trim().toLowerCase();
+  const sorted = [...models].sort((a, b) => {
+    const al = LOADED(a.status) ? 0 : 1, bl = LOADED(b.status) ? 0 : 1;
+    return al - bl || prettyName(a.id).localeCompare(prettyName(b.id));
+  });
+  if (!q) return sorted;
+  return sorted.filter((m) =>
+    prettyName(m.name || m.id).toLowerCase().includes(q) ||
+    m.id.toLowerCase().includes(q)
+  );
+}
+
+function renderCmdk() {
+  const list = $("cmdk-list");
+  const typed = document.getElementById("cmdk-typed")!;
+  const placeholder = document.getElementById("cmdk-placeholder")!;
+  const footerEp = document.getElementById("cmdk-footer-ep")!;
+  const sectionLabel = document.getElementById("cmdk-section-label")!;
+
+  typed.textContent = cmdkQuery;
+  placeholder.style.display = cmdkQuery ? "none" : "";
+  footerEp.textContent = "LOCAL · " + router.endpoint.replace(/^https?:\/\//, "");
+
+  const ms = cmdkModels();
+  const hasLoaded = ms.some((m) => LOADED(m.status));
+  sectionLabel.textContent = hasLoaded ? "loaded · ready now" : "available models";
+
+  list.innerHTML = "";
+  const isDark = document.documentElement.dataset.theme === "dark" ||
+    (!document.documentElement.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  if (cmdkSelected >= ms.length) cmdkSelected = Math.max(0, ms.length - 1);
+
+  ms.forEach((m, idx) => {
+    const loaded = LOADED(m.status);
+    const name = prettyName(m.name || m.id);
+    const num = String(idx + 1).padStart(2, "0");
+    const isSelected = idx === cmdkSelected;
+
+    const parts: string[] = [];
+    if (m.size_bytes > 0) parts.push(gb(m.size_bytes));
+    else if (m.need_download) parts.push("CLOUD");
+    if (m.placement) parts.push(m.placement.toUpperCase());
+    if (m.vision) parts.push("VISION");
+    const metaStr = parts.join(" / ");
+
+    const stateWord = loaded ? "serving" : m.need_download ? "get" : "load";
+    const stateClass = loaded ? "cmdk-row__state--serving" : "cmdk-row__state--action";
+
+    const row = document.createElement("div");
+    row.className = "cmdk-row" + (isSelected ? " cmdk-row--selected" : "");
+    row.setAttribute("role", "option");
+    row.setAttribute("aria-selected", isSelected ? "true" : "false");
+
+    // Scan canvas for serving/selected row
+    if (loaded || isSelected) {
+      const cv = document.createElement("canvas");
+      cv.className = "cmdk-row__scan";
+      cv.dataset.glyph = "scan";
+      cv.dataset.seed = String((idx + 1) * 3);
+      cv.dataset.cell = "2.4";
+      cv.dataset.color = isDark ? "#33312a" : "#ddd9cd";
+      row.appendChild(cv);
+    }
+
+    const pn = document.createElement("span");
+    pn.className = "partno";
+    pn.textContent = num;
+    row.appendChild(pn);
+
+    const body = document.createElement("div");
+    body.className = "cmdk-row__body";
+    const nameEl = document.createElement("div");
+    nameEl.className = "cmdk-row__name" + (loaded ? " cmdk-row__name--serving" : "");
+    nameEl.textContent = name;
+    const metaEl = document.createElement("div");
+    metaEl.className = "meta";
+    metaEl.textContent = metaStr;
+    body.appendChild(nameEl);
+    body.appendChild(metaEl);
+    row.appendChild(body);
+
+    const stateEl = document.createElement("span");
+    stateEl.className = `cmdk-row__state ${stateClass}`;
+    stateEl.textContent = stateWord;
+    row.appendChild(stateEl);
+
+    // ⏎ chip on selected row
+    if (isSelected) {
+      const chip = document.createElement("span");
+      chip.className = "cmdk-key";
+      chip.textContent = "⏎";
+      row.appendChild(chip);
+    }
+
+    row.addEventListener("mousedown", (e) => {
+      e.preventDefault(); // don't blur
+      cmdkSelected = idx;
+      cmdkActivate(ms);
+    });
+    row.addEventListener("mousemove", () => {
+      if (cmdkSelected !== idx) {
+        cmdkSelected = idx;
+        renderCmdk();
+      }
+    });
+
+    list.appendChild(row);
+  });
+
+  if (ms.length === 0) {
+    const empty = document.createElement("div");
+    empty.style.cssText = "padding:20px 18px; font-family:var(--mono); font-size:11px; color:var(--faint); text-align:center;";
+    empty.textContent = "no models match";
+    list.appendChild(empty);
+  }
+
+  dither?.refresh();
+}
+
+async function cmdkActivate(ms: ModelView[]) {
+  const m = ms[cmdkSelected];
+  if (!m) { closeCmdk(); return; }
+  if (LOADED(m.status)) {
+    // Already serving — just close
+    closeCmdk();
+    return;
+  }
+  closeCmdk();
+  try {
+    await invoke("load_model", { modelId: m.id });
+  } catch (err) { showError(String(err)); }
+  await refresh();
+  startPolling();
+}
+
+function openCmdk() {
+  cmdkQuery = "";
+  cmdkSelected = 0;
+  const overlay = $("cmdk-overlay");
+  overlay.classList.remove("hidden");
+  // Sync band color
+  updateHairlineColor();
+  renderCmdk();
+  // Scroll selected into view after paint
+  requestAnimationFrame(() => {
+    const selected = document.querySelector(".cmdk-row--selected");
+    selected?.scrollIntoView({ block: "nearest" });
+  });
+}
+
+function closeCmdk() {
+  $("cmdk-overlay").classList.add("hidden");
+  cmdkQuery = "";
+  cmdkSelected = 0;
+}
+
 async function init() {
   (document.getElementById("brand-mark") as HTMLImageElement).src = llamaMark;
 
@@ -564,6 +727,70 @@ async function init() {
       notify("LlamaRanch is still running", "Click the llama icon in your tray to reopen it.");
     }
   };
+
+  // ── ⌘K / Ctrl+K global keyboard handler ──────────────────────────────
+  document.addEventListener("keydown", (e) => {
+    const overlay = $("cmdk-overlay");
+    const isOpen = !overlay.classList.contains("hidden");
+
+    // Toggle open: ⌘K (macOS) or Ctrl+K (Linux/Windows)
+    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      e.preventDefault();
+      if (isOpen) closeCmdk();
+      else openCmdk();
+      return;
+    }
+
+    if (!isOpen) return;
+
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeCmdk();
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const ms = cmdkModels();
+      cmdkSelected = ms.length > 0 ? (cmdkSelected + 1) % ms.length : 0;
+      renderCmdk();
+      document.querySelector(".cmdk-row--selected")?.scrollIntoView({ block: "nearest" });
+      return;
+    }
+
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const ms = cmdkModels();
+      cmdkSelected = ms.length > 0 ? (cmdkSelected - 1 + ms.length) % ms.length : 0;
+      renderCmdk();
+      document.querySelector(".cmdk-row--selected")?.scrollIntoView({ block: "nearest" });
+      return;
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void cmdkActivate(cmdkModels());
+      return;
+    }
+
+    // Typing: update search query (printable chars + Backspace)
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      cmdkQuery = cmdkQuery.slice(0, -1);
+      cmdkSelected = 0;
+      renderCmdk();
+    } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      cmdkQuery += e.key;
+      cmdkSelected = 0;
+      renderCmdk();
+    }
+  });
+
+  // Close on backdrop click
+  $("cmdk-overlay").addEventListener("mousedown", (e) => {
+    if (e.target === $("cmdk-overlay")) closeCmdk();
+  });
 
   // Chat lives in its own window (defined in tauri.conf.json); just reveal it.
   $("chat-btn").onclick = async () => {
