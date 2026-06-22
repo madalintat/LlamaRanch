@@ -66,6 +66,17 @@ export class Dither {
     if (this._r) window.removeEventListener("resize", this._r);
   }
 
+  /** Re-scan and draw all data-glyph canvases. Call after dynamic DOM updates. */
+  refresh(): void {
+    this.renderStatic();
+    this.collectAnimated();
+    if (this.reduce) {
+      this.animated.forEach((cv) => this.draw(cv, 0));
+    } else {
+      this.animated.forEach((cv) => this.draw(cv, 0));
+    }
+  }
+
   private isAnimated(kind: string | undefined): boolean {
     return (
       kind === "scope" ||

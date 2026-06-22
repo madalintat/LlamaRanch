@@ -1,303 +1,512 @@
-/* LlamaRanch — "Dusk Ranch" glass popover (macOS vibrancy) */
-:root {
-  /* warm dusk glass over native hudWindow vibrancy */
-  --glass:   rgba(26, 22, 28, 0.50);
-  --ink:     rgba(255, 248, 242, 0.95);
-  --ink-2:   rgba(255, 248, 242, 0.55);
-  --ink-3:   rgba(255, 248, 242, 0.34);
-  --line:    rgba(255, 248, 242, 0.10);
-  --hover:   rgba(255, 248, 242, 0.06);
-  --chip:    rgba(255, 248, 242, 0.08);
+/* LlamaRanch Popover — brand skin.
+   Palette and component primitives live in src/brand/tokens.css and
+   src/brand/components.css (imported via src/brand/theme.ts in main.ts).
+   This file styles popover chrome + model rows only. */
 
-  --ember:   #e8995a; /* accent: actions, links */
-  --sage:    #86c06a; /* serving / loaded */
-  --amber:   #e0a33e; /* loading / partial */
-  --rose:    #e8736a; /* stop / error */
-  --cpu:     rgba(255, 248, 242, 0.45);
-
-  --ff: "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --ff-display: "Space Grotesk", var(--ff);
-  --ff-mono: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+/* ── CSS custom property for hairline canvas color (resolved in JS) ── */
+:root { --hairline-color: #c4c0b4; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --hairline-color: #3a382f; }
 }
+html[data-theme="dark"] { --hairline-color: #3a382f; }
+html[data-theme="light"] { --hairline-color: #c4c0b4; }
 
 * { box-sizing: border-box; }
 
 html, body {
   margin: 0;
   height: auto;
-  background: transparent;       /* let the window vibrancy show through */
+  background: transparent;
   color: var(--ink);
-  font-family: var(--ff);
+  font-family: var(--sans);
   font-size: 13px;
   -webkit-font-smoothing: antialiased;
   user-select: none;
   overflow: hidden;
 }
 
+/* ── App shell ─────────────────────────────────────────────────── */
 #app {
-  height: auto;                  /* hug content; JS resizes the window to fit */
+  height: auto;
   display: flex;
   flex-direction: column;
-  border-radius: 14px;           /* match windowEffects radius */
+  background: var(--panel);
+  border: 1px solid var(--line-4);
+  border-radius: 14px;
   overflow: hidden;
-  /* warm overlay + the signature: an ember sunset bloom along the top edge */
-  background:
-    radial-gradient(120% 90% at 50% -28%, rgba(232, 153, 90, 0.22), transparent 60%),
-    var(--glass);
-  border: 0.5px solid var(--line);
+  box-shadow: 0 26px 60px rgba(30,28,20,.22);
 }
 
 @keyframes fade { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
 #app { animation: fade 0.18s ease-out; }
 
-/* Per-platform panel backing. Default (above) suits macOS hudWindow vibrancy.
-   Windows acrylic reads lighter, so darken the overlay for readable text.
-   Linux has no native vibrancy → fully opaque dusk (clean, no see-through). */
+/* Per-platform: macOS vibrancy lets the panel bg show through (it's set by
+   the window effect). On Linux/Windows we keep the solid panel bg. */
+[data-os="linux"] #app,
 [data-os="windows"] #app {
-  background:
-    radial-gradient(120% 90% at 50% -28%, rgba(232, 153, 90, 0.20), transparent 60%),
-    rgba(24, 20, 26, 0.74);
-}
-[data-os="linux"] #app {
-  background:
-    radial-gradient(120% 90% at 50% -28%, rgba(232, 153, 90, 0.16), transparent 60%),
-    #18141a;
+  box-shadow: 0 22px 50px rgba(30,28,20,.30);
 }
 
-/* ---------- header ---------- */
+/* ── Header ────────────────────────────────────────────────────── */
 .head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 13px 12px 6px 15px;
+  gap: 10px;
+  padding: 14px 15px 12px;
+  flex: none;
 }
-.head__spacer { flex: 1; align-self: stretch; }
 
-/* shared thin scrollbar for scrollable panes */
-.models::-webkit-scrollbar, .settings-body::-webkit-scrollbar { width: 8px; }
-.models::-webkit-scrollbar-thumb, .settings-body::-webkit-scrollbar-thumb {
-  background: rgba(255, 248, 242, 0.16); border-radius: 5px;
-  border: 2px solid transparent; background-clip: content-box;
+.brand__mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: block;
+  flex: none;
+  pointer-events: none;
 }
-.brand { display: flex; align-items: center; gap: 9px; }
-.brand__mark, .brand__name { pointer-events: none; }
-.brand__mark { width: 22px; height: 22px; flex: none; border-radius: 6px; }
-.brand__name { font-family: var(--ff-display); font-size: 15px; font-weight: 500; letter-spacing: -0.01em; color: var(--ink); }
-.brand__name b { font-weight: 700; }
 
-.head__right { display: flex; align-items: center; gap: 6px; }
+.brand__name {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  pointer-events: none;
+}
+.brand__name b { font-weight: 400; } /* "Ranch" is the lighter weight per design */
+
+.head__spacer { flex: 1; }
+
+/* Running status — led--sm + mono label */
+.head__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  max-width: 160px;
+}
+.head__status-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+/* Status states — only the label color changes; the LED is always led--sm */
+.head__status--error   .head__status-label { color: var(--ink); }
+.head__status--starting .head__status-label { color: var(--muted); }
+.head__status--running  .head__status-label { color: var(--ink); }
+
+/* The LED pulse is already in tokens.css (@keyframes ledPulse).
+   When starting, dim the LED with opacity; when error, keep solid. */
+.head__status--starting .led--sm { opacity: 0.5; }
+.head__status--error    .led--sm { background: var(--ink); animation: none; }
+
 .head__close {
-  border: 0; background: none; cursor: pointer;
-  width: 24px; height: 24px; border-radius: 7px;
-  font-size: 18px; line-height: 1; color: var(--ink-3);
-  display: flex; align-items: center; justify-content: center;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--faint);
+  font-size: 16px;
+  line-height: 1;
+  margin-left: 2px;
+  border-radius: 6px;
+  flex: none;
 }
-.head__close:hover { background: var(--hover); color: var(--ink); }
+.head__close:hover { color: var(--ink); background: var(--line-3); }
 
-.status {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11.5px; color: var(--ink-2); font-weight: 500;
-  max-width: 150px;
+/* ── Hairline ──────────────────────────────────────────────────── */
+/* .hairline is defined in components.css — add popover-specific borders */
+.hairline {
+  border-top: 1px solid var(--line-2);
+  border-bottom: 1px solid var(--line-2);
 }
-.status__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.status__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: none; box-shadow: 0 0 0 0 transparent; }
-.status--running { color: var(--ink); }
-.status--running .status__dot { background: var(--sage); box-shadow: 0 0 8px rgba(134, 192, 106, 0.7); }
-.status--starting { color: var(--amber); }
-.status--starting .status__dot { background: var(--amber); animation: blink 1s infinite; }
-.status--error { color: var(--rose); }
-.status--error .status__dot { background: var(--rose); }
-@keyframes blink { 50% { opacity: 0.3; } }
 
-/* ---------- update banner ---------- */
+/* ── Endpoint row ──────────────────────────────────────────────── */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 15px;
+  flex: none;
+}
+
+.bar__copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+/* .endpoint is defined in components.css — overrides for popover context */
+.bar__copy .endpoint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+}
+
+.bar__copy .ubtn { flex: none; }
+.bar__copy:hover .ubtn { opacity: 1; }
+
+/* ── Update banner ─────────────────────────────────────────────── */
 .update {
-  display: flex; align-items: center; gap: 10px;
-  margin: 4px 12px 6px; padding: 8px 11px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 12px 6px;
+  padding: 8px 11px;
   border-radius: 9px;
-  background: rgba(232, 153, 90, 0.12);
-  border: 0.5px solid rgba(232, 153, 90, 0.3);
+  background: var(--line-3);
+  border: 1px solid var(--line-2);
   font-size: 12px;
 }
 .update__text { flex: 1; color: var(--ink); }
 .update__btn {
-  border: 0; background: var(--ember); color: #1a1612;
-  font-weight: 600; font-size: 12px; padding: 5px 12px; border-radius: 7px; cursor: pointer;
+  border: none;
+  background: var(--inv-bg);
+  color: var(--inv-ink);
+  font-weight: 600;
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--sans);
 }
 .update__btn:disabled { opacity: 0.6; cursor: default; }
-.update__dismiss { border: 0; background: none; color: var(--ink-2); font-size: 12px; cursor: pointer; padding: 5px 6px; }
+.update__dismiss {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 5px 6px;
+  font-family: var(--sans);
+}
 
-/* ---------- endpoint + webui bar ---------- */
-.bar {
-  display: flex; align-items: center; gap: 10px;
-  padding: 0 15px 8px;
+/* ── Tabs ──────────────────────────────────────────────────────── */
+/* .tabs / .tab / .tab--active are defined in components.css.
+   Popover needs padding on the tabs container. */
+.tabs {
+  padding: 0 15px;
+}
+
+/* ── Model list container ──────────────────────────────────────── */
+.models {
+  max-height: 360px;
+  overflow-y: auto;
   flex: none;
 }
-.endpoint {
-  flex: 1; min-width: 0;
-  display: flex; align-items: baseline; gap: 7px;
-  padding: 0; border: 0; background: none; cursor: pointer;
-  font-family: var(--ff-mono); font-size: 11.5px; color: var(--ink-2);
+.models::-webkit-scrollbar { width: 6px; }
+.models::-webkit-scrollbar-thumb {
+  background: var(--line-4);
+  border-radius: 3px;
 }
-.endpoint__url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); letter-spacing: -0.01em; }
-.endpoint__copy {
-  flex: none; font-family: var(--ff); font-size: 10.5px; font-weight: 600;
-  color: var(--ember); opacity: 0.85;
-}
-.endpoint:hover .endpoint__copy { opacity: 1; }
-.btn--web {
-  flex: none; border: 0; background: none; cursor: pointer;
-  font-family: var(--ff); font-size: 12px; font-weight: 600; color: var(--ember);
-  padding: 0;
-}
-.btn--web:hover { opacity: 0.8; }
-.btn--web:disabled { color: var(--ink-3); cursor: default; }
 
-/* ---------- generic buttons ---------- */
-.btn {
-  font-family: var(--ff); font-size: 12px; font-weight: 600;
-  border: 0.5px solid var(--line); background: var(--chip); color: var(--ink);
-  border-radius: 8px; padding: 5px 13px; cursor: pointer;
-  transition: background 0.12s, transform 0.06s, border-color 0.12s;
+/* ── Installed: model rows ─────────────────────────────────────── */
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--line-3);
+  overflow: hidden;
+  cursor: default;
 }
-.btn:hover { background: rgba(255, 248, 242, 0.13); }
-.btn:active { transform: scale(0.97); }
-.btn--quiet { background: none; border-color: transparent; color: var(--ink-2); font-weight: 500; }
-.btn--quiet:hover { background: var(--hover); color: var(--ink); }
+.row:last-of-type { border-bottom: none; }
 
-/* ---------- tabs ---------- */
-.tabs { display: flex; gap: 2px; padding: 0 13px 4px; }
-.tab {
-  border: 0; background: none; cursor: pointer;
-  font-family: var(--ff-display); font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
-  color: var(--ink-3); text-transform: uppercase;
-  padding: 4px 9px; border-radius: 7px;
+/* "scan" dither canvas behind serving row — added by JS as absolute */
+.row--serving { /* overflow:hidden already on .row */ }
+
+.row__body {
+  flex: 1;
+  min-width: 0;
+  position: relative; /* above the scan canvas */
 }
-.tab:hover { color: var(--ink-2); }
-.tab.is-active { color: var(--ember); background: rgba(232, 153, 90, 0.10); }
 
-/* ---------- model list ---------- */
-.models { max-height: 360px; overflow-y: auto; padding: 2px 7px 6px; }
+.row__name {
+  font-family: var(--sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.row__name--serving { font-weight: 600; }
 
-.card {
-  display: flex; align-items: center; gap: 10px;
-  padding: 7px 8px;
-  border-radius: 10px;
+/* .meta defined in components.css; just needs margin-top */
+.row__body .meta { margin-top: 3px; }
+
+/* Action ubtn — position:relative so it sits above the scan canvas */
+.row__action {
+  position: relative;
+  flex: none;
+}
+
+/* LED — position:relative above canvas */
+.row__led {
+  position: relative;
+  flex: none;
+}
+
+/* Scan canvas — absolute fill behind serving row */
+.row__scan {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+/* Config toggle ubtn — revealed on hover */
+.row__cfg-btn {
+  position: relative;
+  flex: none;
+  opacity: 0;
+  transition: opacity .12s;
+}
+.row:hover .row__cfg-btn { opacity: 1; }
+
+/* Empty state */
+.empty {
+  padding: 34px 16px;
+  text-align: center;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .04em;
+}
+
+/* ── Config expander ───────────────────────────────────────────── */
+.cfg-expander {
+  margin: 0 15px 12px;
+  padding: 12px;
+  border-radius: 9px;
+  border: 1px solid var(--line-2);
+  background: var(--panel-2);
+}
+
+.cfg-expander__label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 8px;
+}
+
+.cfg-expander__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.cfg-expander__pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  border: 1px solid var(--line-4);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 5px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: .04em;
+}
+.cfg-expander__pill--on {
+  background: var(--inv-bg);
+  color: var(--inv-ink);
+  border-color: transparent;
+}
+
+.cfg-expander__sub {
+  font-size: 9px;
+  opacity: 0.65;
+}
+
+.cfg-expander__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.cfg-expander__field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+.cfg-expander__field input {
+  width: 64px;
+  padding: 3px 6px;
+  border: 1px solid var(--field-line);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+  outline: none;
+}
+.cfg-expander__field input:focus {
+  border-color: var(--line-4);
+}
+
+.cfg-expander__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ── Discover rows ─────────────────────────────────────────────── */
+.disc-row {
+  padding: 14px 15px;
+  border-bottom: 1px solid var(--line-3);
+}
+.disc-row:last-of-type { border-bottom: none; }
+
+.disc-row__head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.disc-row__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.disc-row__name {
+  font-family: var(--sans);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.disc-row__name--installed { color: var(--faint); font-weight: 500; }
+
+.disc-row__body .meta { margin-top: 2px; }
+
+/* Dithered download progress track */
+.progress-track {
+  margin-top: 11px;
+  height: 10px;
+  border: 1px solid var(--line-4);
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--panel-2);
   position: relative;
 }
-.card:hover { background: var(--hover); }
 
-/* per-model "alive" glyph — a seeded constellation of breathing dots on a
-   <canvas>, generated in glyph.ts (unique to each model id). */
-.card__logo {
-  flex: none; overflow: hidden;
-  width: 30px; height: 30px; border-radius: 9px;
-  background: radial-gradient(circle at 50% 120%, #1d1813, #131009);
-  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+.progress-fill {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  transition: width .2s;
 }
-.card__logo canvas, canvas.card__logo { display: block; width: 30px; height: 30px; }
-.card.is-serving .card__logo { box-shadow: inset 0 0 0 1px var(--sage), 0 0 10px rgba(134, 192, 106, 0.5); }
 
-.card__body { flex: 1; min-width: 0; }
-.card__name {
-  font-size: 12.5px; font-weight: 500; color: var(--ink);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.progress-fill canvas {
+  display: block;
+  width: 100%;
+  height: 10px;
 }
-.card__meta {
-  display: flex; align-items: center; gap: 6px; margin-top: 2px;
-  font-size: 11px; color: var(--ink-2);
+
+.disc-row__pct {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink);
+  flex: none;
 }
-.card__size { font-variant-numeric: tabular-nums; }
-.card__meta .dot { color: var(--ink-3); }
-.tag { font-weight: 600; }
-.tag--GPU { color: var(--sage); }
-.tag--Partial { color: var(--amber); }
-.tag--Hybrid { color: var(--cpu); }
-.tag--vision { color: var(--ember); }
 
-.card.is-serving { background: rgba(134, 192, 106, 0.10); }
-
-/* per-row action icons (configure / delete / start-stop) */
-.card__actions { display: flex; align-items: center; gap: 3px; flex: none; }
-.act {
-  width: 30px; height: 30px; flex: none; padding: 0;
-  display: flex; align-items: center; justify-content: center;
-  border: 0; background: none; cursor: pointer; color: var(--ink-2);
-  border-radius: 9px; transition: background 0.12s, color 0.12s, transform 0.06s, opacity 0.12s;
-}
-.act svg { width: 17px; height: 17px; }
-.act:hover { background: var(--hover); color: var(--ink); }
-.act:active { transform: scale(0.9); }
-.act:disabled { cursor: default; opacity: 0.5; }
-.act--cfg, .act--del { opacity: 0.45; }
-.card:hover .act--cfg, .card:hover .act--del, .act:focus-visible { opacity: 1; }
-.act--del:hover { color: var(--rose); background: rgba(232, 115, 106, 0.13); }
-.act--primary { color: var(--ember); background: rgba(232, 153, 90, 0.13); }
-.act--primary:hover { background: rgba(232, 153, 90, 0.24); color: var(--ember); }
-.act--primary.is-stop { color: var(--sage); background: rgba(134, 192, 106, 0.13); }
-.act--primary.is-stop:hover { background: rgba(134, 192, 106, 0.24); }
-
-.empty { padding: 34px 16px; text-align: center; color: var(--ink-3); font-size: 12px; }
-
-/* discover / catalog */
-.card__dl-btn { flex: none; min-width: 56px; text-align: center; }
-.card--cat { align-items: flex-start; }
-.card__desc { font-size: 11px; color: var(--ink-2); margin-top: 2px; line-height: 1.4; }
-.progress { height: 4px; border-radius: 3px; background: rgba(255, 248, 242, 0.12); margin-top: 7px; overflow: hidden; }
-.progress__fill { height: 100%; background: var(--ember); transition: width 0.2s; }
-.iconbtn {
-  border: 0; background: none; cursor: pointer; color: var(--ink-3);
-  font-family: var(--ff); font-size: 11px; padding: 4px 6px; border-radius: 6px;
-}
-.iconbtn:hover { color: var(--rose); background: rgba(232, 115, 106, 0.1); }
-
-/* ---------- footer ---------- */
-.foot {
-  display: flex; align-items: center; gap: 6px;
-  padding: 7px 13px;
-  border-top: 0.5px solid var(--line);
-}
-.foot__ver { font-family: var(--ff-mono); font-size: 10.5px; color: var(--ink-3); }
-.foot__spacer { flex: 1; }
-
-/* ---------- error ---------- */
+/* ── Error banner ──────────────────────────────────────────────── */
 .error {
-  margin: 0 13px 8px; padding: 8px 10px; border-radius: 9px;
-  background: rgba(232, 115, 106, 0.12); color: #f0b0aa;
-  font-family: var(--ff-mono); font-size: 10.5px;
-  white-space: pre-wrap; max-height: 110px; overflow: auto;
+  margin: 0 13px 8px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--line-3);
+  border: 1px solid var(--line-2);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  white-space: pre-wrap;
+  max-height: 110px;
+  overflow: auto;
 }
+
 .hidden { display: none; }
 
-/* ---------- settings window ---------- */
+/* ── Footer ────────────────────────────────────────────────────── */
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 15px;
+  border-top: 1px solid var(--line-2);
+  background: var(--foot);
+  flex: none;
+}
+
+.foot__ver {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.foot__spacer { flex: 1; }
+
+/* ── Settings window (unchanged, keep for settings.html) ───────── */
 .settings-body { padding: 6px 15px 8px; overflow-y: auto; max-height: 480px; }
-.field { display: block; font-size: 11.5px; color: var(--ink-2); margin-bottom: 11px; }
-.field input {
+.field-group { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 11px; }
+.field-group input {
   display: block; width: 100%; margin-top: 4px; padding: 7px 10px;
-  border: 0.5px solid var(--line); border-radius: 8px;
-  background: rgba(255, 248, 242, 0.06); color: var(--ink); font-family: var(--ff-mono); font-size: 12px;
+  border: 1px solid var(--field-line); border-radius: 7px;
+  background: var(--panel-2); color: var(--ink); font-family: var(--mono); font-size: 12px;
+  outline: none;
 }
-.field input::placeholder { color: var(--ink-3); }
-.field input:focus, .btn:focus-visible, .endpoint:focus-visible, .btn--web:focus-visible, .tab:focus-visible {
-  outline: 2px solid var(--ember); outline-offset: 1px; border-color: transparent;
+.field-group input::placeholder { color: var(--faint); }
+.field-group input:focus { border-color: var(--line-4); }
+.check {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; margin: 6px 0 14px; color: var(--ink);
 }
-.check { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 6px 0 14px; color: var(--ink); }
-.check input { accent-color: var(--ember); }
-.btn--primary { background: var(--ember); color: #1a1612; border-color: transparent; }
-.btn--primary:hover { background: #efa56b; }
+.check input { accent-color: var(--ink); }
+
+/* Focus rings */
+button:focus-visible {
+  outline: 1.5px solid var(--ink);
+  outline-offset: 2px;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  #app, .status--starting .status__dot { animation: none; }
-  .card, .btn { transition: none; }
+  #app { animation: none; }
 }
-
-/* ---------- per-model config expander ---------- */
-.cfg { margin: 0 8px 8px; padding: 10px; border-radius: 10px; background: rgba(255,248,242,0.05); border: 0.5px solid var(--line); }
-.cfg__label { font-size: 10.5px; color: var(--ink-2); margin-bottom: 6px; }
-.cfg__pills { display: flex; flex-wrap: wrap; gap: 4px; }
-.cfg__pill { display: flex; flex-direction: column; align-items: center; gap: 1px; border: 0.5px solid var(--line); background: var(--chip); color: var(--ink-2); border-radius: 7px; padding: 4px 8px; cursor: pointer; font-size: 11px; font-weight: 600; }
-.cfg__pill.is-on { background: rgba(232,153,90,0.16); color: var(--ember); border-color: transparent; }
-.cfg__sub { font-size: 9px; font-weight: 400; opacity: 0.75; }
-.cfg__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
-.cfg__field { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 11px; color: var(--ink-2); }
-.cfg__field input { width: 64px; padding: 3px 6px; border: 0.5px solid var(--line); border-radius: 6px; background: rgba(255,248,242,0.06); color: var(--ink); font-family: var(--ff-mono); font-size: 11px; }
-.cfg__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }

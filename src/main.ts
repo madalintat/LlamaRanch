@@ -11,14 +11,9 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
-import "@fontsource/inter/400.css";
-import "@fontsource/inter/500.css";
-import "@fontsource/inter/600.css";
-import "@fontsource/space-grotesk/500.css";
-import "@fontsource/space-grotesk/600.css";
-import "@fontsource/space-grotesk/700.css";
+import "./brand/theme";
 import "./styles.css";
-import { addGlyph, resetGlyphs } from "./glyph";
+import { mountDither, Dither } from "./dither";
 import llamaMark from "./assets/llama.svg";
 import { tagOS, fitWindow } from "./platform";
 
@@ -37,8 +32,6 @@ type RouterStatus = { status: string; endpoint: string };
 
 const $ = (id: string) => document.getElementById(id)!;
 const gb = (n: number) => (n / 1e9).toFixed(1) + " GB";
-const esc = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const LOADED = (s: string) => s === "loaded" || s === "sleeping";
 const BUSY = (s: string) => s === "loading" || s === "downloading";
 
@@ -56,14 +49,6 @@ type ModelInfo = { native_ctx: number; file_bytes: number; kv_per_token: number;
 const CTX_TIERS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
 const tierLabel = (n: number) => (n % 1024 === 0 ? `${n / 1024}k` : String(n));
 
-const ICON = {
-  play: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 6.2c0-.82.9-1.32 1.59-.88l9 5.8a1.05 1.05 0 0 1 0 1.76l-9 5.8c-.7.44-1.59-.06-1.59-.88V6.2z"/></svg>`,
-  stop: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="2.6"/></svg>`,
-  get: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10m0 0 3.5-3.5M12 14l-3.5-3.5M5 19h14"/></svg>`,
-  gear: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.5 7.5 0 0 0 0-2l1.7-1.3-1.8-3.1-2 .8a7.6 7.6 0 0 0-1.7-1l-.3-2.1H9.7l-.3 2.1a7.6 7.6 0 0 0-1.7 1l-2-.8-1.8 3.1L5.6 11a7.5 7.5 0 0 0 0 2l-1.7 1.3 1.8 3.1 2-.8c.5.4 1.1.7 1.7 1l.3 2.1h3.6l.3-2.1c.6-.3 1.2-.6 1.7-1l2 .8 1.8-3.1L19.4 13z"/></svg>`,
-  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 7V5h4v2M6 7l1 13h10l1-13"/></svg>`,
-};
-
 // which model's expander is open (survives re-renders so polling won't collapse it)
 let openCfg: string | null = null;
 
@@ -74,34 +59,46 @@ let view: "installed" | "discover" = "installed";
 const dl = new Map<string, { done: number; total: number }>();
 let pollTimer: number | undefined;
 
+// Module-level dither instance — set in init() before first render.
+let dither: Dither;
+
+/** Sync the hairline band canvas data-color to the resolved CSS var. */
+function updateHairlineColor() {
+  const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const theme = document.documentElement.dataset.theme;
+  const isDark = theme === "dark" || (theme !== "light" && dark);
+  const color = isDark ? "#3a382f" : "#c4c0b4";
+  document.querySelectorAll<HTMLCanvasElement>('canvas[data-glyph="band"][data-hairline]').forEach((cv) => {
+    cv.dataset.color = color;
+  });
+  dither?.refresh();
+}
+
 function setHeader() {
   const el = $("status");
   const label = $("status-label");
-  el.className = "status";
+  el.className = "head__status";
   if (router.status.startsWith("error")) {
-    el.classList.add("status--error");
-    label.textContent = "router error";
+    el.classList.add("head__status--error");
+    label.textContent = "error";
     return;
   }
   if (router.status !== "running") {
-    el.classList.add("status--starting");
-    label.textContent = "starting router...";
+    el.classList.add("head__status--starting");
+    label.textContent = "starting";
     return;
   }
   const loaded = models.filter((m) => LOADED(m.status));
   const loading = models.find((m) => BUSY(m.status));
+  el.classList.add("head__status--running");
   if (loaded.length > 1) {
-    el.classList.add("status--running");
-    label.textContent = `serving ${loaded.length} models`;
+    label.textContent = `serving ${loaded.length}`;
   } else if (loaded.length === 1) {
-    el.classList.add("status--running");
     label.textContent = `serving ${prettyName(loaded[0].name || loaded[0].id)}`;
   } else if (loading) {
-    el.classList.add("status--starting");
-    label.textContent = "loading…";
+    label.textContent = "loading";
   } else {
-    el.classList.add("status--running");
-    label.textContent = "ready";
+    label.textContent = "running";
   }
 }
 
@@ -110,178 +107,244 @@ function renderInstalled() {
   host.innerHTML = "";
   if (models.length === 0) {
     const msg = router.status === "running"
-      ? "No models yet. Try the Discover tab."
-      : "Starting router…";
+      ? "no models yet — try discover"
+      : "starting router…";
     host.innerHTML = `<div class="empty">${msg}</div>`;
     return;
   }
 
-  // One flat list — loaded models first, then alphabetical. No category groups.
   const list = [...models].sort((a, b) => {
     const al = LOADED(a.status) ? 0 : 1, bl = LOADED(b.status) ? 0 : 1;
     return al - bl || prettyName(a.id).localeCompare(prettyName(b.id));
   });
 
-  for (const m of list) {
+  list.forEach((m, idx) => {
     const loaded = LOADED(m.status);
     const busy = BUSY(m.status);
     const name = prettyName(m.name || m.id);
-    const card = document.createElement("div");
-    card.className = "card" + (loaded ? " is-serving" : "");
-    card.dataset.placement = m.placement;
+    const num = String(idx + 1).padStart(2, "0");
 
-    const visionTag = m.vision ? `<span class="tag tag--vision">vision</span>` : "";
-    // Size when known (local file or resolved HF cache); only a model the router
-    // must still fetch (need_download) reads as "cloud".
-    const sizeCell = m.size_bytes > 0
-      ? `<span class="card__size">${gb(m.size_bytes)}</span>`
-      : `<span class="card__size">${m.need_download ? "cloud" : "ready"}</span>`;
-    const placementTag = m.placement
-      ? `<span class="dot">&middot;</span><span class="tag tag--${m.placement}">${m.placement}</span>`
-      : "";
+    // Build .meta string: "2.4 GB / GPU / VISION"
+    const parts: string[] = [];
+    if (m.size_bytes > 0) parts.push(gb(m.size_bytes));
+    else if (m.need_download) parts.push("CLOUD");
+    if (m.placement) parts.push(m.placement.toUpperCase());
+    if (m.vision) parts.push("VISION");
+    const metaStr = parts.join(" / ");
 
-    card.innerHTML = `
-      <canvas class="card__logo"></canvas>
-      <div class="card__body">
-        <div class="card__name" title="${esc(name)}">${esc(name)}</div>
-        <div class="card__meta">
-          ${sizeCell}
-          ${placementTag}
-          ${visionTag}
-        </div>
-      </div>`;
+    const row = document.createElement("div");
+    row.className = "row" + (loaded ? " row--serving" : "");
 
-    const downloaded = m.local || !m.need_download;
-    const actions = document.createElement("div");
-    actions.className = "card__actions";
-
-    const iconBtn = (cls: string, svg: string, title: string, onclick: (e: MouseEvent) => void) => {
-      const b = document.createElement("button");
-      b.className = "act " + cls;
-      b.innerHTML = svg;
-      b.title = title;
-      b.onclick = onclick;
-      return b;
-    };
-
-    if (downloaded) {
-      actions.appendChild(
-        iconBtn("act--cfg", ICON.gear, "Configure", (e) => {
-          e.stopPropagation();
-          openCfg = openCfg === m.id ? null : m.id;
-          render();
-        }),
-      );
-      actions.appendChild(
-        iconBtn("act--del", ICON.trash, "Delete", async () => {
-          const msg = m.local
-            ? `Delete ${name} from disk?`
-            : `Delete ${name}? This removes it from the shared cache (also used by the Llama app).`;
-          if (!confirm(msg)) return;
-          try { await invoke("delete_model", { modelId: m.id }); } catch (err) { showError(String(err)); }
-          if (openCfg === m.id) openCfg = null;
-          await refresh();
-        }),
-      );
+    // Scan canvas behind serving row
+    if (loaded) {
+      const cv = document.createElement("canvas");
+      cv.className = "row__scan";
+      cv.dataset.glyph = "scan";
+      cv.dataset.seed = String((idx + 1) * 3);
+      cv.dataset.cell = "2.4";
+      cv.dataset.color = document.documentElement.dataset.theme === "dark" ||
+        (!document.documentElement.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches)
+        ? "#33312a" : "#ddd9cd";
+      row.appendChild(cv);
     }
 
-    const primary = iconBtn(
-      "act--primary" + (loaded ? " is-stop" : "") + (busy ? " is-busy" : ""),
-      loaded ? ICON.stop : m.need_download ? ICON.get : ICON.play,
-      loaded ? "Stop" : m.need_download ? "Get & load" : "Load",
-      async () => {
-        try {
-          if (loaded) await invoke("unload_model", { modelId: m.id });
-          else await invoke("load_model", { modelId: m.id });
-        } catch (err) { showError(String(err)); }
-        await refresh();
-        startPolling();
-      },
-    );
-    (primary as HTMLButtonElement).disabled = busy;
-    actions.appendChild(primary);
-    card.appendChild(actions);
+    // Part number
+    const pn = document.createElement("span");
+    pn.className = "partno";
+    pn.textContent = num;
+    row.appendChild(pn);
 
-    host.appendChild(card);
-    addGlyph(card.querySelector(".card__logo") as HTMLCanvasElement, m.id);
-    // Open config expander (any downloaded model); filled async after render.
+    // Body
+    const body = document.createElement("div");
+    body.className = "row__body";
+    const nameEl = document.createElement("div");
+    nameEl.className = "row__name" + (loaded ? " row__name--serving" : "");
+    nameEl.title = name;
+    nameEl.textContent = name;
+    const metaEl = document.createElement("div");
+    metaEl.className = "meta";
+    metaEl.textContent = metaStr;
+    body.appendChild(nameEl);
+    body.appendChild(metaEl);
+    row.appendChild(body);
+
+    // Cfg toggle (hover-revealed, only for downloaded models)
+    const downloaded = m.local || !m.need_download;
+    if (downloaded) {
+      const cfgBtn = document.createElement("button");
+      cfgBtn.className = "ubtn row__cfg-btn";
+      cfgBtn.textContent = "cfg";
+      cfgBtn.title = "Configure";
+      cfgBtn.onclick = (e) => {
+        e.stopPropagation();
+        openCfg = openCfg === m.id ? null : m.id;
+        render();
+      };
+      row.appendChild(cfgBtn);
+    }
+
+    // Primary action ubtn
+    const actionLabel = loaded ? "stop" : m.need_download ? "get" : "load";
+    const actionBtn = document.createElement("button");
+    actionBtn.className = "ubtn row__action";
+    actionBtn.textContent = actionLabel;
+    actionBtn.disabled = busy;
+    actionBtn.onclick = async () => {
+      try {
+        if (loaded) await invoke("unload_model", { modelId: m.id });
+        else await invoke("load_model", { modelId: m.id });
+      } catch (err) { showError(String(err)); }
+      await refresh();
+      startPolling();
+    };
+    row.appendChild(actionBtn);
+
+    // Square LED
+    const led = document.createElement("span");
+    led.className = "led row__led " + (
+      loaded ? "led--on" : m.need_download ? "led--cloud" : "led--idle"
+    );
+    row.appendChild(led);
+
+    host.appendChild(row);
+
+    // Config expander immediately after this row
     if (downloaded && openCfg === m.id) {
       const ph = document.createElement("div");
-      ph.className = "cfg";
+      ph.className = "cfg-expander";
       ph.id = "cfg-open";
-      ph.innerHTML = `<div class="cfg__label">Loading…</div>`;
+      ph.innerHTML = `<div class="cfg-expander__label">Loading…</div>`;
       host.appendChild(ph);
     }
-  }
+  });
+
+  dither?.refresh();
 }
 
 function renderDiscover() {
   const host = $("models");
   host.innerHTML = "";
-  for (const e of catalog) {
-    const card = document.createElement("div");
-    card.className = "card card--cat";
+
+  catalog.forEach((e, idx) => {
+    const num = String(idx + 1).padStart(2, "0");
     const prog = dl.get(e.id);
-    card.innerHTML = `
-      <div class="card__body">
-        <div class="card__name">${e.name}</div>
-        <div class="card__desc">${e.description}</div>
-        <div class="card__meta"><span class="card__size">~${e.approx_gb.toFixed(1)} GB</span></div>
-        ${prog ? `<div class="progress"><div class="progress__fill" style="width:${prog.total ? Math.round((prog.done / prog.total) * 100) : 0}%"></div></div>` : ""}
-      </div>`;
-    const btn = document.createElement("button");
-    btn.className = "btn card__dl-btn";
+
+    const row = document.createElement("div");
+    row.className = "disc-row";
+
+    const head = document.createElement("div");
+    head.className = "disc-row__head";
+
+    const pn = document.createElement("span");
+    pn.className = "partno";
+    pn.textContent = num;
+    head.appendChild(pn);
+
+    const body = document.createElement("div");
+    body.className = "disc-row__body";
+    const nameEl = document.createElement("div");
+    nameEl.className = "disc-row__name" + (e.installed ? " disc-row__name--installed" : "");
+    nameEl.textContent = e.name;
+    const metaEl = document.createElement("div");
+    metaEl.className = "meta";
+    metaEl.textContent = `~${e.approx_gb.toFixed(1)} GB · ${e.description || e.group}`;
+    body.appendChild(nameEl);
+    body.appendChild(metaEl);
+    head.appendChild(body);
+
+    // Action
+    const pct = prog && prog.total ? Math.round((prog.done / prog.total) * 100) : 0;
     if (e.installed) {
-      btn.textContent = "Installed";
-      btn.disabled = true;
+      const done = document.createElement("span");
+      done.className = "ubtn";
+      done.textContent = "done ▣";
+      head.appendChild(done);
     } else if (prog) {
-      btn.textContent = prog.total ? `${Math.round((prog.done / prog.total) * 100)}%` : "...";
-      btn.classList.add("is-busy");
-      btn.disabled = true;
+      const pctEl = document.createElement("span");
+      pctEl.className = "disc-row__pct";
+      pctEl.textContent = prog.total ? `${pct}%` : "…";
+      head.appendChild(pctEl);
       const cancel = document.createElement("button");
-      cancel.className = "iconbtn";
-      cancel.textContent = "Cancel";
+      cancel.className = "ubtn";
+      cancel.textContent = "cancel";
       cancel.onclick = () => invoke("cancel_download", { id: e.id });
-      card.appendChild(cancel);
+      head.appendChild(cancel);
     } else {
-      btn.textContent = "Download";
-      btn.onclick = async () => {
+      const getBtn = document.createElement("button");
+      getBtn.className = "ubtn ubtn--bordered";
+      getBtn.textContent = "get";
+      getBtn.onclick = async () => {
         dl.set(e.id, { done: 0, total: 0 });
         renderDiscover();
-        try { await invoke("download_model", { id: e.id }); } catch (err) { dl.delete(e.id); showError(String(err)); renderDiscover(); }
+        try {
+          await invoke("download_model", { id: e.id });
+        } catch (err) {
+          dl.delete(e.id);
+          showError(String(err));
+          renderDiscover();
+        }
       };
+      head.appendChild(getBtn);
     }
-    card.appendChild(btn);
-    host.appendChild(card);
-  }
+
+    row.appendChild(head);
+
+    // Dithered progress bar (only during download)
+    if (prog) {
+      const track = document.createElement("div");
+      track.className = "progress-track";
+      const fill = document.createElement("div");
+      fill.className = "progress-fill";
+      fill.style.width = prog.total ? `${pct}%` : "6%";
+      const isDark = document.documentElement.dataset.theme === "dark" ||
+        (!document.documentElement.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      const cv = document.createElement("canvas");
+      cv.dataset.glyph = "band";
+      cv.dataset.seed = String(idx + 3);
+      cv.dataset.cell = "2";
+      cv.dataset.color = isDark ? "#ece9df" : "#15140f";
+      cv.style.width = "100%";
+      cv.style.height = "10px";
+      fill.appendChild(cv);
+      track.appendChild(fill);
+      row.appendChild(track);
+    }
+
+    host.appendChild(row);
+  });
+
+  dither?.refresh();
 }
 
 async function hydrateCfg(id: string) {
   const host = document.getElementById("cfg-open");
   if (!host) return;
   const info = await invoke<ModelInfo>("model_info", { modelId: id });
-  if (document.getElementById("cfg-open") !== host) return; // re-rendered meanwhile
+  if (document.getElementById("cfg-open") !== host) return;
   const ov: ModelOverride = { ...info.override };
+  const m = models.find((x) => x.id === id);
+  const name = m ? prettyName(m.name || m.id) : id;
   host.innerHTML = "";
 
-  // context tier picker
+  // Context tier picker
   const max = info.native_ctx || 262144;
   const mem = (ctx: number) =>
     info.kv_per_token > 0 ? gb(info.file_bytes + ctx * info.kv_per_token) : "—";
-  const label = document.createElement("div");
-  label.className = "cfg__label";
-  label.textContent = info.native_ctx ? `Context — max ${tierLabel(info.native_ctx)}` : "Context";
-  host.appendChild(label);
+  const ctxLabel = document.createElement("div");
+  ctxLabel.className = "cfg-expander__label";
+  ctxLabel.textContent = info.native_ctx ? `Context — max ${tierLabel(info.native_ctx)}` : "Context";
+  host.appendChild(ctxLabel);
+
   const pills = document.createElement("div");
-  pills.className = "cfg__pills";
+  pills.className = "cfg-expander__pills";
   const mk = (text: string, val: number | null, sub: string) => {
     const b = document.createElement("button");
-    b.className = "cfg__pill" + ((ov.ctx_size ?? null) === val ? " is-on" : "");
-    b.innerHTML = `${text}<span class="cfg__sub">${sub}</span>`;
+    b.className = "cfg-expander__pill" + ((ov.ctx_size ?? null) === val ? " cfg-expander__pill--on" : "");
+    b.innerHTML = `${text}<span class="cfg-expander__sub">${sub}</span>`;
     b.onclick = () => {
       ov.ctx_size = val;
-      pills.querySelectorAll(".cfg__pill").forEach((el) => el.classList.remove("is-on"));
-      b.classList.add("is-on");
+      pills.querySelectorAll(".cfg-expander__pill").forEach((el) => el.classList.remove("cfg-expander__pill--on"));
+      b.classList.add("cfg-expander__pill--on");
     };
     return b;
   };
@@ -289,16 +352,16 @@ async function hydrateCfg(id: string) {
   for (const t of CTX_TIERS.filter((t) => t <= max)) pills.appendChild(mk(tierLabel(t), t, mem(t)));
   host.appendChild(pills);
 
-  // sampling fields
+  // Sampling fields
   const fields: [keyof ModelOverride, string][] = [
     ["temp", "temp"], ["top_p", "top-p"], ["top_k", "top-k"], ["min_p", "min-p"],
     ["repeat_penalty", "repeat"], ["presence_penalty", "presence"], ["frequency_penalty", "freq"],
   ];
   const grid = document.createElement("div");
-  grid.className = "cfg__grid";
+  grid.className = "cfg-expander__grid";
   for (const [k, lbl] of fields) {
     const f = document.createElement("label");
-    f.className = "cfg__field";
+    f.className = "cfg-expander__field";
     f.innerHTML = `<span>${lbl}</span><input type="number" step="0.05" value="${ov[k] ?? ""}" />`;
     const inp = f.querySelector("input") as HTMLInputElement;
     inp.oninput = () => { (ov[k] as number | null) = inp.value === "" ? null : Number(inp.value); };
@@ -306,43 +369,68 @@ async function hydrateCfg(id: string) {
   }
   host.appendChild(grid);
 
-  // actions
+  // Actions: delete (ghost left) + reset + save (right)
   const actions = document.createElement("div");
-  actions.className = "cfg__actions";
+  actions.className = "cfg-expander__actions";
+
+  // Delete — ghost left
+  const delBtn = document.createElement("button");
+  delBtn.className = "ubtn";
+  delBtn.textContent = "delete";
+  delBtn.onclick = async () => {
+    const msg = m?.local
+      ? `Delete ${name} from disk?`
+      : `Delete ${name}? This removes it from the shared cache (also used by the Llama app).`;
+    if (!confirm(msg)) return;
+    try { await invoke("delete_model", { modelId: id }); } catch (err) { showError(String(err)); }
+    if (openCfg === id) openCfg = null;
+    await refresh();
+    startPolling();
+  };
+
+  const right = document.createElement("div");
+  right.style.display = "flex";
+  right.style.gap = "8px";
+
   const reset = document.createElement("button");
-  reset.className = "btn btn--quiet";
-  reset.textContent = "Reset";
+  reset.className = "ubtn";
+  reset.textContent = "reset";
   reset.onclick = async () => {
     await invoke("set_model_config", { modelId: id, override: {} });
     openCfg = null; await refresh(); startPolling();
   };
+
   const save = document.createElement("button");
-  save.className = "btn btn--primary";
-  save.textContent = "Save";
+  save.className = "ubtn ubtn--bordered";
+  save.textContent = "save";
   save.onclick = async () => {
     await invoke("set_model_config", { modelId: id, override: ov });
     openCfg = null; await refresh(); startPolling();
   };
-  actions.append(reset, save);
+
+  right.append(reset, save);
+  actions.append(delBtn, right);
   host.appendChild(actions);
 
-  fitWindow(340); // grow the popover to include the now-filled expander
+  fitWindow(360);
+  dither?.refresh();
 }
 
 function render() {
   setHeader();
-  resetGlyphs(); // drop old model glyphs; the active view re-adds its own
+  // (no resetGlyphs — per-model glyphs dropped)
   const ready = router.status === "running";
   const webuiBtn = $("webui") as HTMLButtonElement;
   webuiBtn.disabled = !ready;
   webuiBtn.title = ready ? "" : "Router is starting";
-  $("tab-installed").classList.toggle("is-active", view === "installed");
-  $("tab-discover").classList.toggle("is-active", view === "discover");
+  $("tab-installed").classList.toggle("tab--active", view === "installed");
+  $("tab-discover").classList.toggle("tab--active", view === "discover");
   if (view === "installed") renderInstalled();
   else renderDiscover();
   lastSig = sigOf();
-  fitWindow(340);
+  fitWindow(360);
   if (view === "installed" && openCfg) void hydrateCfg(openCfg);
+  dither?.refresh();
 }
 
 // A cheap signature of what the model list shows, so polling can skip a full
@@ -439,15 +527,18 @@ function startPolling() {
 
 async function init() {
   (document.getElementById("brand-mark") as HTMLImageElement).src = llamaMark;
-  // Footer: "LlamaRanch <appVersion> · llama.cpp b<build>" — llama_cpp_version
-  // returns a line like "version: 9670 (02810c7aa)"; pull the build number out.
+
+  dither = mountDither();
+  updateHairlineColor(); // sync canvas data-color to current theme
+
+  // Footer: "LLAMARANCH <appVersion> · LLAMA.CPP b<build>"
   const rawVer = (await invoke<string>("llama_cpp_version")) || "";
   const build = rawVer.match(/\b(\d{3,})\b/)?.[1];
   const appVer = await getVersion().catch(() => "");
   ($("version") as HTMLElement).textContent = [
-    appVer ? `LlamaRanch ${appVer}` : "",
-    build ? `llama.cpp b${build}` : rawVer || "llama.cpp",
-  ].filter(Boolean).join("  ·  ");
+    appVer ? `LLAMARANCH ${appVer}` : "LLAMARANCH",
+    build ? `LLAMA.CPP b${build}` : rawVer ? rawVer.toUpperCase() : "LLAMA.CPP",
+  ].filter(Boolean).join(" · ");
 
   $("tab-installed").onclick = () => { view = "installed"; render(); };
   $("tab-discover").onclick = () => { view = "discover"; render(); };
@@ -456,7 +547,7 @@ async function init() {
     await navigator.clipboard.writeText(router.endpoint || "");
     const label = $("copy-label");
     const prev = label.textContent;
-    label.textContent = "Copied";
+    label.textContent = "copied";
     setTimeout(() => (label.textContent = prev), 1200);
   };
   $("webui").onclick = () => invoke("open_webui");
