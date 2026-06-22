@@ -1,177 +1,152 @@
 <div align="center">
 
-<img src="src-tauri/icons/128x128.png" width="92" alt="LlamaRanch" />
+<img src="src-tauri/icons/128x128.png" width="96" alt="LlamaRanch" />
 
 # LlamaRanch
 
 **A quiet ranch for your local models.**
 
-Run [llama.cpp](https://github.com/ggml-org/llama.cpp) models from your tray, behind one private endpoint.
-Load a model, chat. Nothing leaves your machine.
+Run AI on your own hardware. One private endpoint. Nothing leaves the valley.
 
 [**Website**](https://madalintat.github.io/LlamaRanch/) &nbsp;·&nbsp; [**Download**](https://github.com/madalintat/LlamaRanch/releases/latest) &nbsp;·&nbsp; [**Models on Hugging Face**](https://huggingface.co/models?apps=llama.cpp&sort=trending)
 
-![Linux](https://img.shields.io/badge/Linux-tray%20app-18262e)
+![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-18262e)
+![Linux](https://img.shields.io/badge/Linux-x86__64%20%2B%20arm64-18262e)
+![Windows](https://img.shields.io/badge/Windows-x86__64%20%2B%20Arm-18262e)
 ![License](https://img.shields.io/badge/license-MIT-b07a3e)
 ![Built on](https://img.shields.io/badge/built%20on-llama.cpp-2e8b48)
 
-<img src="docs/assets/promo.png" width="640" alt="LlamaRanch panel over a ranch at dusk" />
+<img src="docs/assets/cover.jpg" width="680" alt="LlamaRanch" />
 
 </div>
 
 ---
 
-LlamaRanch runs AI models on your own hardware, nothing in the cloud. It keeps one
-`llama-server` working quietly in the background and serves every model behind a single
-OpenAI-compatible endpoint, so any app on your machine can talk to them. It is the Linux
-companion to ggml-org's macOS app, [Llama](https://github.com/ggml-org/Llama-macOS).
+LlamaRanch runs [llama.cpp](https://github.com/ggml-org/llama.cpp) models on your own hardware behind a single, private OpenAI-compatible endpoint — `http://127.0.0.1:2276/v1`. Any app, IDE, or SDK that speaks OpenAI can connect to it. There's a built-in chat that routes each conversation to the right local model, swaps experts to fit your memory, and can call tools — all without sending a byte off your machine.
 
-## Platforms
+## What it is
 
-| OS | App |
-|----|-----|
-| **Linux** | **LlamaRanch** (`.deb` / AppImage) |
-| **Windows 10 / 11** | **LlamaRanch** (`.exe` installer) |
-| **macOS** | [**Llama**](https://github.com/ggml-org/Llama-macOS), the original by ggml-org (`brew install --cask llamabarn`); or **LlamaRanch** from source for local development (Apple Silicon) |
-
-## Install
-
-Grab the latest build from [**Releases**](https://github.com/madalintat/LlamaRanch/releases/latest):
-
-- **Linux:** `sudo dpkg -i LlamaRanch_*.deb` (or run the AppImage)
-- **Windows 10 / 11:** download and run the `.exe` installer
-
-Launch **LlamaRanch** from your apps, then turn on **Start on login** in Settings.
-
-You also need a `llama-server` from llama.cpp ([Windows builds here](https://github.com/ggml-org/llama.cpp/releases/latest), CPU / CUDA / Vulkan), and on
-Linux a system tray (i3bar, GNOME with AppIndicator, KDE, etc.).
-
-## Updates
-
-LlamaRanch checks GitHub Releases on launch and shows an in-app banner when a
-new **signed** version is available. On **Windows** and the **Linux AppImage** it
-updates in place in one click; **`.deb`** users update with `apt` or by grabbing
-the new package. Every update is verified against a signing key, so a tampered
-build can't install.
-
-## How it works
-
-LlamaRanch runs a local server at `http://127.0.0.1:2276/v1`.
-
-- **Add models** from the built-in catalog, or drop `.gguf` files in your models folder.
-- **Connect any app** (chat UIs, editors, CLI tools, scripts) to the endpoint.
-- **Models load when requested** and unload when idle.
-
-It drives the prebuilt `llama-server` binary rather than embedding llama.cpp, so
-you can update llama.cpp on your own schedule.
+LlamaRanch is a local AI runner and agent harness. It manages one or more `llama-server` processes, keeps models loaded on demand, and exposes everything through one clean endpoint. The built-in chat adds expert routing, hot-swapping, and a sandboxed tool loop on top — so you get something closer to an agent than a plain model server, while staying fully local.
 
 ## Features
 
-- **One click serving.** Load a model from the panel; it loads on demand and unloads when idle.
-- **Hardware aware.** `--fit` sizes GPU layers and context to the memory you have. Nothing to tune.
-- **Text and vision.** Multimodal models are detected and paired with their projector automatically.
-- **Big models too.** Anything larger than your VRAM runs split across GPU and RAM.
-- **Built in catalog.** Find and download models from Hugging Face, with a token for gated repos.
-- **Stays current.** Checks for new signed releases on launch and updates from inside the app, with a heads-up notification.
-- **Fully local.** Nothing leaves your machine.
+### One private OpenAI-compatible endpoint
 
-## Works with
+`http://127.0.0.1:2276/v1` — chat completions, embeddings, model listing. Drop it into Open WebUI, Continue, Zed, Cline, a curl script, or any OpenAI SDK and it just works.
 
-LlamaRanch works with any OpenAI-compatible client. Just set the base URL to
-`http://127.0.0.1:2276/v1`.
+### Multiple models at once, hardware-aware
 
-- **Chat UIs:** Open WebUI, Chatbox, and the built-in WebUI at `http://127.0.0.1:2276`
-- **Editors:** VS Code, Zed
-- **Editor extensions:** Continue, Cline
-- **CLI tools and scripts:** curl, the OpenAI SDKs, etc.
+Load more than one model at the same time. LlamaRanch uses llama.cpp's `--fit` flag to size GPU layers and context to the memory you actually have — nothing to tune by hand. Models load on demand and can be unloaded when you're done.
 
-## API examples
+### Expert auto-routing and hot-swap
+
+The built-in chat routes each task to the best local model for the job — general, code, reasoning, or vision — and swaps experts in and out of memory to keep things running on modest hardware. A small general model stays warm so replies start immediately. Pin a specific model anytime with **⌘K**.
+
+### Per-model configuration
+
+Set context length and sampling parameters independently per model. Live memory estimates update as you adjust, so you always know what will fit.
+
+### Built-in chat agent with tools
+
+A local-first tool loop, sandboxed and auditable:
+
+| Tool | What it does | Privacy |
+|------|-------------|---------|
+| `read_file` | Read files from folder-allowlisted paths | LOCAL |
+| `web_fetch` | Fetch a URL (SSRF-protected) | ONLINE |
+| `web_search` | Search via your own SearXNG instance | ONLINE (opt-in, off by default) |
+
+A privacy panel shows exactly which tools are LOCAL vs ONLINE, and an **Offline** switch cuts all internet access for tools in one click.
+
+### ⌘K command bar
+
+Switch models from anywhere in the app — mid-conversation, mid-task.
+
+### Richer model catalog
+
+25+ curated, hardware-appropriate GGUF models. One-click download, with Hugging Face token support for gated repos. Drop any `.gguf` file into your models folder and it appears automatically.
+
+### New design
+
+A warm, paper-and-ink interface with a live "dither" material, follow-OS light/dark mode, and three typefaces (Newsreader, Instrument Sans, JetBrains Mono) — all bundled, all offline.
+
+## Platforms
+
+| OS | Arch | Installers |
+|----|------|-----------|
+| **macOS** | Apple Silicon | `.dmg`, signed |
+| **Linux** | x86_64, arm64 | `.deb`, `.AppImage`, `.rpm` |
+| **Windows** | x86_64, Arm | `.exe`, `.msi` |
+
+All platforms are first-class. Signed releases, in-app auto-update.
+
+## Install
+
+Download from [**Releases**](https://github.com/madalintat/LlamaRanch/releases/latest) for your OS.
+
+You also need a `llama-server` binary from llama.cpp:
+
+- **macOS:** `brew install llama.cpp`
+- **Linux / Windows:** grab a prebuilt from [llama.cpp Releases](https://github.com/ggml-org/llama.cpp/releases/latest) (CPU, CUDA, Vulkan, Metal)
+
+First run: LlamaRanch auto-detects `llama-server` on your PATH. Open the popover, pick a model from the catalog (or drop a `.gguf` into your models folder), load it, and start chatting.
+
+## How it works
+
+LlamaRanch manages a `llama-server` process and routes all traffic through `127.0.0.1:2276/v1`. The built-in chat (the "brain") handles model lifecycle — loading, unloading, hot-swapping — and runs the tool loop locally with observation masking before responses reach the UI. Nothing is relayed to an external service.
 
 ```sh
-# list models
+# list loaded models
 curl http://127.0.0.1:2276/v1/models
 
-# chat with a model (use any id from /v1/models)
+# chat
 curl http://127.0.0.1:2276/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{"model":"Qwen3-4B-Q4_K_M","messages":[{"role":"user","content":"Hello"}]}'
 ```
 
-Full API reference is in the [llama-server docs](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md).
+Full API reference: [llama-server docs](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md).
 
-## Settings
+## Privacy
 
-Settings live in the panel and in `~/.config/llamaranch/config.json`:
+LlamaRanch is 100% local by default. Every tool is tagged LOCAL or ONLINE in the privacy panel. Enable **Offline mode** to prevent any tool from reaching the internet — the switch is always one click away.
 
-- **Port** and **models directory**
-- **llama-server path**
-- **Idle timeout** (unload a model after N seconds, 0 to keep it loaded)
-- **Hugging Face token** (for gated downloads)
-- **Expose to network.** By default the server is only reachable from your machine
-  (`127.0.0.1`). Enabling this binds `0.0.0.0` so other devices on your network can
-  connect. Only enable it if you understand the security risks.
+## Roadmap
 
-## Models
+**Done**
 
-Drop any `.gguf` in your models folder, or grab one from the **Discover** tab.
+- macOS, Linux, and Windows app — all first-class
+- Multiple models loaded at once
+- Per-model context and sampling configuration
+- Unified model management and 25+ model catalog
+- ARM64 builds (Linux and Windows on Arm)
+- Whole-app brand redesign
+- Agent chat with expert routing, hot-swap, sandboxed tool loop, and observation masking
 
-<a href="https://huggingface.co/models?apps=llama.cpp&sort=trending"><img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" width="16" align="top" alt="" /> Models that run on llama.cpp</a>
-&nbsp;·&nbsp;
-<a href="https://huggingface.co/ggml-org">Official GGUFs from ggml-org</a>
+**Next**
+
+- **MCP** — connect external tool servers to the local agent
+- **Knowledge base / RAG** — local embeddings and retrieval
+- **Skills and persistent memory**
+- More web-search providers
+- Local **API gateway**
 
 ## Build from source
+
+Needs Rust, Node 18+, and a `llama-server` on your PATH. See the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS.
 
 ```sh
 git clone https://github.com/madalintat/LlamaRanch
 cd LlamaRanch
 npm install
-npm run tauri build -- --no-bundle      # run ./src-tauri/target/release/llamaranch
-npm run tauri build -- --bundles deb    # or build the .deb
+npm run tauri dev      # hot-reload dev loop
+npm run tauri build    # production build
 ```
-
-Needs Rust, Node 18+, and (on Debian/Ubuntu) the Tauri system libraries:
-
-```sh
-sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
-  libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev \
-  build-essential curl wget file libssl-dev libxdo-dev patchelf
-```
-
-### Run on macOS (development)
-
-LlamaRanch runs natively on Apple Silicon for local development. Install a
-`llama-server` first (`brew install llama.cpp`), then:
-
-```sh
-npm install
-npm run tauri dev          # hot-reload dev loop
-npm run tauri build        # unsigned .app/.dmg in src-tauri/target/release/bundle/
-```
-
-The dev build is unsigned, so the first launch needs a one-time
-right-click → Open (Gatekeeper). `llama-server` is auto-detected from
-`/opt/homebrew/bin` (or set `LLAMARANCH_SERVER_BIN`). The app lives in the
-menubar — there is no Dock icon.
-
-## Roadmap
-
-Done: Linux and Windows builds, in-app auto-updates, a built-in catalog, vision models.
-
-Next:
-
-- A larger, richer model catalog (more families, sizes, descriptions)
-- Multiple models loaded at once
-- Per-model configuration (context length, sampling)
-- ARM64 builds (Linux and Windows on Arm)
-
-## Contributing
-
-Bug reports, fixes, new catalog models, and features are all welcome. See
-[CONTRIBUTING.md](CONTRIBUTING.md) for the project layout and how to build and test.
 
 ## Credits
 
-Built on [llama.cpp](https://github.com/ggml-org/llama.cpp) by ggml-org, and
-inspired by their macOS app [Llama](https://github.com/ggml-org/Llama-macOS).
+Built on [llama.cpp](https://github.com/ggml-org/llama.cpp) by ggml-org — the engine that makes fast, local inference possible. Inspired by their macOS app [Llama](https://github.com/ggml-org/Llama-macOS).
+
+Fonts: [Newsreader](https://fonts.google.com/specimen/Newsreader), [Instrument Sans](https://fonts.google.com/specimen/Instrument+Sans), [JetBrains Mono](https://www.jetbrains.com/legalnotices/jetbrains_mono/) — all bundled, offline.
 
 MIT licensed.
