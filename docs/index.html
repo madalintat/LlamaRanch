@@ -55,12 +55,19 @@
       <span class="works-with-items">Open WebUI&nbsp;&nbsp;·&nbsp;&nbsp;Continue&nbsp;&nbsp;·&nbsp;&nbsp;Zed&nbsp;&nbsp;·&nbsp;&nbsp;Cline&nbsp;&nbsp;·&nbsp;&nbsp;curl&nbsp;&nbsp;·&nbsp;&nbsp;OpenAI SDKs</span>
     </div>
 
-    <!-- ── PRODUCT SHOT · the model selector ── -->
-    <section class="showcase" id="app" style="max-width:900px;margin:0 auto;padding:72px 32px 16px;text-align:center;">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#a09d91;margin-bottom:10px;">The model selector</div>
-      <h2 style="font-family:'Newsreader',serif;font-weight:500;font-size:clamp(26px,3.6vw,38px);letter-spacing:-.012em;line-height:1.08;margin:0 0 12px;color:#15140f;">One endpoint. Every local model.</h2>
-      <p style="max-width:540px;margin:0 auto 34px;color:#6e6c61;font-size:15.5px;line-height:1.62;">Load, stop, and route models straight from the tray — hardware-aware, with a live status LED on whatever's serving. Light and dark follow your system.</p>
-      <img src="assets/model-selector.png" alt="The LlamaRanch model selector — load, stop, and route local models from one private endpoint" width="760" style="display:block;max-width:100%;height:auto;margin:0 auto;border-radius:16px;border:1px solid #cfcabd;box-shadow:0 30px 70px rgba(30,28,20,.20);" />
+    <!-- ── LOCAL-FIRST STATUS BAND ── -->
+    <section class="status-band" id="local">
+      <div class="status-row">
+        <span class="status-led" aria-hidden="true"></span>
+        <span class="status-endpoint">127.0.0.1:2276/v1</span>
+        <span class="status-tags">
+          <span class="status-tag">LOCAL</span>
+          <span class="status-tag">EMBEDDINGS</span>
+          <span class="status-tag">VISION</span>
+          <span class="status-tag">OFFLINE-READY</span>
+        </span>
+        <span class="status-note">nothing leaves the valley</span>
+      </div>
     </section>
 
     <!-- ── FEATURES ── -->
