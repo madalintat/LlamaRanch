@@ -28,9 +28,16 @@ pub struct Config {
     pub models_dir: String,
     pub server_bin: String,
     pub expose_to_network: bool,
-    /// Unload an idle model after this many seconds (0 = never).
-    #[serde(default)]
+    /// Unload an idle model after this many seconds (0 = never). Defaults to 300
+    /// so memory is reclaimed when a model goes idle, which matters most on
+    /// low-RAM machines.
+    #[serde(default = "default_sleep_idle_seconds")]
     pub sleep_idle_seconds: u32,
+    /// Max context size (tokens) the router sizes each model to. `None` lets
+    /// `--fit` choose based on device memory. On low-RAM machines this defaults
+    /// to a cap so the KV cache cannot dominate available RAM.
+    #[serde(default = "default_ctx_size")]
+    pub ctx_size: Option<u32>,
     /// Hugging Face access token, passed to the router for downloads (optional).
     #[serde(default)]
     pub hf_token: String,
@@ -210,6 +217,21 @@ fn default_models_max() -> u32 {
     total_ram_bytes().map(models_max_for_ram).unwrap_or(2)
 }
 
+/// Reclaim memory after 5 minutes of model idleness by default.
+fn default_sleep_idle_seconds() -> u32 {
+    300
+}
+
+/// Cap the per-model context on memory-constrained machines so the KV cache
+/// cannot dominate RAM (a 1.7B model at 30K context uses ~4 GB, mostly KV).
+/// Roomier machines return `None`, letting `--fit` size context to memory.
+fn default_ctx_size() -> Option<u32> {
+    match total_ram_bytes() {
+        Some(bytes) if bytes <= 12_000_000_000 => Some(16384),
+        _ => None,
+    }
+}
+
 fn default_general_model() -> String {
     "qwen3-1.7b".to_string()
 }
@@ -237,7 +259,8 @@ impl Default for Config {
             models_dir: default_models_dir(),
             server_bin: default_server_bin(),
             expose_to_network: false,
-            sleep_idle_seconds: 0,
+            sleep_idle_seconds: default_sleep_idle_seconds(),
+            ctx_size: default_ctx_size(),
             hf_token: String::new(),
             models_max: default_models_max(),
             model_config: BTreeMap::new(),

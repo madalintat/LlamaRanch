@@ -93,12 +93,30 @@ pub fn router_args(cfg: &Config, preset_path: &str) -> Vec<String> {
         "--jinja".into(),
         "--fit".into(),
         "on".into(),
+        // Flash attention plus an 8-bit KV cache roughly halve KV-cache memory
+        // with no measurable quality or speed loss, which on a low-RAM machine
+        // is the difference between a comfortable fit and swapping. These are
+        // router-level flags, inherited by every model instance it spawns.
+        "--flash-attn".into(),
+        "on".into(),
+        "--cache-type-k".into(),
+        "q8_0".into(),
+        "--cache-type-v".into(),
+        "q8_0".into(),
         "--props".into(),
         "--host".into(),
         host.into(),
         "--port".into(),
         cfg.port.to_string(),
     ];
+    // Cap the context when configured (RAM-aware default), so the KV cache cannot
+    // grow to dominate memory. Unset lets --fit size context to device memory.
+    if let Some(ctx) = cfg.ctx_size {
+        if ctx > 0 {
+            v.push("--ctx-size".into());
+            v.push(ctx.to_string());
+        }
+    }
     if cfg.sleep_idle_seconds > 0 {
         v.push("--sleep-idle-seconds".into());
         v.push(cfg.sleep_idle_seconds.to_string());
@@ -472,6 +490,26 @@ mod tests {
         assert!(a.windows(2).any(|w| w == ["--fit", "on"]));
         assert!(a.windows(2).any(|w| w == ["--host", "127.0.0.1"]));
         assert!(a.windows(2).any(|w| w == ["--sleep-idle-seconds", "300"]));
+        // KV-cache memory optimizations are always on.
+        assert!(a.windows(2).any(|w| w == ["--flash-attn", "on"]));
+        assert!(a.windows(2).any(|w| w == ["--cache-type-k", "q8_0"]));
+        assert!(a.windows(2).any(|w| w == ["--cache-type-v", "q8_0"]));
+    }
+
+    #[test]
+    fn router_args_ctx_size_capped_when_set() {
+        let mut cfg = Config::default();
+        cfg.ctx_size = Some(16384);
+        let a = router_args(&cfg, "/tmp/p.ini");
+        assert!(a.windows(2).any(|w| w == ["--ctx-size", "16384"]));
+    }
+
+    #[test]
+    fn router_args_no_ctx_size_when_none() {
+        let mut cfg = Config::default();
+        cfg.ctx_size = None; // let --fit size context
+        let a = router_args(&cfg, "/tmp/p.ini");
+        assert!(!a.iter().any(|x| x == "--ctx-size"));
     }
 
     #[test]
@@ -492,7 +530,8 @@ mod tests {
 
     #[test]
     fn router_args_no_idle_when_zero() {
-        let cfg = Config::default(); // sleep_idle_seconds = 0
+        let mut cfg = Config::default();
+        cfg.sleep_idle_seconds = 0; // explicit: default is now 300
         let a = router_args(&cfg, "/tmp/p.ini");
         assert!(!a.iter().any(|x| x == "--sleep-idle-seconds"));
     }
