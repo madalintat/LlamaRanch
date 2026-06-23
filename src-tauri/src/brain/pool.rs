@@ -116,12 +116,22 @@ pub fn model_pool(cfg: State<AppConfig>, pool: State<Pool>) -> PoolView {
         let c = cfg.0.lock().unwrap();
         (c.port, c.general_model.clone())
     };
-    let resident = server::list_models(port)
+    let resident: Vec<PoolEntry> = server::list_models(port)
         .into_iter()
         .filter(|m| is_resident(&m.status))
         .map(|m| PoolEntry { pinned: m.id == general, id: m.id, status: m.status })
         .collect();
-    let active = pool.order().into_iter().next();
+    // Active = the brain's most-recently-used model if it is still resident,
+    // otherwise any resident model. A model loaded directly (the popover, or the
+    // chat's load_model command) bypasses the brain LRU, so without this
+    // fallback it would never register as active even though the router has it
+    // loaded, leaving the chat showing "no model" while the popover shows it
+    // serving.
+    let active = pool
+        .order()
+        .into_iter()
+        .find(|id| resident.iter().any(|r| &r.id == id))
+        .or_else(|| resident.first().map(|r| r.id.clone()));
     PoolView { resident, active }
 }
 
