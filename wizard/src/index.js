@@ -2,8 +2,7 @@
 
 import chalk from 'chalk';
 import { renderLogo, LLAMA_LINES } from './logo.js';
-
-const VERSION = '0.1.0';
+import { VERSION } from './version.js';
 const PKG_NAME = '@llamaranch/wizard';
 
 // ---------------------------------------------------------------------------
@@ -793,16 +792,27 @@ async function runWizard() {
 
     // config-done (collapsed)
     if (['config-done', 'app-install-running', 'app-install-done', 'outro'].includes(step)) {
-      rows.push(
-        React.createElement(
-          Box,
-          { key: 'cfg-done', flexDirection: 'row' },
-          React.createElement(Text, { color: '#cbb78a' }, '◇ '),
-          React.createElement(Text, { color: '#cbb78a' }, 'Config written'),
-          React.createElement(Text, null, '  '),
-          React.createElement(Text, { color: '#6b6456' }, configPath)
-        )
-      );
+      if (configData && configData.error) {
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'cfg-done', flexDirection: 'row' },
+            React.createElement(Text, { color: '#c7a228' }, '▲ '),
+            React.createElement(Text, { color: '#f5f0e8' }, 'Config write failed: ' + configData.error)
+          )
+        );
+      } else {
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'cfg-done', flexDirection: 'row' },
+            React.createElement(Text, { color: '#cbb78a' }, '◇ '),
+            React.createElement(Text, { color: '#cbb78a' }, 'Config written'),
+            React.createElement(Text, null, '  '),
+            React.createElement(Text, { color: '#6b6456' }, configPath)
+          )
+        );
+      }
     }
 
     // app-install-running
@@ -849,7 +859,15 @@ async function runWizard() {
     // outro
     if (step === 'outro') {
       const serverBin = enginePath || detectResult?.llamaServer?.path || null;
-      const generalModelFile = downloadedModels.length > 0 ? downloadedModels[0].file : null;
+      // Use the same general model selection logic as the config-writing step:
+      // smallest chat model among downloaded, falling back to smallest overall.
+      const successfulChat = downloadedModels.filter(m => m.group === 'chat');
+      const generalModelObj = successfulChat.length > 0
+        ? successfulChat.reduce((a, b) => a.sizeGB <= b.sizeGB ? a : b)
+        : downloadedModels.length > 0
+          ? downloadedModels.reduce((a, b) => a.sizeGB <= b.sizeGB ? a : b)
+          : null;
+      const generalModelFile = generalModelObj ? generalModelObj.file : null;
       const appPath = detectResult?.os === 'macos'
         ? '/Applications/LlamaRanch.app'
         : detectResult?.os === 'linux'
@@ -908,6 +926,58 @@ async function runWizard() {
           React.createElement(Text, { color: '#6b6456' }, '       # open the desktop app')
         )
       );
+      // Surface config write failure if it occurred
+      if (configData && configData.error) {
+        rows.push(React.createElement(Text, { key: 'outro-cfg-gap', color: '#3f3d34' }, '│'));
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'outro-cfg-err', flexDirection: 'row' },
+            React.createElement(Text, { color: '#c7a228' }, '▲ '),
+            React.createElement(Text, { color: '#f5f0e8' }, 'Config write failed: ' + configData.error)
+          )
+        );
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'outro-cfg-hint', flexDirection: 'row' },
+            React.createElement(Text, { color: '#3f3d34' }, '│ '),
+            React.createElement(Text, { color: '#6b6456' }, 'Create ' + configPath + ' manually, then re-run.')
+          )
+        );
+      }
+      // Surface any download failures
+      if (failedModels.length > 0) {
+        rows.push(React.createElement(Text, { key: 'outro-fail-gap', color: '#3f3d34' }, '│'));
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'outro-fail-head', flexDirection: 'row' },
+            React.createElement(Text, { color: '#c7a228' }, '▲ '),
+            React.createElement(Text, { color: '#f5f0e8' }, failedModels.length + ' model(s) did not download:')
+          )
+        );
+        for (let fi = 0; fi < failedModels.length; fi++) {
+          const fm = failedModels[fi];
+          rows.push(
+            React.createElement(
+              Box,
+              { key: 'outro-fail-' + fi, flexDirection: 'row' },
+              React.createElement(Text, { color: '#3f3d34' }, '│   '),
+              React.createElement(Text, { color: '#8a8270' }, (fm.model?.name || fm.model?.file || 'unknown') + ': '),
+              React.createElement(Text, { color: '#6b6456' }, fm.error || 'download error')
+            )
+          );
+        }
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'outro-fail-hint', flexDirection: 'row' },
+            React.createElement(Text, { color: '#3f3d34' }, '│ '),
+            React.createElement(Text, { color: '#6b6456' }, 'Re-run the wizard to retry failed downloads.')
+          )
+        );
+      }
       rows.push(
         React.createElement(
           Box,

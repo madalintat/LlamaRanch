@@ -98,17 +98,12 @@ function assertSafe(p) {
   if (resolved === HOME || resolved === '/') {
     throw new Error('refusing to delete home or root: ' + resolved);
   }
-  // Must be either: inside home, or /Applications/LlamaRanch.app
-  const insideHome = resolved.startsWith(HOME + path.sep);
+  // Only the macOS app absolute path is allowed outside home.
   const allowedAbs = resolved === '/Applications/LlamaRanch.app' || resolved.startsWith('/Applications/LlamaRanch.app' + path.sep);
-  if (!insideHome && !allowedAbs) {
-    throw new Error('path outside home and not a known absolute app path: ' + resolved);
-  }
+  // A path MUST match a known LlamaRanch prefix OR be the exact macOS app path.
+  // There is no blanket "anything inside home" allowance.
   if (!safePrefix(resolved) && !allowedAbs) {
-    // Also accept a custom models_dir strictly inside home
-    if (!insideHome) {
-      throw new Error('path not in a known LlamaRanch location: ' + resolved);
-    }
+    throw new Error('path not in a known LlamaRanch location: ' + resolved);
   }
   return resolved;
 }
@@ -210,13 +205,29 @@ function collectTargets() {
   const configDirPath  = path.dirname(configFilePath);
   const config         = readConfig(); // may be null
 
-  // models_dir: prefer config value, fall back to default
+  // models_dir: only consider a config value that is an absolute path string.
+  // Relative values (e.g. "." or "models") are never resolved into deletion
+  // targets, and tilde paths ("~/Documents") are not absolute per path.isAbsolute.
   const defaultModelsDir = getModelsDir();
-  const configModelsDir  = config?.models_dir || null;
-  // Use config if it's different from default; keep both if needed
+  const rawConfigModelsDir = config?.models_dir ?? null;
+  const configModelsDir = (
+    typeof rawConfigModelsDir === 'string' &&
+    path.isAbsolute(rawConfigModelsDir)
+  ) ? rawConfigModelsDir : null;
+
+  // Determine whether the config models_dir is a known LlamaRanch location.
+  // If it differs from the default AND is not inside a known safe prefix, treat
+  // it as a manual item: show it but never delete it.
   const modelsDirs = new Set([defaultModelsDir]);
+  let manualModelsDir = null; // shown to user but not removed
   if (configModelsDir && configModelsDir !== defaultModelsDir) {
-    modelsDirs.add(configModelsDir);
+    if (safePrefix(configModelsDir)) {
+      modelsDirs.add(configModelsDir);
+    } else {
+      // Custom location outside known LlamaRanch paths: inform the user but
+      // never auto-delete a folder they may have chosen for their own data.
+      manualModelsDir = configModelsDir;
+    }
   }
 
   // engine: LLAMA_INSTALL_DIR (~/.llamaranch/llama.cpp), parent ~/.llamaranch
@@ -253,6 +264,7 @@ function collectTargets() {
     configDirPath,
     config,
     modelsDirs: [...modelsDirs],
+    manualModelsDir,
     engineInstallDir,
     llamaRanchDir,
     serverBin,
@@ -287,6 +299,11 @@ function printPlan(targets) {
       sizeStr = '  ' + muted(humanSize(bytes));
     }
     row('models dir', dir + (exists ? '' : muted(' (not found)')) + sizeStr);
+  }
+  // Custom models_dir outside known LlamaRanch locations: shown but not removed
+  if (t.manualModelsDir) {
+    row('models (custom,', t.manualModelsDir);
+    subrow('custom location, remove manually if desired)');
   }
 
   // Engine
