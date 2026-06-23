@@ -44,7 +44,7 @@
   height: 24px;
 }
 .docs-logo .wordmark {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.02em;
   white-space: nowrap;
@@ -59,7 +59,7 @@
 }
 .docs-label {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
@@ -75,7 +75,7 @@
   display: inline-flex;
   align-items: center;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink);
@@ -98,7 +98,7 @@
   border-radius: 6px;
   color: var(--ink);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 7px 13px;
@@ -133,7 +133,7 @@
 }
 .docs-nav-head {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--faint-2);
@@ -149,7 +149,7 @@
 .docs-nav a {
   display: block;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 13px;
   letter-spacing: 0.02em;
   color: var(--muted);
   text-decoration: none;
@@ -187,7 +187,7 @@
 }
 .docs-page-eyebrow {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
@@ -214,7 +214,7 @@
   margin-bottom: 14px;
 }
 .docs-page-lead {
-  font-size: 16px;
+  font-size: 17px;
   line-height: 1.65;
   color: var(--soft);
   max-width: 58ch;
@@ -227,7 +227,7 @@
 }
 .doc-section-num {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--faint);
   margin-bottom: 12px;
   letter-spacing: 0.06em;
@@ -242,7 +242,7 @@
   margin-bottom: 16px;
 }
 .doc-p {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.7;
   color: var(--soft);
   margin-bottom: 18px;
@@ -268,7 +268,7 @@
   border-radius: 8px;
   padding: 10px 16px;
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 14px;
   color: var(--lcd-ink);
   margin-bottom: 20px;
 }
@@ -314,14 +314,14 @@
 }
 .doc-code-label {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   color: #57554a;
   text-transform: uppercase;
 }
 .doc-copy-btn {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--lcd-ink);
@@ -338,7 +338,7 @@
 .doc-code-body {
   padding: 18px 20px 20px;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 1.85;
   color: #cfcbbf;
   overflow-x: auto;
@@ -346,7 +346,7 @@
 }
 .doc-code-body .prompt { color: #8a8678; margin-right: 4px; user-select: none; }
 .doc-code-body .comment { color: #57554a; }
-.doc-code-body .response { color: #4a4840; font-size: 11.5px; padding-left: 12px; }
+.doc-code-body .response { color: #4a4840; font-size: 13px; padding-left: 12px; }
 .doc-code-body pre {
   margin: 0;
   white-space: pre;
@@ -362,7 +362,7 @@
 /* ── Inline code chip ── */
 .chip {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13.5px;
   background: #e7e3d9;
   padding: 1px 6px;
   border-radius: 4px;
@@ -374,7 +374,7 @@
   display: inline-flex;
   align-items: center;
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   border: 1px solid var(--line-4);
@@ -401,7 +401,7 @@
   align-items: center;
   gap: 7px;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   border: 1px solid var(--line-4);
@@ -454,12 +454,12 @@
 .doc-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
   min-width: 480px;
 }
 .doc-table th {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
@@ -473,19 +473,19 @@
   padding: 10px 16px;
   color: var(--soft);
   border-bottom: 1px solid var(--line-2);
-  line-height: 1.5;
+  line-height: 1.55;
   vertical-align: top;
 }
 .doc-table tr:last-child td { border-bottom: none; }
 .doc-table td:first-child {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--ink);
   white-space: nowrap;
 }
 .doc-table td:nth-child(2) {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13.5px;
   white-space: nowrap;
 }
 
@@ -509,7 +509,7 @@
 .doc-path-row:last-child { border-bottom: none; }
 .doc-path-os {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -521,7 +521,7 @@
 }
 .doc-path-val {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--ink);
   padding: 12px 16px;
   word-break: break-all;
@@ -550,14 +550,14 @@
   min-width: 0;
 }
 .doc-roadmap-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--ink);
   margin-bottom: 4px;
 }
 .doc-roadmap-desc {
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--muted);
 }
 
@@ -585,13 +585,13 @@
 }
 .docs-footer-note {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.06em;
   color: var(--muted);
 }
 .docs-footer-link {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.06em;
   color: var(--muted);
   text-decoration: none;
@@ -667,7 +667,7 @@
     border-bottom: 2px solid transparent;
     border-radius: 4px;
     padding: 5px 10px;
-    font-size: 11px;
+    font-size: 12px;
   }
   .docs-nav a.active {
     border-left-color: transparent;
@@ -682,7 +682,7 @@
   }
 
   .doc-code-body {
-    font-size: 11.5px;
+    font-size: 13px;
   }
 
   .docs-footer {
@@ -698,7 +698,8 @@
 
 @media (max-width: 480px) {
   .docs-main { padding: 20px 16px 56px; }
-  .doc-h2 { font-size: clamp(19px, 6vw, 26px); }
-  .docs-page-h1 { font-size: clamp(26px, 8vw, 40px); }
+  .doc-h2 { font-size: clamp(20px, 6vw, 28px); }
+  .docs-page-h1 { font-size: clamp(28px, 8vw, 42px); }
   .doc-table th, .doc-table td { padding: 8px 12px; }
+  .doc-code-body { font-size: 12.5px; }
 }

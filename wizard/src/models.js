@@ -63,7 +63,10 @@ export const MODEL_CATALOG = [
 // ---------------------------------------------------------------------------
 
 export function suggestModels(totalRamGB) {
-  const budget = totalRamGB - 2;
+  // Guard against undefined/NaN from failed detection: default to 8 GB so
+  // suggestions are still sensible when hardware info is unavailable.
+  const ram = (typeof totalRamGB === 'number' && isFinite(totalRamGB)) ? totalRamGB : 8;
+  const budget = ram - 2;
 
   const smallest = MODEL_CATALOG.find(m => m.id === 'qwen3-1.7b');
 

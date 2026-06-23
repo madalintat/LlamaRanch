@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { VERSION } from './version.js';
 
 // Brand palette
 const CREAM = '#f5f0e8';
@@ -14,7 +15,7 @@ function useColor() {
 // ASCII llama, derived from our real logo (src/assets/llama.svg) by
 // half-block downsampling. Head + ears top-left, long neck curving down
 // into the body. Rendered in brand cream.
-const LLAMA_LINES = [
+export const LLAMA_LINES = [
   '          ▄',
   '       ██ ██',
   '       ▀█▄██',
@@ -54,12 +55,12 @@ export function renderLogo() {
       '  ' +
       chalk.bgHex(CREAM).hex('#16150f').bold(' LlamaRanch ') +
       '  ' +
-      chalk.hex(MUTED)('setup wizard · v0.1.0')
+      chalk.hex(MUTED)('setup wizard · v' + VERSION)
     );
     output.push('');
     output.push(chalk.hex(MUTED)('  A quiet ranch for your local models. Nothing leaves the valley.'));
   } else {
-    output.push('  LlamaRanch  setup wizard · v0.1.0');
+    output.push('  LlamaRanch  setup wizard · v' + VERSION);
     output.push('');
     output.push('  A quiet ranch for your local models. Nothing leaves the valley.');
   }

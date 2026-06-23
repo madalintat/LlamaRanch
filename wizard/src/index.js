@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 
 import chalk from 'chalk';
-import { renderLogo } from './logo.js';
-
-const VERSION = '0.1.0';
+import { renderLogo, LLAMA_LINES } from './logo.js';
+import { VERSION } from './version.js';
 const PKG_NAME = '@llamaranch/wizard';
 
 // ---------------------------------------------------------------------------
@@ -34,10 +33,11 @@ function printHelp() {
   const muted = (s) => chalk.hex('#6b6456')(s);
   console.log(cream('Usage:'));
   console.log('');
-  console.log('  ' + gold('llamaranch-wizard') + '          ' + muted('run the setup wizard'));
-  console.log('  ' + gold('llamaranch-wizard serve') + '    ' + muted('start headless llama-server'));
-  console.log('  ' + gold('llamaranch-wizard update') + '   ' + muted('update LlamaRanch to the latest release'));
-  console.log('  ' + gold('llamaranch-wizard --help') + '   ' + muted('show this help'));
+  console.log('  ' + gold('llamaranch-wizard') + '             ' + muted('run the setup wizard'));
+  console.log('  ' + gold('llamaranch-wizard serve') + '       ' + muted('start headless llama-server'));
+  console.log('  ' + gold('llamaranch-wizard update') + '      ' + muted('update LlamaRanch to the latest release'));
+  console.log('  ' + gold('llamaranch-wizard uninstall') + '   ' + muted('remove LlamaRanch and its models'));
+  console.log('  ' + gold('llamaranch-wizard --help') + '      ' + muted('show this help'));
   console.log('  ' + gold('llamaranch-wizard --version'));
   console.log('');
   console.log(muted('LlamaRanch keeps your models local. Nothing leaves the valley.'));
@@ -113,19 +113,6 @@ async function runWizard() {
       React.createElement(Text, { color: '#8a8270' }, paddedLabel),
       React.createElement(Text, { color: '#f5f0e8' }, value || ''),
       tag ? React.createElement(Text, { color: '#c7a228' }, '  ' + tag) : null
-    );
-  }
-
-  // -------------------------------------------------------------------------
-  // Gutter row: [gutter symbol] + content
-  // -------------------------------------------------------------------------
-
-  function GutterRow({ symbol, symbolColor, children }) {
-    return React.createElement(
-      Box,
-      { flexDirection: 'row' },
-      React.createElement(Text, { color: symbolColor || '#3f3d34' }, symbol + ' '),
-      children
     );
   }
 
@@ -230,25 +217,14 @@ async function runWizard() {
   // -------------------------------------------------------------------------
 
   function IntroFrame() {
-    const llamaLines = [
-      '  ╔══╗   ',
-      '  ║  ║   ',
-      '  ╚╗ ╔╝  ',
-      '   ║ ║   ',
-      '  ██████ ',
-      '  ██████ ',
-      '  ██████ ',
-      '  █  █   ',
-      '  █  █   ',
-    ];
+    const llamaLines = LLAMA_LINES;
 
     const colorLine = (line) =>
       React.createElement(
         Text,
         null,
         ...line.split('').map((ch, ci) => {
-          if ('╔╗╚╝║═'.includes(ch)) return React.createElement(Text, { key: ci, color: '#c7a228' }, ch);
-          if (ch === '█' || ch === '▓') return React.createElement(Text, { key: ci, color: '#f5f0e8' }, ch);
+          if ('█▀▄'.includes(ch)) return React.createElement(Text, { key: ci, color: '#f5f0e8' }, ch);
           return React.createElement(Text, { key: ci }, ch);
         })
       );
@@ -308,7 +284,6 @@ async function runWizard() {
 
     // models
     const [selectedModels, setSelectedModels] = useState([]);
-    const [modelsDone, setModelsDone] = useState(false);
     const [downloadPercents, setDownloadPercents] = useState({});
     const [downloadedModels, setDownloadedModels] = useState([]);
     const [failedModels, setFailedModels] = useState([]);
@@ -320,9 +295,6 @@ async function runWizard() {
     // app install
     const [appLines, setAppLines] = useState([]);
     const [appInstallResult, setAppInstallResult] = useState(null);
-
-    // outro
-    const [outroKey, setOutroKey] = useState(false);
 
     // error
     const [errorMsg, setErrorMsg] = useState(null);
@@ -485,7 +457,6 @@ async function runWizard() {
         if (!cancelled) {
           setDownloadedModels(downloaded);
           setFailedModels(failed);
-          setModelsDone(true);
           setStep('download-done');
         }
       };
@@ -577,7 +548,6 @@ async function runWizard() {
     // outro: auto-exit after 2s, or on any key (handled in top-level useInput)
     useEffect(() => {
       if (step !== 'outro') return;
-      setOutroKey(true);
       const t = setTimeout(() => exit(), 2000);
       return () => clearTimeout(t);
     }, [step]);
@@ -632,7 +602,6 @@ async function runWizard() {
          'app-install-done', 'outro'].includes(step)) {
 
       const isRunning = step === 'detect-running';
-      const isDone = !isRunning;
 
       if (isRunning) {
         rows.push(
@@ -803,16 +772,27 @@ async function runWizard() {
 
     // config-done (collapsed)
     if (['config-done', 'app-install-running', 'app-install-done', 'outro'].includes(step)) {
-      rows.push(
-        React.createElement(
-          Box,
-          { key: 'cfg-done', flexDirection: 'row' },
-          React.createElement(Text, { color: '#cbb78a' }, '◇ '),
-          React.createElement(Text, { color: '#cbb78a' }, 'Config written'),
-          React.createElement(Text, null, '  '),
-          React.createElement(Text, { color: '#6b6456' }, configPath)
-        )
-      );
+      if (configData && configData.error) {
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'cfg-done', flexDirection: 'row' },
+            React.createElement(Text, { color: '#c7a228' }, '▲ '),
+            React.createElement(Text, { color: '#f5f0e8' }, 'Config write failed: ' + configData.error)
+          )
+        );
+      } else {
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'cfg-done', flexDirection: 'row' },
+            React.createElement(Text, { color: '#cbb78a' }, '◇ '),
+            React.createElement(Text, { color: '#cbb78a' }, 'Config written'),
+            React.createElement(Text, null, '  '),
+            React.createElement(Text, { color: '#6b6456' }, configPath)
+          )
+        );
+      }
     }
 
     // app-install-running
@@ -859,7 +839,15 @@ async function runWizard() {
     // outro
     if (step === 'outro') {
       const serverBin = enginePath || detectResult?.llamaServer?.path || null;
-      const generalModelFile = downloadedModels.length > 0 ? downloadedModels[0].file : null;
+      // Use the same general model selection logic as the config-writing step:
+      // smallest chat model among downloaded, falling back to smallest overall.
+      const successfulChat = downloadedModels.filter(m => m.group === 'chat');
+      const generalModelObj = successfulChat.length > 0
+        ? successfulChat.reduce((a, b) => a.sizeGB <= b.sizeGB ? a : b)
+        : downloadedModels.length > 0
+          ? downloadedModels.reduce((a, b) => a.sizeGB <= b.sizeGB ? a : b)
+          : null;
+      const generalModelFile = generalModelObj ? generalModelObj.file : null;
       const appPath = detectResult?.os === 'macos'
         ? '/Applications/LlamaRanch.app'
         : detectResult?.os === 'linux'
@@ -918,6 +906,58 @@ async function runWizard() {
           React.createElement(Text, { color: '#6b6456' }, '       # open the desktop app')
         )
       );
+      // Surface config write failure if it occurred
+      if (configData && configData.error) {
+        rows.push(React.createElement(Text, { key: 'outro-cfg-gap', color: '#3f3d34' }, '│'));
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'outro-cfg-err', flexDirection: 'row' },
+            React.createElement(Text, { color: '#c7a228' }, '▲ '),
+            React.createElement(Text, { color: '#f5f0e8' }, 'Config write failed: ' + configData.error)
+          )
+        );
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'outro-cfg-hint', flexDirection: 'row' },
+            React.createElement(Text, { color: '#3f3d34' }, '│ '),
+            React.createElement(Text, { color: '#6b6456' }, 'Create ' + configPath + ' manually, then re-run.')
+          )
+        );
+      }
+      // Surface any download failures
+      if (failedModels.length > 0) {
+        rows.push(React.createElement(Text, { key: 'outro-fail-gap', color: '#3f3d34' }, '│'));
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'outro-fail-head', flexDirection: 'row' },
+            React.createElement(Text, { color: '#c7a228' }, '▲ '),
+            React.createElement(Text, { color: '#f5f0e8' }, failedModels.length + ' model(s) did not download:')
+          )
+        );
+        for (let fi = 0; fi < failedModels.length; fi++) {
+          const fm = failedModels[fi];
+          rows.push(
+            React.createElement(
+              Box,
+              { key: 'outro-fail-' + fi, flexDirection: 'row' },
+              React.createElement(Text, { color: '#3f3d34' }, '│   '),
+              React.createElement(Text, { color: '#8a8270' }, (fm.model?.name || fm.model?.file || 'unknown') + ': '),
+              React.createElement(Text, { color: '#6b6456' }, fm.error || 'download error')
+            )
+          );
+        }
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'outro-fail-hint', flexDirection: 'row' },
+            React.createElement(Text, { color: '#3f3d34' }, '│ '),
+            React.createElement(Text, { color: '#6b6456' }, 'Re-run the wizard to retry failed downloads.')
+          )
+        );
+      }
       rows.push(
         React.createElement(
           Box,
@@ -980,6 +1020,11 @@ if (cmd === '--help' || cmd === '-h') {
   console.log(chalk.hex('#c7a228')('  update') + chalk.hex('#6b6456')('  checking for new releases...'));
   console.log('');
   await runUpdate();
+  process.exit(0);
+} else if (cmd === 'uninstall') {
+  const { runUninstall } = await import('./uninstall.js');
+  const yes = process.argv.includes('--yes') || process.argv.includes('-y');
+  await runUninstall({ yes });
   process.exit(0);
 } else if (!cmd || cmd === 'setup') {
   await runWizard();
