@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import chalk from 'chalk';
-import { renderLogo } from './logo.js';
+import { renderLogo, LLAMA_LINES } from './logo.js';
 
 const VERSION = '0.1.0';
 const PKG_NAME = '@llamaranch/wizard';
@@ -231,25 +231,14 @@ async function runWizard() {
   // -------------------------------------------------------------------------
 
   function IntroFrame() {
-    const llamaLines = [
-      '  ╔══╗   ',
-      '  ║  ║   ',
-      '  ╚╗ ╔╝  ',
-      '   ║ ║   ',
-      '  ██████ ',
-      '  ██████ ',
-      '  ██████ ',
-      '  █  █   ',
-      '  █  █   ',
-    ];
+    const llamaLines = LLAMA_LINES;
 
     const colorLine = (line) =>
       React.createElement(
         Text,
         null,
         ...line.split('').map((ch, ci) => {
-          if ('╔╗╚╝║═'.includes(ch)) return React.createElement(Text, { key: ci, color: '#c7a228' }, ch);
-          if (ch === '█' || ch === '▓') return React.createElement(Text, { key: ci, color: '#f5f0e8' }, ch);
+          if ('█▀▄'.includes(ch)) return React.createElement(Text, { key: ci, color: '#f5f0e8' }, ch);
           return React.createElement(Text, { key: ci }, ch);
         })
       );

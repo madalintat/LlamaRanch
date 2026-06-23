@@ -14,7 +14,7 @@ function useColor() {
 // ASCII llama, derived from our real logo (src/assets/llama.svg) by
 // half-block downsampling. Head + ears top-left, long neck curving down
 // into the body. Rendered in brand cream.
-const LLAMA_LINES = [
+export const LLAMA_LINES = [
   '          ▄',
   '       ██ ██',
   '       ▀█▄██',
