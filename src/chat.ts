@@ -5,6 +5,7 @@ import { mountDither } from "./dither";
 import { applyTheme, type Theme } from "./brand/theme";
 import { tagOS } from "./platform";
 import { prettyName } from "./pretty";
+import { basename, shortenPath } from "./paths";
 
 tagOS();
 
@@ -764,11 +765,6 @@ function referencePathsInComposer(paths: string[]): void {
   input.selectionStart = input.selectionEnd = input.value.length;
 }
 
-function basenameOf(p: string): string {
-  const parts = p.split(/[\\/]/).filter(Boolean);
-  return parts[parts.length - 1] || p;
-}
-
 async function handleDroppedPaths(paths: string[]): Promise<void> {
   if (!paths || paths.length === 0) return;
   try {
@@ -777,7 +773,7 @@ async function handleDroppedPaths(paths: string[]): Promise<void> {
       bubble("error", "could not grant access to the dropped item(s).");
       return;
     }
-    const names = granted.map(basenameOf).join(", ");
+    const names = granted.map(basename).join(", ");
     bubble("trace", `Granted access to ${granted.length} item(s): ${names}`);
     referencePathsInComposer(granted);
   } catch (err) {
@@ -840,15 +836,6 @@ function closeAtPopup(): void {
   if (atDebounce !== null) { clearTimeout(atDebounce); atDebounce = null; }
 }
 
-/** Shorten a directory path for the muted right-hand label. */
-function shortenDir(p: string): string {
-  const parts = p.split(/[\\/]/).filter(Boolean);
-  parts.pop(); // drop the basename
-  const dir = parts.join("/");
-  if (dir.length <= 38) return dir;
-  return "…" + dir.slice(dir.length - 37);
-}
-
 /** Position the popup above the composer input, left-aligned to it. */
 function positionAtPopup(): void {
   const r = input.getBoundingClientRect();
@@ -877,10 +864,10 @@ function renderAtResults(): void {
     row.setAttribute("role", "option");
     const base = document.createElement("span");
     base.className = "at-popup__base";
-    base.textContent = basenameOf(path);
+    base.textContent = basename(path);
     const dir = document.createElement("span");
     dir.className = "at-popup__dir";
-    dir.textContent = shortenDir(path);
+    dir.textContent = shortenPath(path);
     row.appendChild(base);
     row.appendChild(dir);
     row.addEventListener("mousedown", (e) => {

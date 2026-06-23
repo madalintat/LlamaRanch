@@ -294,6 +294,21 @@ pub fn restart_router(app: AppHandle) {
     crate::start_router(&app);
 }
 
+/// Reject grant roots that defeat the access boundary: the filesystem root `/`
+/// and the user's home directory itself. Granting a specific subfolder is fine.
+/// `path` is expected to be already canonicalized. Pure logic, unit-tested below.
+fn is_safe_root(path: &Path, home: Option<&Path>) -> bool {
+    if path.parent().is_none() {
+        return false; // filesystem root (`/`, or a drive root on Windows)
+    }
+    if let Some(h) = home {
+        if path == h {
+            return false; // the whole home directory
+        }
+    }
+    true
+}
+
 /// Merge `new` paths into `existing`, preserving order and dropping duplicates
 /// (an entry already present in `existing` or repeated within `new` is skipped).
 /// Pure list logic, unit-tested below; the canonicalize step lives in the command.
@@ -315,11 +330,12 @@ fn merge_allowed(existing: &[String], new: &[String]) -> Vec<String> {
 pub fn add_allowed_dirs(
     paths: Vec<String>,
     cfg: State<AppConfig>,
-    _app: AppHandle,
 ) -> Result<Vec<String>, String> {
+    let home = dirs::home_dir();
     let resolved: Vec<String> = paths
         .iter()
         .filter_map(|p| std::fs::canonicalize(p).ok())
+        .filter(|p| is_safe_root(p, home.as_deref()))
         .map(|p| p.to_string_lossy().into_owned())
         .collect();
 
@@ -335,7 +351,6 @@ pub fn add_allowed_dirs(
 pub fn remove_allowed_dir(
     path: String,
     cfg: State<AppConfig>,
-    _app: AppHandle,
 ) -> Result<Vec<String>, String> {
     let mut c = cfg.0.lock().unwrap();
     c.allowed_dirs.retain(|p| p != &path);
@@ -363,6 +378,11 @@ const SKIP_DIRS: &[&str] = &[
 /// tree can never hang the picker), and how many results we hand back.
 const SCAN_CAP: usize = 5000;
 const RESULT_CAP: usize = 30;
+
+/// Hardest cap on recursion depth: defense in depth against a pathological tree.
+/// Symlinks are skipped outright (so a symlink loop cannot recurse), but this
+/// guarantees the walk can never overflow the stack even on a deep real tree.
+const MAX_DEPTH: usize = 25;
 
 /// Score a candidate path against a lowercase query. Lower is better; `None`
 /// means no match. Ranks exact basename, then basename prefix, then a basename
@@ -408,10 +428,14 @@ fn rank_matches(paths: &[String], query: &str) -> Vec<String> {
 }
 
 /// Walk one granted root, pushing absolute file paths into `out`. Skips hidden
-/// dotfiles/dirs and the noise dirs in `SKIP_DIRS`. Increments `scanned` for every
+/// dotfiles/dirs and the noise dirs in `SKIP_DIRS`. SYMLINKS are skipped entirely
+/// (never followed, never listed): this closes a path leak (a symlink to `/etc`
+/// inside a granted root would expose outside files) and a loop crash (a self
+/// referential symlink would otherwise recurse forever). A `MAX_DEPTH` cap is the
+/// belt-and-braces guard against a deep real tree. Increments `scanned` for every
 /// entry inspected and stops the whole walk once it crosses `SCAN_CAP`.
-fn collect_files(root: &Path, out: &mut Vec<String>, scanned: &mut usize) {
-    if *scanned >= SCAN_CAP {
+fn collect_files(root: &Path, out: &mut Vec<String>, scanned: &mut usize, depth: usize) {
+    if *scanned >= SCAN_CAP || depth >= MAX_DEPTH {
         return;
     }
     let entries = match std::fs::read_dir(root) {
@@ -423,18 +447,25 @@ fn collect_files(root: &Path, out: &mut Vec<String>, scanned: &mut usize) {
             return;
         }
         *scanned += 1;
+        // file_type() does NOT follow the link, so a symlink reports as a symlink.
+        let ft = match entry.file_type() {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        if ft.is_symlink() {
+            continue; // never follow or list symlinks (leak + loop guard)
+        }
         let name = entry.file_name();
         let name = name.to_string_lossy();
         if name.starts_with('.') {
             continue; // hidden dotfile or dotdir
         }
         let path = entry.path();
-        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
-        if is_dir {
+        if ft.is_dir() {
             if SKIP_DIRS.contains(&name.as_ref()) {
                 continue;
             }
-            collect_files(&path, out, scanned);
+            collect_files(&path, out, scanned, depth + 1);
         } else {
             out.push(path.to_string_lossy().into_owned());
         }
@@ -460,7 +491,7 @@ pub fn list_allowed_files(query: String, cfg: State<AppConfig>) -> Vec<String> {
         }
         let rp = Path::new(root);
         if rp.is_dir() {
-            collect_files(rp, &mut found, &mut scanned);
+            collect_files(rp, &mut found, &mut scanned, 0);
         } else if rp.is_file() {
             scanned += 1;
             found.push(rp.to_string_lossy().into_owned());
@@ -992,6 +1023,70 @@ mod tests {
         // "widgets" matches the path but not the basename "thing.rs".
         assert_eq!(rank_matches(&paths, "widgets"), vec!["/g/widgets/thing.rs"]);
         assert!(rank_matches(&paths, "zzz").is_empty());
+    }
+
+    #[test]
+    fn is_safe_root_rejects_filesystem_root_and_home() {
+        let home = PathBuf::from("/Users/alice");
+        // The filesystem root has no parent: rejected.
+        assert!(!is_safe_root(Path::new("/"), Some(&home)));
+        // The home directory itself: rejected.
+        assert!(!is_safe_root(&home, Some(&home)));
+        // A subfolder of home: allowed.
+        assert!(is_safe_root(Path::new("/Users/alice/projects"), Some(&home)));
+        // An unrelated absolute path: allowed.
+        assert!(is_safe_root(Path::new("/opt/data"), Some(&home)));
+        // No home known: only the filesystem root is rejected.
+        assert!(!is_safe_root(Path::new("/"), None));
+        assert!(is_safe_root(Path::new("/Users/alice"), None));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn collect_files_does_not_traverse_symlinked_dir() {
+        // tree: root/real/keep.txt  and  root/link -> outside (with secret.txt)
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("secret.txt"), "leak").unwrap();
+
+        let real = root.path().join("real");
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::write(real.join("keep.txt"), "ok").unwrap();
+
+        // a symlink inside the root pointing at the outside directory
+        std::os::unix::fs::symlink(outside.path(), root.path().join("link")).unwrap();
+
+        let mut found = Vec::new();
+        let mut scanned = 0usize;
+        collect_files(root.path(), &mut found, &mut scanned, 0);
+
+        // The real file is listed; nothing from behind the symlink leaks in.
+        assert!(found.iter().any(|p| p.ends_with("keep.txt")));
+        assert!(
+            !found.iter().any(|p| p.contains("secret.txt")),
+            "symlinked dir must not be traversed: {found:?}"
+        );
+        assert!(
+            !found.iter().any(|p| p.ends_with("/link")),
+            "the symlink entry itself must not be listed: {found:?}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn collect_files_survives_symlink_loop() {
+        // a/b -> a would recurse forever if symlinks were followed.
+        let root = tempfile::tempdir().unwrap();
+        let a = root.path().join("a");
+        std::fs::create_dir_all(&a).unwrap();
+        std::fs::write(a.join("f.txt"), "x").unwrap();
+        std::os::unix::fs::symlink(&a, a.join("b")).unwrap();
+
+        let mut found = Vec::new();
+        let mut scanned = 0usize;
+        // Must terminate (no stack overflow / infinite loop).
+        collect_files(root.path(), &mut found, &mut scanned, 0);
+        assert!(found.iter().any(|p| p.ends_with("f.txt")));
     }
 
     #[test]
