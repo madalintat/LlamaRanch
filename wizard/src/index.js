@@ -402,7 +402,6 @@ async function runWizard() {
     useEffect(() => {
       if (step !== 'download-running') return;
       if (selectedModels.length === 0) {
-        setModelsDone(true);
         setStep('download-done');
         return;
       }
