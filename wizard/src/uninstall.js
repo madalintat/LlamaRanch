@@ -4,7 +4,6 @@ import chalk from 'chalk';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-import { createInterface } from 'readline';
 import { getConfigPath, readConfig } from './config.js';
 import { getModelsDir } from './models.js';
 import { LLAMA_INSTALL_DIR } from './engine.js';
@@ -50,29 +49,36 @@ function blank() {
 // ---------------------------------------------------------------------------
 
 const HOME = os.homedir();
+// Also track the real (symlink-resolved) home so that realpathSync results
+// pass the safety check on platforms where the user home dir is itself a
+// symlink (e.g. macOS /var -> /private/var).
+let HOME_REAL = HOME;
+try { HOME_REAL = fs.realpathSync(HOME); } catch { /* leave as HOME */ }
 
 // Known safe prefixes: only delete inside these
 function safePrefix(p) {
-  const home = HOME;
-  const known = [
-    // config dir (platform-specific, always inside home)
-    path.join(home, 'Library', 'Application Support', 'llamaranch'),
-    path.join(home, '.config', 'llamaranch'),
-    // Windows APPDATA -- may be outside home, but still guard it
-    // models dir defaults
-    path.join(home, 'Library', 'Application Support', 'llamaranch', 'models'),
-    path.join(home, '.local', 'share', 'llamaranch', 'models'),
-    // engine
-    path.join(home, '.llamaranch'),
-    // desktop app (macOS)
-    '/Applications/LlamaRanch.app',
-    // desktop app (Linux)
-    path.join(home, '.local', 'bin', 'LlamaRanch.AppImage'),
-    path.join(home, 'Applications', 'LlamaRanch.AppImage'),
-    path.join(home, '.local', 'share', 'applications', 'llamaranch.desktop'),
-    // Windows APPDATA llamaranch dir
-    path.join(home, 'AppData', 'Roaming', 'llamaranch'),
-  ];
+  const homes = HOME_REAL !== HOME ? [HOME, HOME_REAL] : [HOME];
+  const known = [];
+  for (const home of homes) {
+    known.push(
+      // config dir (platform-specific, always inside home)
+      path.join(home, 'Library', 'Application Support', 'llamaranch'),
+      path.join(home, '.config', 'llamaranch'),
+      // models dir defaults
+      path.join(home, 'Library', 'Application Support', 'llamaranch', 'models'),
+      path.join(home, '.local', 'share', 'llamaranch', 'models'),
+      // engine
+      path.join(home, '.llamaranch'),
+      // desktop app (macOS)
+      '/Applications/LlamaRanch.app',
+      // desktop app (Linux)
+      path.join(home, '.local', 'bin', 'LlamaRanch.AppImage'),
+      path.join(home, 'Applications', 'LlamaRanch.AppImage'),
+      path.join(home, '.local', 'share', 'applications', 'llamaranch.desktop'),
+      // Windows APPDATA llamaranch dir
+      path.join(home, 'AppData', 'Roaming', 'llamaranch'),
+    );
+  }
 
   // Also accept dynamic APPDATA path
   if (process.env.APPDATA) {
@@ -94,7 +100,7 @@ function assertSafe(p) {
     throw new Error('path is empty');
   }
   const resolved = path.resolve(p);
-  if (resolved === HOME || resolved === '/') {
+  if (resolved === HOME || resolved === HOME_REAL || resolved === '/') {
     throw new Error('refusing to delete home or root: ' + resolved);
   }
   // Only the macOS app absolute path is allowed outside home.
@@ -219,26 +225,6 @@ function makeSpinner(label) {
 }
 
 // ---------------------------------------------------------------------------
-// Ask the user to TYPE a confirmation word, not just press Enter.
-// Accepts: "yes" or "remove" (case-insensitive). Anything else cancels.
-// ---------------------------------------------------------------------------
-
-function askTypedConfirm() {
-  return new Promise((resolve) => {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    process.stdout.write(
-      G_SPIN + ' ' + cream('Type ') + gold('yes') + cream(' or ') + gold('remove') +
-      cream(' and press Enter to proceed, or anything else to cancel: ')
-    );
-    rl.question('', (answer) => {
-      rl.close();
-      const val = answer.trim().toLowerCase();
-      resolve(val === 'yes' || val === 'remove');
-    });
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Collect what we are going to remove
 // ---------------------------------------------------------------------------
 
@@ -317,7 +303,7 @@ function collectTargets() {
 }
 
 // ---------------------------------------------------------------------------
-// Print the removal plan
+// Print the removal plan (used for non-TTY and --yes paths)
 // ---------------------------------------------------------------------------
 
 function printPlan(targets) {
@@ -344,8 +330,8 @@ function printPlan(targets) {
   }
   // Custom models_dir outside known LlamaRanch locations: shown but not removed
   if (t.manualModelsDir) {
-    row('models (custom,', t.manualModelsDir);
-    subrow('custom location, remove manually if desired)');
+    row('models (custom', t.manualModelsDir);
+    subrow('location, remove manually if desired)');
   }
 
   // Engine
@@ -384,134 +370,113 @@ function printPlan(targets) {
 }
 
 // ---------------------------------------------------------------------------
-// Execute removal
+// Safe-remove helper with spinner (used in --yes path)
 // ---------------------------------------------------------------------------
 
-async function executeRemoval(targets, { brewConfirmed = false } = {}) {
-  const t = targets;
+function doRemoveWithSpinner(label, p) {
+  const sp = makeSpinner(label);
+  let status;
+  try {
+    const resolved = assertSafe(p);
 
-  // Helper: safe-remove with spinner, including symlink-resolve guard.
-  function doRemove(label, p, extraGuard) {
-    const sp = makeSpinner(label);
-    let status;
-    try {
-      const resolved = assertSafe(p);
-      if (extraGuard && !extraGuard(resolved)) {
-        sp.stop(G_WARN, 'skipped (safety check)');
-        return;
-      }
-
-      // Symlink-resolve guard: compute realpath and re-run assertSafe on it.
-      // If the real path falls outside whitelisted locations, skip entirely.
-      if (fs.existsSync(p) || isSymlink(p)) {
-        try {
-          const realp = fs.realpathSync(p);
-          if (realp !== resolved) {
-            // Real path differs from the logical resolved path.
-            // Re-check the real destination against the whitelist.
-            assertSafe(realp);
+    // Symlink-resolve guard: compute realpath and re-run assertSafe on it.
+    if (fs.existsSync(p) || isSymlink(p)) {
+      try {
+        const realp = fs.realpathSync(p);
+        if (realp !== resolved) {
+          assertSafe(realp);
+        }
+      } catch (realErr) {
+        if (realErr.message && realErr.message.startsWith('path not in')) {
+          try {
+            const realp2 = fs.realpathSync(p);
+            sp.stop(G_WARN, p + ' resolves outside LlamaRanch (' + realp2 + '), skipped for safety');
+          } catch {
+            sp.stop(G_WARN, 'skipped (symlink resolves outside LlamaRanch)');
           }
-        } catch (realErr) {
-          // realpathSync may throw on dangling symlinks; that is fine, we
-          // will handle it in removePath. But if assertSafe threw, skip.
-          if (realErr.message && realErr.message.startsWith('path not in')) {
-            try {
-              const realp2 = fs.realpathSync(p);
-              sp.stop(G_WARN, p + ' resolves outside LlamaRanch (' + realp2 + '), skipped for safety');
-            } catch {
-              sp.stop(G_WARN, 'skipped (symlink resolves outside LlamaRanch)');
-            }
-            return;
-          }
-          // Other errors from realpathSync are fine: removePath handles them.
+          return;
         }
       }
-
-      status = removePath(resolved);
-    } catch (err) {
-      sp.stop(G_WARN, 'skipped: ' + err.message);
-      return;
     }
 
-    if (status && status.startsWith('symlink-skip:')) {
-      const realTarget = status.slice('symlink-skip:'.length);
-      sp.stop(G_WARN, p + ' resolves outside LlamaRanch (' + realTarget + '), skipped for safety');
-    } else if (status === 'removed' || status === 'removed (dangling symlink)') {
-      sp.stop(G_CHECK, 'removed');
-    } else if (status === 'already removed') {
-      sp.stop(G_WARN, 'already removed');
-    } else {
-      sp.stop(G_WARN, status);
-    }
+    status = removePath(resolved);
+  } catch (err) {
+    sp.stop(G_WARN, 'skipped: ' + err.message);
+    return;
   }
 
-  process.stdout.write(G_BAR + '\n');
-
-  // 1. Config file
-  doRemove('config file', t.configFilePath);
-
-  // 2. Config dir (only if it becomes empty)
-  if (fs.existsSync(t.configDirPath)) {
-    try {
-      const remaining = fs.readdirSync(t.configDirPath);
-      if (remaining.length === 0) {
-        doRemove('config dir (empty)', t.configDirPath);
-      } else {
-        // Warn but leave it: models dir might live here on some platforms
-        const sp = makeSpinner('config dir');
-        sp.stop(G_WARN, 'not empty, leaving: ' + t.configDirPath);
-      }
-    } catch {
-      // skip
-    }
-  }
-
-  // 3. Models dirs
-  for (const dir of t.modelsDirs) {
-    doRemove('models dir', dir);
-  }
-
-  // 4. Engine dir
-  doRemove('engine dir', t.engineInstallDir);
-
-  // 5. ~/.llamaranch parent dir (only if empty after removing llama.cpp subdir)
-  const llamaRanchDir = t.llamaRanchDir;
-  if (llamaRanchDir !== HOME && fs.existsSync(llamaRanchDir)) {
-    try {
-      const remaining = fs.readdirSync(llamaRanchDir);
-      if (remaining.length === 0) {
-        doRemove('~/.llamaranch (empty)', llamaRanchDir);
-      }
-    } catch { /* skip */ }
-  }
-
-  // 6. Brew/system engine
-  if (t.serverBinIsBrewOrSystem && brewConfirmed) {
-    const { execa } = await import('execa');
-    const sp = makeSpinner('brew uninstall llama.cpp');
-    try {
-      await execa('brew', ['uninstall', 'llama.cpp'], { all: true });
-      sp.stop(G_CHECK, 'uninstalled');
-    } catch (err) {
-      sp.stop(G_WARN, 'failed: ' + err.message);
-    }
-  } else if (t.serverBinIsBrewOrSystem && !brewConfirmed) {
-    process.stdout.write(G_BAR + '  ' + G_WARN + '  ' + muted('brew engine skipped: run ') + cream('brew uninstall llama.cpp') + muted(' manually') + '\n');
-  }
-
-  // 7. Desktop app
-  if (process.platform !== 'win32' && t.appPath) {
-    doRemove('desktop app', t.appPath);
-  }
-
-  // 8. Linux .desktop entry
-  if (t.desktopEntryPath) {
-    doRemove('.desktop entry', t.desktopEntryPath);
+  if (status && status.startsWith('symlink-skip:')) {
+    const realTarget = status.slice('symlink-skip:'.length);
+    sp.stop(G_WARN, p + ' resolves outside LlamaRanch (' + realTarget + '), skipped for safety');
+  } else if (status === 'removed' || status === 'removed (dangling symlink)') {
+    sp.stop(G_CHECK, 'removed');
+  } else if (status === 'already removed') {
+    sp.stop(G_WARN, 'already removed');
+  } else {
+    sp.stop(G_WARN, status);
   }
 }
 
 // ---------------------------------------------------------------------------
-// Main export
+// --yes path: remove only config + engine, keep models and brew
+// ---------------------------------------------------------------------------
+
+async function executeYesRemoval(targets) {
+  const t = targets;
+
+  process.stdout.write(G_BAR + '\n');
+
+  // Config file
+  doRemoveWithSpinner('config file', t.configFilePath);
+
+  // Config dir (only if empty after config file removal)
+  if (fs.existsSync(t.configDirPath)) {
+    try {
+      const remaining = fs.readdirSync(t.configDirPath);
+      if (remaining.length === 0) {
+        doRemoveWithSpinner('config dir (empty)', t.configDirPath);
+      } else {
+        const sp = makeSpinner('config dir');
+        sp.stop(G_WARN, 'not empty, leaving: ' + t.configDirPath);
+      }
+    } catch { /* skip */ }
+  }
+
+  // Engine dir
+  doRemoveWithSpinner('engine dir', t.engineInstallDir);
+
+  // ~/.llamaranch parent dir (only if empty after removing llama.cpp subdir)
+  if (t.llamaRanchDir !== HOME && fs.existsSync(t.llamaRanchDir)) {
+    try {
+      const remaining = fs.readdirSync(t.llamaRanchDir);
+      if (remaining.length === 0) {
+        doRemoveWithSpinner('~/.llamaranch (empty)', t.llamaRanchDir);
+      }
+    } catch { /* skip */ }
+  }
+
+  // Kept items note
+  process.stdout.write(G_BAR + '\n');
+  process.stdout.write(G_BAR + '  ' + G_WARN + '  ' + muted('kept: models, brew/system engine (if any)') + '\n');
+  if (t.modelsDirs.length > 0) {
+    for (const dir of t.modelsDirs) {
+      subrow('models at: ' + dir + '  (remove manually if desired)');
+    }
+  }
+  if (t.manualModelsDir) {
+    subrow('custom models at: ' + t.manualModelsDir + '  (remove manually if desired)');
+  }
+  if (t.serverBinIsBrewOrSystem) {
+    subrow('brew engine: run  brew uninstall llama.cpp  to remove');
+  }
+  if (t.appPath && process.platform !== 'win32') {
+    subrow('desktop app at: ' + t.appPath + '  (remove manually if desired)');
+  }
+  process.stdout.write(G_BAR + '\n');
+}
+
+// ---------------------------------------------------------------------------
+// Ink-based selective removal for interactive TTY
 // ---------------------------------------------------------------------------
 
 export async function runUninstall({ yes = false } = {}) {
@@ -520,58 +485,410 @@ export async function runUninstall({ yes = false } = {}) {
 
   const targets = collectTargets();
 
-  printPlan(targets);
+  // --yes path: plain stdout, remove only config + engine
+  if (yes) {
+    printPlan(targets);
+    await executeYesRemoval(targets);
+    process.stdout.write(G_CORNER + ' ' + cream('The valley is clear.') + '  ' + muted('models and brew engine were kept.') + '\n');
+    process.stdout.write('\n');
+    return;
+  }
 
-  // Non-TTY without --yes: show plan only, refuse
-  if (!process.stdout.isTTY && !yes) {
+  // Non-TTY without --yes: plain stdout, show plan, remove nothing
+  if (!process.stdout.isTTY) {
+    printPlan(targets);
     process.stdout.write(G_WARN + ' ' + gold('Non-interactive shell detected.') + '\n');
-    process.stdout.write(G_BAR + '  ' + muted('Pass ') + cream('--yes') + muted(' to confirm deletion without a prompt.') + '\n');
+    process.stdout.write(G_BAR + '  ' + muted('Run interactively to choose what to remove, or pass ') + cream('--yes') + muted(' to remove the default set.') + '\n');
     process.stdout.write(G_BAR + '  ' + muted('Nothing was removed.') + '\n');
     process.stdout.write(G_CORNER + '\n');
     process.exit(0);
   }
 
-  // Determine confirmation
-  let confirmed = yes;
+  // Ink interactive path
+  const { render, Text, Box, useInput, useApp } = await import('ink');
+  const React = (await import('react')).default;
+  const { useState, useEffect } = React;
 
-  if (!confirmed) {
-    if (!process.stdin.isTTY) {
-      // Piped stdin without --yes
-      process.stdout.write(G_WARN + ' ' + gold('No TTY for input and --yes not set. Nothing removed.') + '\n');
-      process.stdout.write(G_CORNER + '\n');
-      process.exit(0);
-    }
-    // Typed confirmation: user must type "yes" or "remove", not just press Enter.
-    confirmed = await askTypedConfirm();
-  }
+  // Build the items array from targets (closure over targets)
+  function buildItems(t) {
+    const items = [];
 
-  if (!confirmed) {
-    process.stdout.write(G_BAR + '\n');
-    line(G_CORNER, muted('Nothing was removed.'));
-    process.exit(0);
-  }
+    // config
+    items.push({
+      key: 'config',
+      label: 'config',
+      path: t.configFilePath,
+      size: '',
+      defaultChecked: true,
+    });
 
-  // Extra confirm for brew (brew still uses the simple y/N prompt, not typed)
-  let brewConfirmed = false;
-  if (targets.serverBinIsBrewOrSystem && !yes) {
-    if (process.stdin.isTTY) {
-      const rl = createInterface({ input: process.stdin, output: process.stdout });
-      brewConfirmed = await new Promise((resolve) => {
-        rl.question(gold('◆ ') + cream('Also run brew uninstall llama.cpp?') + ' ' + muted('[y/N] '), (answer) => {
-          rl.close();
-          resolve(answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes');
-        });
+    // models
+    for (let i = 0; i < t.modelsDirs.length; i++) {
+      const dir = t.modelsDirs[i];
+      const exists = fs.existsSync(dir);
+      let sizeStr = '';
+      if (exists) {
+        const bytes = dirSizeBytes(dir);
+        sizeStr = humanSize(bytes);
+      }
+      items.push({
+        key: i === 0 ? 'models' : 'models_' + i,
+        label: 'models',
+        path: dir,
+        size: sizeStr,
+        defaultChecked: false,
       });
     }
-  } else if (targets.serverBinIsBrewOrSystem && yes) {
-    // --yes: skip brew to be conservative; brew manages its own packages
-    brewConfirmed = false;
+
+    // engine
+    items.push({
+      key: 'engine',
+      label: 'llama.cpp engine',
+      path: t.engineInstallDir,
+      size: '',
+      defaultChecked: true,
+    });
+
+    // brew (only if applicable)
+    if (t.serverBinIsBrewOrSystem) {
+      items.push({
+        key: 'brew',
+        label: 'brew uninstall llama.cpp',
+        path: t.serverBin || '',
+        size: '',
+        defaultChecked: false,
+      });
+    }
+
+    // desktop app (macOS or Linux, not Windows)
+    if (t.appPath && process.platform !== 'win32') {
+      items.push({
+        key: 'app',
+        label: 'desktop app',
+        path: t.appPath,
+        size: '',
+        defaultChecked: true,
+      });
+    }
+
+    return items;
   }
 
-  await executeRemoval(targets, { brewConfirmed });
+  // Safe-remove a single key, return { key, label, status } asynchronously
+  async function removeKey(key, t) {
+    const doSafe = (label, p) => {
+      try {
+        const resolved = assertSafe(p);
+        if (fs.existsSync(p) || isSymlink(p)) {
+          try {
+            const realp = fs.realpathSync(p);
+            if (realp !== resolved) {
+              assertSafe(realp);
+            }
+          } catch (realErr) {
+            if (realErr.message && realErr.message.startsWith('path not in')) {
+              return 'skipped (symlink outside LlamaRanch)';
+            }
+          }
+        }
+        const status = removePath(resolved);
+        if (status && status.startsWith('symlink-skip:')) return 'skipped (symlink outside LlamaRanch)';
+        return status;
+      } catch (err) {
+        return 'skipped: ' + err.message;
+      }
+    };
 
-  // Outro
-  process.stdout.write(G_BAR + '\n');
-  process.stdout.write(G_CORNER + ' ' + cream('The valley is clear.') + '  ' + muted('models you added elsewhere are untouched.') + '\n');
-  process.stdout.write('\n');
+    if (key === 'config') {
+      doSafe('config file', t.configFilePath);
+      if (fs.existsSync(t.configDirPath)) {
+        try {
+          const rem = fs.readdirSync(t.configDirPath);
+          if (rem.length === 0) doSafe('config dir', t.configDirPath);
+        } catch { /* skip */ }
+      }
+      return 'removed';
+    }
+
+    if (key === 'models' || key.startsWith('models_')) {
+      // Find corresponding dir by index
+      const idx = key === 'models' ? 0 : parseInt(key.slice('models_'.length), 10);
+      const dir = t.modelsDirs[idx];
+      if (dir) doSafe('models dir', dir);
+      return 'removed';
+    }
+
+    if (key === 'engine') {
+      doSafe('engine dir', t.engineInstallDir);
+      // Parent dir if now empty
+      if (t.llamaRanchDir !== HOME && fs.existsSync(t.llamaRanchDir)) {
+        try {
+          const rem = fs.readdirSync(t.llamaRanchDir);
+          if (rem.length === 0) doSafe('~/.llamaranch', t.llamaRanchDir);
+        } catch { /* skip */ }
+      }
+      return 'removed';
+    }
+
+    if (key === 'brew') {
+      try {
+        const { execa } = await import('execa');
+        await execa('brew', ['uninstall', 'llama.cpp'], { all: true });
+        return 'uninstalled';
+      } catch (err) {
+        return 'failed: ' + err.message;
+      }
+    }
+
+    if (key === 'app') {
+      doSafe('desktop app', t.appPath);
+      if (t.desktopEntryPath) doSafe('.desktop entry', t.desktopEntryPath);
+      return 'removed';
+    }
+
+    return 'unknown key';
+  }
+
+  // The Ink component (closure over targets)
+  function UninstallApp() {
+    const { exit } = useApp();
+    const items = buildItems(targets);
+    const checkboxItems = items; // all are checkbox items
+
+    const [checked, setChecked] = useState(() => {
+      const init = {};
+      for (const it of items) init[it.key] = it.defaultChecked;
+      return init;
+    });
+    const [cursor, setCursor] = useState(0);
+    const [step, setStep] = useState('select'); // select | confirm | removing | outro
+    const [typedInput, setTypedInput] = useState('');
+    const [removeResults, setRemoveResults] = useState([]);
+    const [nothingSelected, setNothingSelected] = useState(false);
+    const [cancelled, setCancelled] = useState(false);
+
+    // --- Step: select ---
+    useInput((input, key) => {
+      if (step === 'select') {
+        if (key.upArrow) {
+          setCursor(c => Math.max(0, c - 1));
+          return;
+        }
+        if (key.downArrow) {
+          setCursor(c => Math.min(checkboxItems.length - 1, c + 1));
+          return;
+        }
+        if (input === ' ') {
+          const itemKey = checkboxItems[cursor]?.key;
+          if (itemKey) {
+            setChecked(prev => ({ ...prev, [itemKey]: !prev[itemKey] }));
+          }
+          return;
+        }
+        if (key.return) {
+          const anyChecked = Object.values(checked).some(Boolean);
+          if (!anyChecked) {
+            setNothingSelected(true);
+            setStep('outro');
+          } else {
+            setStep('confirm');
+          }
+          return;
+        }
+        if (input === 'q' || key.ctrl && input === 'c') {
+          exit();
+          return;
+        }
+      }
+
+      if (step === 'confirm') {
+        if (key.return) {
+          const val = typedInput.trim().toLowerCase();
+          if (val === 'yes' || val === 'remove') {
+            setStep('removing');
+          } else {
+            setCancelled(true);
+            setStep('outro');
+          }
+          return;
+        }
+        if (key.backspace || key.delete) {
+          setTypedInput(prev => prev.slice(0, -1));
+          return;
+        }
+        if (input && input.length === 1 && input >= ' ') {
+          setTypedInput(prev => prev + input);
+          return;
+        }
+      }
+    }, { isActive: step === 'select' || step === 'confirm' });
+
+    // --- Step: removing ---
+    useEffect(() => {
+      if (step !== 'removing') return;
+      const selectedKeys = Object.entries(checked)
+        .filter(([, v]) => v)
+        .map(([k]) => k);
+
+      (async () => {
+        const results = [];
+        for (const key of selectedKeys) {
+          const itemDef = items.find(it => it.key === key);
+          const label = itemDef ? itemDef.label : key;
+          setRemoveResults(prev => [...prev, { key, label, status: 'working...' }]);
+          const status = await removeKey(key, targets);
+          setRemoveResults(prev =>
+            prev.map(r => r.key === key ? { ...r, status } : r)
+          );
+          results.push({ key, label, status });
+        }
+        setStep('outro');
+      })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [step]);
+
+    // --- Step: outro exit ---
+    useEffect(() => {
+      if (step !== 'outro') return;
+      const timer = setTimeout(() => exit(), 100);
+      return () => clearTimeout(timer);
+    }, [step, exit]);
+
+    const selectedKeys = Object.entries(checked).filter(([, v]) => v).map(([k]) => k);
+    const keptKeys = Object.entries(checked).filter(([, v]) => !v).map(([k]) => k);
+
+    const keyLabel = (key) => {
+      const it = items.find(i => i.key === key);
+      return it ? it.label : key;
+    };
+
+    // ---- Render ----
+
+    if (step === 'select') {
+      return React.createElement(Box, { flexDirection: 'column' },
+        React.createElement(Text, { color: '#3f3d34' }, '┌'),
+        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, null,
+          React.createElement(Text, { color: '#c7a228' }, '◆ '),
+          React.createElement(Text, { color: '#f5f0e8', bold: true }, 'LlamaRanch'),
+          React.createElement(Text, { color: '#6b6456' }, '  uninstall · choose what to remove'),
+        ),
+        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        ...checkboxItems.map((item, i) => {
+          const isActive = i === cursor;
+          const isChecked = checked[item.key];
+          const cursor_glyph = isActive ? React.createElement(Text, { color: '#c7a228' }, '❯') : React.createElement(Text, null, ' ');
+          const box_glyph = isChecked
+            ? React.createElement(Text, { color: '#c7a228' }, '◼')
+            : React.createElement(Text, { color: '#6b6456' }, '◻');
+          return React.createElement(Box, { key: item.key },
+            React.createElement(Text, { color: '#3f3d34' }, '│  '),
+            cursor_glyph,
+            React.createElement(Text, null, ' '),
+            box_glyph,
+            React.createElement(Text, null, ' '),
+            React.createElement(Text, { color: '#f5f0e8' }, item.label),
+            React.createElement(Text, { color: '#6b6456' }, '   ' + item.path),
+            item.size ? React.createElement(Text, { color: '#6b6456' }, '   ' + item.size) : null,
+          );
+        }),
+        targets.manualModelsDir
+          ? React.createElement(Box, { key: 'manual-models-info' },
+              React.createElement(Text, { color: '#3f3d34' }, '│     '),
+              React.createElement(Text, { color: '#6b6456' }, 'models (custom location, remove manually): ' + targets.manualModelsDir),
+            )
+          : null,
+        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, { color: '#6b6456' },
+          '│  space toggles · enter confirms · your models and llama.cpp are kept unless you check them'
+        ),
+      );
+    }
+
+    if (step === 'confirm') {
+      return React.createElement(Box, { flexDirection: 'column' },
+        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, null,
+          React.createElement(Text, { color: '#3f3d34' }, '│  '),
+          React.createElement(Text, { color: '#c7a228' }, '▲  '),
+          React.createElement(Text, { color: '#c7a228' }, 'This permanently deletes the items above. Models and config cannot be recovered.'),
+        ),
+        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, null,
+          React.createElement(Text, { color: '#c7a228' }, '◆  '),
+          React.createElement(Text, { color: '#f5f0e8' }, 'Type '),
+          React.createElement(Text, { color: '#c7a228' }, 'yes'),
+          React.createElement(Text, { color: '#f5f0e8' }, ' or '),
+          React.createElement(Text, { color: '#c7a228' }, 'remove'),
+          React.createElement(Text, { color: '#f5f0e8' }, ' and press Enter to proceed:'),
+        ),
+        React.createElement(Text, null,
+          React.createElement(Text, { color: '#3f3d34' }, '│  '),
+          React.createElement(Text, { color: '#f5f0e8' }, typedInput || ''),
+          React.createElement(Text, { color: '#c7a228' }, '_'),
+        ),
+      );
+    }
+
+    if (step === 'removing') {
+      return React.createElement(Box, { flexDirection: 'column' },
+        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, null,
+          React.createElement(Text, { color: '#c7a228' }, '◆  '),
+          React.createElement(Text, { color: '#f5f0e8' }, 'Removing selected items...'),
+        ),
+        ...removeResults.map(r =>
+          React.createElement(Text, { key: r.key },
+            React.createElement(Text, { color: '#3f3d34' }, '│  '),
+            React.createElement(Text, { color: '#c7a228' }, '◒  '),
+            React.createElement(Text, { color: '#f5f0e8' }, r.label),
+            React.createElement(Text, { color: '#6b6456' }, '   ' + r.status),
+          )
+        ),
+      );
+    }
+
+    // outro
+    const removedLabels = removeResults.length > 0
+      ? removeResults.map(r => r.label).join(', ')
+      : (nothingSelected ? 'nothing' : 'nothing');
+
+    const keptLabels = keptKeys.length > 0
+      ? keptKeys.map(keyLabel).join(', ')
+      : 'nothing';
+
+    return React.createElement(Box, { flexDirection: 'column' },
+      React.createElement(Text, null,
+        React.createElement(Text, { color: '#3f3d34' }, '└  '),
+        React.createElement(Text, { color: '#f5f0e8' }, 'The valley is clear.'),
+      ),
+      cancelled
+        ? React.createElement(Text, null,
+            React.createElement(Text, { color: '#3f3d34' }, '   '),
+            React.createElement(Text, { color: '#6b6456' }, 'cancelled: nothing was removed.'),
+          )
+        : null,
+      !cancelled && !nothingSelected
+        ? React.createElement(Text, null,
+            React.createElement(Text, { color: '#3f3d34' }, '   '),
+            React.createElement(Text, { color: '#6b6456' }, 'removed: ' + removedLabels),
+          )
+        : null,
+      !cancelled && keptKeys.length > 0
+        ? React.createElement(Text, null,
+            React.createElement(Text, { color: '#3f3d34' }, '   '),
+            React.createElement(Text, { color: '#6b6456' }, 'kept: ' + keptLabels),
+          )
+        : null,
+      targets.manualModelsDir
+        ? React.createElement(Text, null,
+            React.createElement(Text, { color: '#3f3d34' }, '   '),
+            React.createElement(Text, { color: '#6b6456' }, 'your custom models dir is at: ' + targets.manualModelsDir),
+          )
+        : null,
+    );
+  }
+
+  const app = render(React.createElement(UninstallApp, null));
+  await app.waitUntilExit();
 }
