@@ -34,10 +34,11 @@ function printHelp() {
   const muted = (s) => chalk.hex('#6b6456')(s);
   console.log(cream('Usage:'));
   console.log('');
-  console.log('  ' + gold('llamaranch-wizard') + '          ' + muted('run the setup wizard'));
-  console.log('  ' + gold('llamaranch-wizard serve') + '    ' + muted('start headless llama-server'));
-  console.log('  ' + gold('llamaranch-wizard update') + '   ' + muted('update LlamaRanch to the latest release'));
-  console.log('  ' + gold('llamaranch-wizard --help') + '   ' + muted('show this help'));
+  console.log('  ' + gold('llamaranch-wizard') + '             ' + muted('run the setup wizard'));
+  console.log('  ' + gold('llamaranch-wizard serve') + '       ' + muted('start headless llama-server'));
+  console.log('  ' + gold('llamaranch-wizard update') + '      ' + muted('update LlamaRanch to the latest release'));
+  console.log('  ' + gold('llamaranch-wizard uninstall') + '   ' + muted('remove LlamaRanch and its models'));
+  console.log('  ' + gold('llamaranch-wizard --help') + '      ' + muted('show this help'));
   console.log('  ' + gold('llamaranch-wizard --version'));
   console.log('');
   console.log(muted('LlamaRanch keeps your models local. Nothing leaves the valley.'));
@@ -980,6 +981,11 @@ if (cmd === '--help' || cmd === '-h') {
   console.log(chalk.hex('#c7a228')('  update') + chalk.hex('#6b6456')('  checking for new releases...'));
   console.log('');
   await runUpdate();
+  process.exit(0);
+} else if (cmd === 'uninstall') {
+  const { runUninstall } = await import('./uninstall.js');
+  const yes = process.argv.includes('--yes') || process.argv.includes('-y');
+  await runUninstall({ yes });
   process.exit(0);
 } else if (!cmd || cmd === 'setup') {
   await runWizard();
