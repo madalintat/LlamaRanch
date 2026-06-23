@@ -343,6 +343,134 @@ pub fn remove_allowed_dir(
     Ok(c.allowed_dirs.clone())
 }
 
+/// Names of directories we never descend into when listing granted files: build
+/// output, VCS metadata, and dependency trees. Keeping the agent's view to source
+/// files keeps the picker fast and the results relevant.
+const SKIP_DIRS: &[&str] = &[
+    "node_modules",
+    ".git",
+    "target",
+    "dist",
+    "build",
+    ".next",
+    ".cache",
+    "__pycache__",
+    ".venv",
+    "venv",
+];
+
+/// How many filesystem entries we scan before giving up (a hard wall so a huge
+/// tree can never hang the picker), and how many results we hand back.
+const SCAN_CAP: usize = 5000;
+const RESULT_CAP: usize = 30;
+
+/// Score a candidate path against a lowercase query. Lower is better; `None`
+/// means no match. Ranks exact basename, then basename prefix, then a basename
+/// substring, then a path substring. Ties break on shorter path (closer to root).
+fn match_score(path: &str, base: &str, q: &str) -> Option<usize> {
+    if q.is_empty() {
+        return Some(4);
+    }
+    if base == q {
+        Some(0)
+    } else if base.starts_with(q) {
+        Some(1)
+    } else if base.contains(q) {
+        Some(2)
+    } else if path.contains(q) {
+        Some(3)
+    } else {
+        None
+    }
+}
+
+/// Pure ranking/filter helper (unit-tested): keep paths whose basename or full
+/// path matches `query` (case-insensitive substring), order by match quality,
+/// and cap at `RESULT_CAP`. An empty query keeps the input order and just caps.
+fn rank_matches(paths: &[String], query: &str) -> Vec<String> {
+    let q = query.trim().to_lowercase();
+    let mut scored: Vec<(usize, usize, &String)> = paths
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, p)| {
+            let lower = p.to_lowercase();
+            let base = lower.rsplit(['/', '\\']).next().unwrap_or(&lower);
+            match_score(&lower, base, &q).map(|score| (score, idx, p))
+        })
+        .collect();
+    // Stable on (score, original index): preserves walk order within a tier.
+    scored.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
+    scored
+        .into_iter()
+        .take(RESULT_CAP)
+        .map(|(_, _, p)| p.clone())
+        .collect()
+}
+
+/// Walk one granted root, pushing absolute file paths into `out`. Skips hidden
+/// dotfiles/dirs and the noise dirs in `SKIP_DIRS`. Increments `scanned` for every
+/// entry inspected and stops the whole walk once it crosses `SCAN_CAP`.
+fn collect_files(root: &Path, out: &mut Vec<String>, scanned: &mut usize) {
+    if *scanned >= SCAN_CAP {
+        return;
+    }
+    let entries = match std::fs::read_dir(root) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        if *scanned >= SCAN_CAP {
+            return;
+        }
+        *scanned += 1;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.starts_with('.') {
+            continue; // hidden dotfile or dotdir
+        }
+        let path = entry.path();
+        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+        if is_dir {
+            if SKIP_DIRS.contains(&name.as_ref()) {
+                continue;
+            }
+            collect_files(&path, out, scanned);
+        } else {
+            out.push(path.to_string_lossy().into_owned());
+        }
+    }
+}
+
+/// Fuzzy-search the agent's GRANTED folders (`config.allowed_dirs` only, never the
+/// whole disk) for files matching `query`. Each granted entry is walked: a directory
+/// is listed recursively (skipping hidden + noise dirs), a file entry includes
+/// itself. Only paths that pass the existing allowlist gate are kept. Bounded by
+/// `SCAN_CAP` entries scanned and `RESULT_CAP` results, so it never hangs.
+#[tauri::command]
+pub fn list_allowed_files(query: String, cfg: State<AppConfig>) -> Vec<String> {
+    let roots = cfg.0.lock().unwrap().allowed_dirs.clone();
+    if roots.is_empty() {
+        return Vec::new();
+    }
+    let mut found: Vec<String> = Vec::new();
+    let mut scanned: usize = 0;
+    for root in &roots {
+        if scanned >= SCAN_CAP {
+            break;
+        }
+        let rp = Path::new(root);
+        if rp.is_dir() {
+            collect_files(rp, &mut found, &mut scanned);
+        } else if rp.is_file() {
+            scanned += 1;
+            found.push(rp.to_string_lossy().into_owned());
+        }
+    }
+    // Keep only paths that pass the live read_file gate (under a granted root).
+    found.retain(|p| crate::brain::tools::path_allowed(p, &roots));
+    rank_matches(&found, &query)
+}
+
 #[derive(Serialize)]
 pub struct CatalogView {
     pub id: String,
@@ -820,6 +948,50 @@ mod tests {
         let one = vec!["/x".to_string()];
         assert_eq!(merge_allowed(&one, &[]), one);
         assert_eq!(merge_allowed(&[], &one), one);
+    }
+
+    #[test]
+    fn rank_matches_orders_by_quality_and_caps() {
+        let paths = vec![
+            "/g/notes/readme.md".to_string(),
+            "/g/src/main.rs".to_string(),
+            "/g/deep/main_helpers.rs".to_string(),
+            "/g/docs/MAIN_OVERVIEW.txt".to_string(),
+            "/g/other/unrelated.json".to_string(),
+        ];
+        // Query "main": exact basename none, prefix "main.rs" and "main_helpers.rs"
+        // and "MAIN_OVERVIEW.txt" (case-insensitive) rank above pure path/none.
+        let out = rank_matches(&paths, "main");
+        assert_eq!(out[0], "/g/src/main.rs"); // basename prefix, earliest
+        assert!(out.contains(&"/g/deep/main_helpers.rs".to_string()));
+        assert!(out.contains(&"/g/docs/MAIN_OVERVIEW.txt".to_string()));
+        assert!(!out.contains(&"/g/other/unrelated.json".to_string())); // no match
+    }
+
+    #[test]
+    fn rank_matches_exact_basename_first() {
+        let paths = vec![
+            "/g/a/config.toml".to_string(),
+            "/g/b/config.toml.bak".to_string(),
+        ];
+        let out = rank_matches(&paths, "config.toml");
+        assert_eq!(out[0], "/g/a/config.toml"); // exact basename beats prefix
+    }
+
+    #[test]
+    fn rank_matches_empty_query_keeps_order_and_caps() {
+        let paths: Vec<String> = (0..40).map(|i| format!("/g/f{i}.txt")).collect();
+        let out = rank_matches(&paths, "");
+        assert_eq!(out.len(), RESULT_CAP);
+        assert_eq!(out[0], "/g/f0.txt"); // input order preserved
+    }
+
+    #[test]
+    fn rank_matches_path_substring_only() {
+        let paths = vec!["/g/widgets/thing.rs".to_string()];
+        // "widgets" matches the path but not the basename "thing.rs".
+        assert_eq!(rank_matches(&paths, "widgets"), vec!["/g/widgets/thing.rs"]);
+        assert!(rank_matches(&paths, "zzz").is_empty());
     }
 
     #[test]

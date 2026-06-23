@@ -64,6 +64,7 @@ pub fn run() {
             commands::set_config,
             commands::add_allowed_dirs,
             commands::remove_allowed_dir,
+            commands::list_allowed_files,
             commands::restart_router,
             commands::llama_cpp_version,
             commands::list_catalog,

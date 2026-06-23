@@ -854,6 +854,79 @@ body {
   margin-left: 4px;
 }
 
+/* ── @-mention file picker (composer) ───────────────────────── */
+
+.at-popup {
+  display: none;
+  position: fixed;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: 11px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.22);
+  z-index: 120;
+  overflow: hidden;
+}
+
+.at-popup--open {
+  display: block;
+}
+
+.at-popup__list {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 5px 0;
+}
+
+.at-popup__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 13px;
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background .1s;
+}
+
+.at-popup__row:hover,
+.at-popup__row--active {
+  background: var(--line-3);
+  outline: none;
+}
+
+.at-popup__base {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.at-popup__dir {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+}
+
+.at-popup__hint {
+  padding: 12px 14px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 /* LED pulse animation for a model that is actively loading */
 .led--loading {
   animation: led-pulse .8s ease-in-out infinite;
