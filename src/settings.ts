@@ -300,6 +300,7 @@ async function load() {
   $("s-bin").value = cfg.server_bin;
   $("s-idle").value = String(cfg.sleep_idle_seconds ?? 0);
   $("s-models-max").value = String(cfg.models_max ?? 1);
+  $("s-ctx").value = String(cfg.ctx_size ?? 0); // 0 = auto (let --fit size it)
   $("s-hf").value = cfg.hf_token ?? "";
   setExpose(cfg.expose_to_network);
   setOffline(cfg.offline_mode ?? false);
@@ -354,6 +355,8 @@ async function save() {
         server_bin: $("s-bin").value,
         sleep_idle_seconds: Number($("s-idle").value) || 0,
         models_max: Number($("s-models-max").value) || 1,
+        // 0/blank = auto (None, let --fit size context); a positive value caps it.
+        ctx_size: Number($("s-ctx").value) > 0 ? Number($("s-ctx").value) : null,
         hf_token: $("s-hf").value.trim(),
         expose_to_network: $("s-expose").checked,
         offline_mode: $("s-offline").checked,
