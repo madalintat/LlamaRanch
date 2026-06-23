@@ -418,29 +418,25 @@ let loadToken = 0;
 /** Elapsed-seconds interval for the LCD "loading Ns" counter. */
 let loadElapsedInterval: ReturnType<typeof setInterval> | null = null;
 
-/** Poll interval that watches model_pool during a load. */
-let loadPollInterval: ReturnType<typeof setInterval> | null = null;
-
 function clearLoadIntervals(): void {
   if (loadElapsedInterval !== null) { clearInterval(loadElapsedInterval); loadElapsedInterval = null; }
-  if (loadPollInterval !== null) { clearInterval(loadPollInterval); loadPollInterval = null; }
 }
 
-/** Toggle the animated loading pulse on the rail LCD (status text + panel glow). */
+/** Toggle the loading pulse on the rail LCD status text. */
 function setLoadingVisual(on: boolean): void {
   if (lcdStatus) lcdStatus.classList.toggle("lcd--loading", on);
-  if (lcdEl) lcdEl.classList.toggle("lcd--loading", on);
 }
 
 /**
- * Load a model by ID with real-time feedback:
- * 1. Immediately shows "loading Ns" counter in the LCD.
- * 2. Fires load_model WITHOUT awaiting (it blocks until the router finishes).
- * 3. Starts a 600ms poll of model_pool to update the LCD and pool strip live.
- * 4. On resolve: final refreshPool + clearIntervals.
- * 5. On reject: surfaces an error bubble, resets LCD, clearIntervals.
+ * Load a model by ID with real-time feedback. The router answers /models/load
+ * with success immediately and loads the model asynchronously, so:
+ * 1. Show a live "loading Ns" counter in the LCD.
+ * 2. Fire load_model, then poll model_pool until the model is actually resident,
+ *    updating the LCD and pool strip live (the poll awaits a sleep between
+ *    iterations, so it never spins the CPU).
+ * 3. On loaded: flip to SERVING. On error/timeout: surface a bubble + reset.
  *
- * Guards against overlapping loads: bumps loadToken so old poll loops exit early.
+ * Guards against overlapping loads: bumps loadToken so a superseded loop exits.
  */
 async function pickAndLoadModel(modelId: string): Promise<void> {
   // Bump token so any previous load's poll loop stops

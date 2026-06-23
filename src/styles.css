@@ -523,12 +523,6 @@ html, body {
    touches or overflows the window's rounded edge. */
 :root { --s-inset: 24px; }
 
-/* Fade + micro-lift in. Runs once on load (and is re-triggered on focus in settings.ts).
-   Respects prefers-reduced-motion. */
-@keyframes s-appear {
-  from { opacity: 0; transform: translateY(4px) scale(0.99); }
-  to   { opacity: 1; transform: none; }
-}
 /* App shell override: settings uses --panel bg.
    No entrance animation: animating transform/opacity on this transparent,
    acrylic-blurred window forces a per-frame re-blur that can glitch the macOS
@@ -536,9 +530,6 @@ html, body {
 #app:has(.s-body) {
   background: var(--panel);
   animation: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  #app:has(.s-body) { animation: none; }
 }
 
 /* Settings tab bar sits below the header */
