@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { mountDither } from "./dither";
 import { applyTheme, type Theme } from "./brand/theme";
 import { tagOS } from "./platform";
@@ -730,6 +731,80 @@ async function cancelStream() {
 }
 // Expose for potential keybinding hooks
 (window as Window & typeof globalThis & { chat_cancel?: () => void }).chat_cancel = cancelStream;
+
+// ============================================================
+// Drag-and-drop file/folder access
+// ============================================================
+//
+// Uses the Tauri v2 webview drag-drop event (NOT browser ondrop, which never
+// fires for OS file drops). Dropping a file or folder onto the chat grants the
+// agent access to it via add_allowed_dirs, then references each granted path in
+// the composer so the next message can ask about it. The listener is registered
+// once on load and lives for the window lifetime; every payload is wrapped so a
+// failure can never crash the listener.
+
+const chatMain = document.querySelector(".chat-main") as HTMLElement | null;
+
+/** Toggle the drop affordance overlay on the chat area. */
+function setDropAffordance(on: boolean): void {
+  document.body.classList.toggle("dragover", on);
+  if (chatMain) chatMain.classList.toggle("dragover", on);
+}
+
+/** Append granted absolute paths to the composer, one per line, no auto-send. */
+function referencePathsInComposer(paths: string[]): void {
+  if (paths.length === 0) return;
+  const existing = input.value;
+  const needsBreak = existing.length > 0 && !existing.endsWith("\n");
+  const block = paths.join("\n");
+  input.value = existing + (needsBreak ? "\n" : "") + block + "\n";
+  // Nudge the textarea so any autosize/scroll reacts, and focus for typing.
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.focus();
+  input.selectionStart = input.selectionEnd = input.value.length;
+}
+
+function basenameOf(p: string): string {
+  const parts = p.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || p;
+}
+
+async function handleDroppedPaths(paths: string[]): Promise<void> {
+  if (!paths || paths.length === 0) return;
+  try {
+    const granted = await invoke<string[]>("add_allowed_dirs", { paths });
+    if (!granted || granted.length === 0) {
+      bubble("error", "could not grant access to the dropped item(s).");
+      return;
+    }
+    const names = granted.map(basenameOf).join(", ");
+    bubble("trace", `Granted access to ${granted.length} item(s): ${names}`);
+    referencePathsInComposer(granted);
+  } catch (err) {
+    bubble("error", `granting file access failed: ${String(err)}`);
+  }
+}
+
+// Register the OS-level drag-drop listener once. Wrapped so listener never dies.
+getCurrentWebviewWindow()
+  .onDragDropEvent((event) => {
+    try {
+      const t = event.payload.type;
+      if (t === "over") {
+        setDropAffordance(true);
+      } else if (t === "drop") {
+        setDropAffordance(false);
+        const paths = (event.payload as { paths?: string[] }).paths ?? [];
+        void handleDroppedPaths(paths);
+      } else {
+        // "leave" | "cancel" | anything else: clear the affordance.
+        setDropAffordance(false);
+      }
+    } catch {
+      setDropAffordance(false);
+    }
+  })
+  .catch(() => { /* drag-drop unavailable; ignore */ });
 
 // Initialize
 syncEmptyState();

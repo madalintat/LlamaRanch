@@ -313,6 +313,36 @@ body {
   background: var(--panel-3);
 }
 
+/* Drop affordance: subtle highlight + overlay when a file/folder is dragged
+   over the chat. Driven by the .dragover class added in chat.ts. Tokens keep
+   it on-brand in both themes. */
+.chat-main {
+  position: relative;
+}
+.chat-main.dragover {
+  outline: 2px dashed var(--line-4);
+  outline-offset: -8px;
+}
+.chat-main.dragover::after {
+  content: "Drop to grant access";
+  position: absolute;
+  inset: 8px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--panel-2);
+  opacity: .92;
+  color: var(--soft);
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: .04em;
+  border: 1px solid var(--line-4);
+  pointer-events: none;
+  animation: fadeUp .2s ease-out both;
+}
+
 /* Pool strip */
 .pool {
   flex-shrink: 0;
