@@ -691,10 +691,17 @@ export async function runUninstall({ yes = false } = {}) {
     });
     const [cursor, setCursor] = useState(0);
     const [step, setStep] = useState('select'); // select | confirm | removing | outro
-    const [typedInput, setTypedInput] = useState('');
+    const [confirmIdx, setConfirmIdx] = useState(0); // 0 = No (default), 1 = Yes
     const [removeResults, setRemoveResults] = useState([]);
     const [nothingSelected, setNothingSelected] = useState(false);
     const [cancelled, setCancelled] = useState(false);
+
+    // Live refs mirror state so the stable input handler never reads stale
+    // values and useInput never re-registers mid-typing (which drops keys).
+    const stepRef = React.useRef(step); stepRef.current = step;
+    const cursorRef = React.useRef(cursor); cursorRef.current = cursor;
+    const checkedRef = React.useRef(checked); checkedRef.current = checked;
+    const confirmRef = React.useRef(confirmIdx); confirmRef.current = confirmIdx;
 
     // Guard: call exit() exactly once
     const exitCalled = React.useRef(false);
@@ -713,65 +720,47 @@ export async function runUninstall({ yes = false } = {}) {
     // where an incoming keypress is silently dropped.
     // Ink maps \r (carriage return) to key.return=true, and \n (linefeed from
     // PTY on macOS) to key.name='enter' but key.return=false.  Accept both.
-    const isEnter = (input, key) => key.return || input === '\n';
+    const isEnter = (input, key) => key.return || input === '\r' || input === '\n';
 
+    // Stable handler (refs, not closure values) so useInput registers exactly
+    // once. A handler whose identity changed each keystroke made useInput
+    // deregister and re-register, and a key pressed in that gap was dropped,
+    // which is what silently swallowed the typed confirmation input.
     const handleInput = React.useCallback((input, key) => {
-      if (step === 'select') {
-        if (key.upArrow) {
-          setCursor(c => Math.max(0, c - 1));
-          return;
-        }
-        if (key.downArrow) {
-          setCursor(c => Math.min(checkboxItems.length - 1, c + 1));
-          return;
-        }
+      const s = stepRef.current;
+      if (s === 'select') {
+        if (key.upArrow) { setCursor(c => Math.max(0, c - 1)); return; }
+        if (key.downArrow) { setCursor(c => Math.min(checkboxItems.length - 1, c + 1)); return; }
         if (input === ' ') {
-          const itemKey = checkboxItems[cursor]?.key;
-          if (itemKey) {
-            setChecked(prev => ({ ...prev, [itemKey]: !prev[itemKey] }));
-          }
+          const itemKey = checkboxItems[cursorRef.current]?.key;
+          if (itemKey) setChecked(prev => ({ ...prev, [itemKey]: !prev[itemKey] }));
           return;
         }
         if (isEnter(input, key)) {
-          const anyChecked = Object.values(checked).some(Boolean);
-          if (!anyChecked) {
-            setNothingSelected(true);
-            setStep('outro');
-          } else {
-            setStep('confirm');
-          }
+          const anyChecked = Object.values(checkedRef.current).some(Boolean);
+          if (!anyChecked) { setNothingSelected(true); setStep('outro'); }
+          else { setStep('confirm'); }
           return;
         }
-        if (input === 'q' || (key.ctrl && input === 'c')) {
-          safeExit();
-          return;
-        }
+        if (input === 'q' || (key.ctrl && input === 'c')) { safeExit(); return; }
+        return;
       }
-
-      if (step === 'confirm') {
+      if (s === 'confirm') {
+        if (key.upArrow || key.downArrow || key.leftArrow || key.rightArrow) {
+          setConfirmIdx(i => (i === 0 ? 1 : 0));
+          return;
+        }
         if (isEnter(input, key)) {
-          const val = typedInput.trim().toLowerCase();
-          if (val === 'yes' || val === 'remove') {
-            setStep('removing');
-          } else {
-            setCancelled(true);
-            setStep('outro');
-          }
+          if (confirmRef.current === 1) setStep('removing');
+          else { setCancelled(true); setStep('outro'); }
           return;
         }
-        if (key.backspace || key.delete) {
-          setTypedInput(prev => prev.slice(0, -1));
-          return;
-        }
-        if (input && input.length === 1 && input >= ' ') {
-          setTypedInput(prev => prev + input);
-          return;
-        }
+        if (input === 'q' || (key.ctrl && input === 'c')) { setCancelled(true); setStep('outro'); return; }
+        return;
       }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [step, checked, cursor, typedInput, safeExit]);
+    }, [checkboxItems, safeExit]);
 
-    useInput(handleInput, { isActive: step === 'select' || step === 'confirm' });
+    useInput(handleInput, { isActive: true });
 
     // Snapshot checked at the moment step transitions to 'removing' so the
     // async IIFE never reads stale state via closure.
@@ -889,17 +878,18 @@ export async function runUninstall({ yes = false } = {}) {
         React.createElement(Text, { color: '#3f3d34' }, '│'),
         React.createElement(Text, null,
           React.createElement(Text, { color: '#c7a228' }, '◆  '),
-          React.createElement(Text, { color: '#f5f0e8' }, 'Type '),
-          React.createElement(Text, { color: '#c7a228' }, 'yes'),
-          React.createElement(Text, { color: '#f5f0e8' }, ' or '),
-          React.createElement(Text, { color: '#c7a228' }, 'remove'),
-          React.createElement(Text, { color: '#f5f0e8' }, ' and press Enter to proceed:'),
+          React.createElement(Text, { color: '#f5f0e8' }, 'Remove the selected items?'),
         ),
         React.createElement(Text, null,
           React.createElement(Text, { color: '#3f3d34' }, '│  '),
-          React.createElement(Text, { color: '#f5f0e8' }, typedInput || ''),
-          React.createElement(Text, { color: '#c7a228' }, '_'),
+          React.createElement(Text, { color: confirmIdx === 0 ? '#c7a228' : '#6b6456' }, (confirmIdx === 0 ? '❯ ' : '  ') + 'No, keep everything'),
         ),
+        React.createElement(Text, null,
+          React.createElement(Text, { color: '#3f3d34' }, '│  '),
+          React.createElement(Text, { color: confirmIdx === 1 ? '#c7a228' : '#6b6456' }, (confirmIdx === 1 ? '❯ ' : '  ') + 'Yes, remove the selected items'),
+        ),
+        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, { color: '#6b6456' }, '│  arrow keys move · enter selects · default is No'),
       );
     }
 
