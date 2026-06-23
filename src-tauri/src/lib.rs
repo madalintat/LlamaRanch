@@ -74,6 +74,7 @@ pub fn run() {
             brain::chat_send,
             brain::chat_cancel,
             brain::pool::model_pool,
+            commands::set_shortcuts,
         ])
         .setup(|app| {
             // macOS: menubar-only app - no Dock icon, no Cmd-Tab entry.
@@ -101,7 +102,7 @@ pub fn run() {
             }
             tray.menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "open" => show_window(app),
+                    "open" => show_named_window(app, "main"),
                     "quit" => {
                         if let Some(srv) = app.try_state::<SharedServer>() {
                             server::stop(&mut srv.lock());
@@ -126,35 +127,18 @@ pub fn run() {
 
             start_router(app.handle());
 
-            // Register CmdOrCtrl+K as a global shortcut.
-            // On press: show the main popover and emit "open-cmdk" to let the
-            // frontend open the command bar.
-            // Best-effort: if another app already holds Cmd/Ctrl+K, registration
-            // fails. Log and carry on instead of panicking (the in-window ⌘K still
-            // works); never let this take down app startup.
-            if let Err(e) = app.global_shortcut().on_shortcut(
-                "CmdOrCtrl+K",
-                |app, _shortcut, event| {
-                    if event.state == ShortcutState::Pressed {
-                        // If any app window is currently focused, let that
-                        // window's own in-window Cmd+K handler take over.
-                        // is_focused() is best-effort; on error, fall through.
-                        let any_focused = app
-                            .webview_windows()
-                            .values()
-                            .any(|w| w.is_focused().unwrap_or(false));
-                        if any_focused {
-                            return;
-                        }
-                        if let Some(win) = app.get_webview_window("main") {
-                            let _ = win.show();
-                            let _ = win.set_focus();
-                            let _ = win.emit("open-cmdk", ());
-                        }
-                    }
-                },
-            ) {
-                eprintln!("llamaranch: could not register global Cmd/Ctrl+K ({e}); the in-window shortcut still works.");
+            // Register all three configurable global shortcuts from the loaded config.
+            // Best-effort: failures are logged, not fatal.
+            {
+                let cfg = app.state::<AppConfig>().0.lock().unwrap().clone();
+                if let Err(e) = register_global_shortcuts(
+                    app.handle(),
+                    &cfg.shortcut_cmdbar,
+                    &cfg.shortcut_agent,
+                    &cfg.shortcut_settings,
+                ) {
+                    eprintln!("llamaranch: startup shortcut registration: {e}");
+                }
             }
 
             let h = app.handle().clone();
@@ -310,10 +294,85 @@ fn toggle_popover<R: Runtime>(app: &AppHandle<R>, rect: tauri::Rect) {
     show_popover(app, rect);
 }
 
-fn show_window<R: Runtime>(app: &AppHandle<R>) {
-    if let Some(win) = app.get_webview_window("main") {
+/// Show and focus a named window (chat or settings). Best-effort: errors are ignored.
+fn show_named_window<R: Runtime>(app: &AppHandle<R>, label: &str) {
+    if let Some(win) = app.get_webview_window(label) {
         let _ = win.show();
         let _ = win.unminimize();
         let _ = win.set_focus();
     }
 }
+
+/// Unregister all current global shortcuts, then re-register the three
+/// configurable shortcuts. Returns Ok(()) if all three registered successfully,
+/// or Err listing the accelerators that failed. Registration is best-effort per
+/// shortcut (failures are logged and accumulated, not fatal), so the app never
+/// panics on a taken or invalid combo.
+pub fn register_global_shortcuts<R: Runtime>(
+    app: &AppHandle<R>,
+    cmdbar: &str,
+    agent: &str,
+    settings: &str,
+) -> Result<(), String> {
+    let gs = app.global_shortcut();
+
+    // Drop any previously registered shortcuts so we can swap bindings live.
+    if let Err(e) = gs.unregister_all() {
+        eprintln!("llamaranch: could not unregister shortcuts ({e})");
+    }
+
+    let mut failures: Vec<String> = Vec::new();
+
+    // Command bar: show the main popover + emit open-cmdk.
+    // Skip if any app window is already focused (in-window handler takes over).
+    let h = app.clone();
+    if let Err(e) = gs.on_shortcut(cmdbar, move |_app, _sc, event| {
+        if event.state != ShortcutState::Pressed {
+            return;
+        }
+        let any_focused = h
+            .webview_windows()
+            .values()
+            .any(|w| w.is_focused().unwrap_or(false));
+        if any_focused {
+            return;
+        }
+        if let Some(win) = h.get_webview_window("main") {
+            let _ = win.show();
+            let _ = win.set_focus();
+            let _ = win.emit("open-cmdk", ());
+        }
+    }) {
+        eprintln!("llamaranch: could not register command bar shortcut {cmdbar:?} ({e}); the in-window shortcut still works.");
+        failures.push(cmdbar.to_string());
+    }
+
+    // Agent (chat) window shortcut.
+    let h = app.clone();
+    if let Err(e) = gs.on_shortcut(agent, move |_app, _sc, event| {
+        if event.state == ShortcutState::Pressed {
+            show_named_window(&h, "chat");
+        }
+    }) {
+        eprintln!("llamaranch: could not register agent shortcut {agent:?} ({e}).");
+        failures.push(agent.to_string());
+    }
+
+    // Settings window shortcut.
+    let h = app.clone();
+    if let Err(e) = gs.on_shortcut(settings, move |_app, _sc, event| {
+        if event.state == ShortcutState::Pressed {
+            show_named_window(&h, "settings");
+        }
+    }) {
+        eprintln!("llamaranch: could not register settings shortcut {settings:?} ({e}).");
+        failures.push(settings.to_string());
+    }
+
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("could not register shortcut(s): {}", failures.join(", ")))
+    }
+}
+

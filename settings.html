@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LlamaRanch Settings</title>
+    <script>
+      (function(){var t=localStorage.getItem('lr_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);})();
+    </script>
   </head>
   <body>
     <div id="app">
@@ -16,14 +19,49 @@
 
       <!-- Settings tabs -->
       <div class="tabs s-tabs">
-        <button class="tab tab--active" id="s-tab-tools">Tools</button>
+        <button class="tab tab--active" id="s-tab-general">General</button>
+        <button class="tab" id="s-tab-tools">Tools</button>
         <button class="tab" id="s-tab-server">Server</button>
       </div>
 
       <div class="s-body">
 
+        <!-- ── PANEL: General ─────────────────────────────────────── -->
+        <section class="s-section s-panel" id="s-panel-general">
+          <div class="s-section__label label">Appearance</div>
+
+          <div class="s-theme-row">
+            <span class="s-theme-label">Theme</span>
+            <div class="s-theme-seg" id="s-theme-seg" role="radiogroup" aria-label="Theme">
+              <button class="s-theme-seg__btn" data-theme-val="system" aria-pressed="false">System</button>
+              <button class="s-theme-seg__btn" data-theme-val="light" aria-pressed="false">Light</button>
+              <button class="s-theme-seg__btn" data-theme-val="dark" aria-pressed="false">Dark</button>
+            </div>
+          </div>
+
+          <!-- Shortcuts section -->
+          <div class="s-section__label label" style="margin-top:1.2rem;">Shortcuts</div>
+
+          <div class="s-shortcut-row" id="s-sc-row-cmdbar">
+            <span class="s-shortcut-row__name">Command bar</span>
+            <kbd class="s-shortcut-key" id="s-sc-key-cmdbar"></kbd>
+            <button class="btn btn--ghost btn--sm" id="s-sc-rebind-cmdbar">Rebind</button>
+          </div>
+          <div class="s-shortcut-row" id="s-sc-row-agent">
+            <span class="s-shortcut-row__name">Agent</span>
+            <kbd class="s-shortcut-key" id="s-sc-key-agent"></kbd>
+            <button class="btn btn--ghost btn--sm" id="s-sc-rebind-agent">Rebind</button>
+          </div>
+          <div class="s-shortcut-row" id="s-sc-row-settings">
+            <span class="s-shortcut-row__name">Settings</span>
+            <kbd class="s-shortcut-key" id="s-sc-key-settings"></kbd>
+            <button class="btn btn--ghost btn--sm" id="s-sc-rebind-settings">Rebind</button>
+          </div>
+          <div class="error hidden" id="s-sc-error" style="margin-top:0.4rem;"></div>
+        </section>
+
         <!-- ── PANEL: Tools ──────────────────────────────────────── -->
-        <section class="s-section s-panel" id="s-panel-tools">
+        <section class="s-section s-panel s-panel--hidden" id="s-panel-tools">
           <div class="s-section__label label">Tools &amp; connectors</div>
 
           <!-- Rendered dynamically from list_tools in settings.ts -->
