@@ -342,11 +342,49 @@ pub fn list_models(port: u16) -> Vec<RouterModel> {
 
 fn model_action(port: u16, action: &str, id: &str) -> Result<(), String> {
     let url = format!("http://127.0.0.1:{port}/models/{action}");
-    ureq::post(&url)
+    match ureq::post(&url)
         .timeout(Duration::from_secs(10))
         .send_json(serde_json::json!({ "model": id }))
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    {
+        Ok(_) => Ok(()),
+        // The router lazy-loads models (--fit), so by the time we ask it may
+        // already be in the desired state. It answers such a redundant request
+        // with 400 "model is already running" (load) or a not-running message
+        // (unload). The desired end state is already true, so treat these as
+        // success rather than surfacing them as a failure to the user.
+        Err(ureq::Error::Status(code, resp)) => {
+            let body = resp.into_string().unwrap_or_default();
+            let lower = body.to_lowercase();
+            let benign = match action {
+                "load" => lower.contains("already"),
+                "unload" => code == 404 || lower.contains("not running") || lower.contains("not loaded"),
+                _ => false,
+            };
+            if benign {
+                Ok(())
+            } else {
+                // Surface the router's own message, not just the status code.
+                Err(router_error_message(&body).unwrap_or_else(|| format!("status code {code}")))
+            }
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Pull a human-readable message out of the router's JSON error body
+/// (`{"error":{"message":"..."}}`), falling back to the raw body if present.
+fn router_error_message(body: &str) -> Option<String> {
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(body) {
+        if let Some(m) = v.get("error").and_then(|e| e.get("message")).and_then(|m| m.as_str()) {
+            return Some(m.to_string());
+        }
+    }
+    let trimmed = body.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }
 
 pub fn load(port: u16, id: &str) -> Result<(), String> {
