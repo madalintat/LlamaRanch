@@ -192,9 +192,13 @@ if (offlineToggle) {
   });
 }
 
-async function refreshPool() {
+// Last pool view seen, used for popup state rendering
+let lastPoolView: PoolView | null = null;
+
+async function refreshPool(): Promise<void> {
   try {
     const view = await invoke<PoolView>("model_pool");
+    lastPoolView = view;
     pool.innerHTML = "";
     for (const m of view.resident) {
       const dot = document.createElement("span");
@@ -249,7 +253,13 @@ async function loadPicker() {
 // Model popup (Cmd+K / LCD click)
 // ============================================================
 
-function buildModelPopup(): void {
+/**
+ * Build or rebuild the popup list using live pool state plus cachedModels.
+ * Rows show: filled LED for the active/loaded model, animated "loading" dot,
+ * plain LED for unloaded. Clicking the active row unloads; clicking any other
+ * row loads it.
+ */
+function buildModelPopup(livePool: PoolView | null): void {
   modelPopupList.innerHTML = "";
 
   if (cachedModels.length === 0) {
@@ -260,26 +270,80 @@ function buildModelPopup(): void {
     return;
   }
 
+  // Build a quick lookup from the pool
+  const poolStatus = new Map<string, string>(); // id -> status
+  const activeId = livePool?.active ?? null;
+  if (livePool) {
+    for (const e of livePool.resident) poolStatus.set(e.id, e.status);
+  }
+
   for (const m of cachedModels) {
     const row = document.createElement("button");
     row.className = "model-popup__row mono";
     row.dataset.modelId = m.id;
-    row.textContent = prettyName(m.name || m.id);
-    row.addEventListener("click", () => {
-      closeModelPopup();
-      pickAndLoadModel(m.id);
-    });
+
+    const status = poolStatus.get(m.id);
+    const isActive = m.id === activeId;
+    const isLoading = status === "loading";
+    const isLoaded = status === "loaded" || status === "sleeping";
+
+    // Build label with LED indicator
+    const led = document.createElement("span");
+    if (isActive && isLoaded) {
+      led.className = "led led--sm";
+      led.title = "serving";
+    } else if (isLoading) {
+      led.className = "led led--sm led--loading";
+      led.title = "loading";
+    } else {
+      led.className = "led led--idle";
+    }
+
+    row.appendChild(led);
+    row.append(" " + prettyName(m.name || m.id));
+
+    if (isActive && isLoaded) {
+      // Clicking the serving model unloads it
+      const hint = document.createElement("span");
+      hint.className = "model-popup__row-hint mono";
+      hint.textContent = " · unload";
+      row.appendChild(hint);
+
+      row.addEventListener("click", async () => {
+        closeModelPopup();
+        try {
+          await invoke("unload_model", { modelId: m.id });
+        } catch {
+          /* ignore benign errors like already unloaded */
+        }
+        await refreshPool();
+        buildModelPopup(lastPoolView);
+        // Clear the composer dropdown if it pointed to this model
+        if (modelPick.value === m.id) modelPick.value = "";
+      });
+    } else if (!isLoading) {
+      // Unloaded model: click to load
+      row.addEventListener("click", () => {
+        closeModelPopup();
+        pickAndLoadModel(m.id);
+      });
+    } else {
+      // Mid-load: disable the row
+      row.disabled = true;
+      row.style.opacity = "0.5";
+    }
+
     modelPopupList.appendChild(row);
   }
 }
 
 function openModelPopup(): void {
-  buildModelPopup();
+  buildModelPopup(lastPoolView);
   modelPopup.classList.add("model-popup--open");
   modelPopupBackdrop.classList.add("model-popup-backdrop--open");
   modelPopup.setAttribute("aria-hidden", "false");
-  // Focus first row if present
-  const first = modelPopupList.querySelector<HTMLButtonElement>(".model-popup__row");
+  // Focus first enabled row if present
+  const first = modelPopupList.querySelector<HTMLButtonElement>(".model-popup__row:not(:disabled)");
   if (first) first.focus();
 }
 
@@ -317,26 +381,111 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-/** Load a model by ID, update LCD, and surface errors as chat bubbles. */
+// ============================================================
+// Load state: intervals that survive across an async load call
+// ============================================================
+
+/** Currently active load token; bumped on each new load so old loops stop. */
+let loadToken = 0;
+
+/** Elapsed-seconds interval for the LCD "loading Ns" counter. */
+let loadElapsedInterval: ReturnType<typeof setInterval> | null = null;
+
+/** Poll interval that watches model_pool during a load. */
+let loadPollInterval: ReturnType<typeof setInterval> | null = null;
+
+function clearLoadIntervals(): void {
+  if (loadElapsedInterval !== null) { clearInterval(loadElapsedInterval); loadElapsedInterval = null; }
+  if (loadPollInterval !== null) { clearInterval(loadPollInterval); loadPollInterval = null; }
+}
+
+/**
+ * Load a model by ID with real-time feedback:
+ * 1. Immediately shows "loading Ns" counter in the LCD.
+ * 2. Fires load_model WITHOUT awaiting (it blocks until the router finishes).
+ * 3. Starts a 600ms poll of model_pool to update the LCD and pool strip live.
+ * 4. On resolve: final refreshPool + clearIntervals.
+ * 5. On reject: surfaces an error bubble, resets LCD, clearIntervals.
+ *
+ * Guards against overlapping loads: bumps loadToken so old poll loops exit early.
+ */
 async function pickAndLoadModel(modelId: string): Promise<void> {
+  // Bump token so any previous load's poll loop stops
+  const myToken = ++loadToken;
+
   // Update the composer select to match
   modelPick.value = modelId;
 
   // Mark as loading before the async call so the send gate can block.
   modelState = "loading";
 
-  // Update LCD to show loading state
-  lcdModel.textContent = prettyName(modelId) || modelId;
-  if (lcdStatus) lcdStatus.textContent = "loading";
-  titlebarModel.textContent = `${prettyName(modelId)} · loading`;
+  // Show loading state in LCD immediately
+  const name = prettyName(modelId) || modelId;
+  lcdModel.textContent = name;
+  if (lcdStatus) lcdStatus.textContent = "loading 0s";
+  titlebarModel.textContent = `${name} · loading`;
+
+  // Clear any leftover intervals from a previous load
+  clearLoadIntervals();
+
+  // Elapsed-seconds counter that ticks once per second
+  let elapsed = 0;
+  loadElapsedInterval = setInterval(() => {
+    if (loadToken !== myToken) { clearInterval(loadElapsedInterval!); loadElapsedInterval = null; return; }
+    elapsed++;
+    if (lcdStatus && modelState === "loading") {
+      lcdStatus.textContent = `loading ${elapsed}s`;
+    }
+  }, 1000);
+
+  // Poll model_pool every 600ms so the LCD and pool strip update live
+  loadPollInterval = setInterval(async () => {
+    if (loadToken !== myToken) { clearInterval(loadPollInterval!); loadPollInterval = null; return; }
+    try {
+      const view = await invoke<PoolView>("model_pool");
+      lastPoolView = view;
+      // Update pool strip
+      pool.innerHTML = "";
+      for (const m of view.resident) {
+        const dot = document.createElement("span");
+        dot.className = "pooldot";
+        if (m.id === view.active) dot.classList.add("active");
+        if (m.pinned) dot.classList.add("pinned");
+        const led = document.createElement("span");
+        led.className = m.id === view.active ? "led led--sm" : "led led--idle";
+        dot.appendChild(led);
+        dot.append(" " + prettyName(m.id));
+        pool.appendChild(dot);
+      }
+      // Check if our model is now loaded/active
+      const entry = view.resident.find((e) => e.id === modelId);
+      if (entry && (entry.status === "loaded" || entry.status === "sleeping")) {
+        // Router reports loaded: flip LCD to serving immediately
+        if (loadToken === myToken) {
+          if (lcdStatus) lcdStatus.textContent = "SERVING";
+          titlebarModel.textContent = `${name} · local`;
+        }
+      }
+      // Rebuild popup rows if open
+      if (modelPopup.classList.contains("model-popup--open")) {
+        buildModelPopup(view);
+      }
+    } catch { /* router not ready yet */ }
+  }, 600);
 
   try {
+    // Fire the load. This blocks (in Tauri IPC) until the router returns (up to 300s).
     await invoke("load_model", { modelId });
-    // Poll pool to confirm status (setActiveModel inside will set modelState).
+
+    if (loadToken !== myToken) return; // superseded by another load
+
+    // Load returned successfully: do a final authoritative refresh
     await refreshPool();
-    // Refresh picker in case new models became available after this load.
+    // Refresh picker in case new models became available after this load
     loadPicker();
   } catch (err) {
+    if (loadToken !== myToken) return;
+
     // Surface load error as a chat bubble
     bubble("error", `model load failed: ${String(err)}`);
     // Reset LCD and state
@@ -344,8 +493,36 @@ async function pickAndLoadModel(modelId: string): Promise<void> {
     lcdModel.textContent = "no model";
     if (lcdStatus) lcdStatus.textContent = "idle";
     titlebarModel.textContent = "new chat · no model loaded";
+    modelPick.value = "";
+  } finally {
+    if (loadToken === myToken) {
+      clearLoadIntervals();
+    }
   }
 }
+
+// ============================================================
+// Composer dropdown loads on change
+// ============================================================
+
+modelPick.addEventListener("change", () => {
+  const val = modelPick.value;
+  // Only trigger a real load for actual model ids, not the "Auto"/placeholder
+  if (val) {
+    pickAndLoadModel(val);
+  }
+});
+
+// ============================================================
+// Background pool sync (every 8s) to catch external changes
+// ============================================================
+
+setInterval(async () => {
+  // Don't override LCD while a load is in progress
+  if (modelState !== "loading") {
+    await refreshPool();
+  }
+}, 8000);
 
 // ============================================================
 // Collapsible rail + privacy panel (with localStorage persistence)
