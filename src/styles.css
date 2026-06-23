@@ -1012,3 +1012,45 @@ button:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   #app { animation: none; }
 }
+
+/* ── General panel: shortcuts section ─────────────────────── */
+
+.s-shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line-3);
+}
+
+.s-shortcut-row__name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.s-shortcut-key {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .03em;
+  background: var(--bg-2, rgba(128,128,128,.08));
+  border: 1px solid var(--line-3);
+  border-radius: 5px;
+  padding: 3px 7px;
+  color: var(--ink);
+  min-width: 52px;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.s-shortcut-key--capture {
+  color: var(--muted);
+  border-style: dashed;
+}
+
+.btn--sm {
+  padding: 5px 12px;
+  font-size: 12px;
+}

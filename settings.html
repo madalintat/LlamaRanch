@@ -39,7 +39,25 @@
             </div>
           </div>
 
-          <!-- Shortcuts section can be appended below this comment in a later change -->
+          <!-- Shortcuts section -->
+          <div class="s-section__label label" style="margin-top:1.2rem;">Shortcuts</div>
+
+          <div class="s-shortcut-row" id="s-sc-row-cmdbar">
+            <span class="s-shortcut-row__name">Command bar</span>
+            <kbd class="s-shortcut-key" id="s-sc-key-cmdbar"></kbd>
+            <button class="btn btn--ghost btn--sm" id="s-sc-rebind-cmdbar">Rebind</button>
+          </div>
+          <div class="s-shortcut-row" id="s-sc-row-agent">
+            <span class="s-shortcut-row__name">Agent</span>
+            <kbd class="s-shortcut-key" id="s-sc-key-agent"></kbd>
+            <button class="btn btn--ghost btn--sm" id="s-sc-rebind-agent">Rebind</button>
+          </div>
+          <div class="s-shortcut-row" id="s-sc-row-settings">
+            <span class="s-shortcut-row__name">Settings</span>
+            <kbd class="s-shortcut-key" id="s-sc-key-settings"></kbd>
+            <button class="btn btn--ghost btn--sm" id="s-sc-rebind-settings">Rebind</button>
+          </div>
+          <div class="error hidden" id="s-sc-error" style="margin-top:0.4rem;"></div>
         </section>
 
         <!-- ── PANEL: Tools ──────────────────────────────────────── -->

@@ -55,6 +55,15 @@ pub struct Config {
     /// When true, online tools (web_fetch, web_search) are excluded from the registry.
     #[serde(default)]
     pub offline_mode: bool,
+    /// Global shortcut for the command bar popover (default: CmdOrCtrl+K).
+    #[serde(default = "default_shortcut_cmdbar")]
+    pub shortcut_cmdbar: String,
+    /// Global shortcut for the Agent (chat) window (default: CmdOrCtrl+J).
+    #[serde(default = "default_shortcut_agent")]
+    pub shortcut_agent: String,
+    /// Global shortcut for the Settings window (default: CmdOrCtrl+,).
+    #[serde(default = "default_shortcut_settings")]
+    pub shortcut_settings: String,
 }
 
 fn home() -> PathBuf {
@@ -209,6 +218,18 @@ fn default_embedding_model() -> String {
     "nomic-embed-1.5".to_string()
 }
 
+fn default_shortcut_cmdbar() -> String {
+    "CmdOrCtrl+K".to_string()
+}
+
+fn default_shortcut_agent() -> String {
+    "CmdOrCtrl+J".to_string()
+}
+
+fn default_shortcut_settings() -> String {
+    "CmdOrCtrl+,".to_string()
+}
+
 impl Default for Config {
     fn default() -> Self {
         Config {
@@ -225,6 +246,9 @@ impl Default for Config {
             allowed_dirs: Vec::new(),
             searxng_url: String::new(),
             offline_mode: false,
+            shortcut_cmdbar: default_shortcut_cmdbar(),
+            shortcut_agent: default_shortcut_agent(),
+            shortcut_settings: default_shortcut_settings(),
         }
     }
 }

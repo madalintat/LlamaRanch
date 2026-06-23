@@ -556,6 +556,38 @@ pub fn set_model_config(
     Ok(())
 }
 
+/// Validate, persist, and live-apply a new set of global shortcut accelerators.
+/// Calls back into `lib.rs` to re-register, matching the pattern used by set_config.
+#[tauri::command]
+pub fn set_shortcuts(
+    cmdbar: String,
+    agent: String,
+    settings: String,
+    app: AppHandle,
+    cfg: State<'_, AppConfig>,
+) -> Result<(), String> {
+    if cmdbar.trim().is_empty() {
+        return Err("Command bar shortcut must not be empty".into());
+    }
+    if agent.trim().is_empty() {
+        return Err("Agent shortcut must not be empty".into());
+    }
+    if settings.trim().is_empty() {
+        return Err("Settings shortcut must not be empty".into());
+    }
+
+    {
+        let mut c = cfg.0.lock().unwrap();
+        c.shortcut_cmdbar = cmdbar.clone();
+        c.shortcut_agent = agent.clone();
+        c.shortcut_settings = settings.clone();
+        config::save_to(&config::config_path(), &c).map_err(|e| e.to_string())?;
+    }
+
+    crate::register_global_shortcuts(&app, &cmdbar, &agent, &settings);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn llama_cpp_version(cfg: State<AppConfig>) -> String {
     let bin = cfg.0.lock().unwrap().server_bin.clone();

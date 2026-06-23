@@ -147,6 +147,142 @@ function renderTools(tools: ToolInfo[]) {
   if (mcpPartno) mcpPartno.textContent = String(tools.length + 1).padStart(2, "0");
 }
 
+// ── Shortcuts section ─────────────────────────────────────────────
+
+const isMac = navigator.platform.toUpperCase().includes("MAC");
+
+/** Convert a Tauri accelerator string like "CmdOrCtrl+Shift+J" to a readable label. */
+function accelToLabel(accel: string): string {
+  return accel
+    .split("+")
+    .map((part) => {
+      switch (part) {
+        case "CmdOrCtrl": return isMac ? "⌘" : "Ctrl";
+        case "Ctrl":      return isMac ? "⌃" : "Ctrl";
+        case "Alt":       return isMac ? "⌥" : "Alt";
+        case "Shift":     return isMac ? "⇧" : "Shift";
+        case "Meta":      return isMac ? "⌘" : "Win";
+        case "Super":     return isMac ? "⌘" : "Win";
+        default:          return part.length === 1 ? part.toUpperCase() : part;
+      }
+    })
+    .join(isMac ? "" : "+");
+}
+
+/** Convert a keydown event to a Tauri accelerator string. Returns null if no valid combo. */
+function eventToAccel(e: KeyboardEvent): string | null {
+  const key = e.key;
+  // Ignore standalone modifier presses.
+  if (["Meta", "Control", "Alt", "Shift", "Super"].includes(key)) return null;
+  const mods: string[] = [];
+  if (e.metaKey || e.ctrlKey) mods.push("CmdOrCtrl");
+  if (e.altKey) mods.push("Alt");
+  if (e.shiftKey) mods.push("Shift");
+  // Require at least one modifier.
+  if (mods.length === 0) return null;
+  // Map special keys to Tauri names.
+  const keyMap: Record<string, string> = {
+    ",": ",", ".": ".", "/": "/", ";": ";", "'": "'",
+    "[": "[", "]": "]", "\\": "\\", "`": "`", "-": "-", "=": "=",
+    " ": "Space", "ArrowUp": "Up", "ArrowDown": "Down",
+    "ArrowLeft": "Left", "ArrowRight": "Right",
+    "Escape": "Escape", "Enter": "Return", "Backspace": "Backspace",
+    "Delete": "Delete", "Tab": "Tab",
+  };
+  const mapped = keyMap[key] ?? (key.length === 1 ? key.toUpperCase() : key);
+  return [...mods, mapped].join("+");
+}
+
+type ShortcutKey = "cmdbar" | "agent" | "settings";
+
+const shortcuts: Record<ShortcutKey, string> = {
+  cmdbar: "CmdOrCtrl+K",
+  agent: "CmdOrCtrl+J",
+  settings: "CmdOrCtrl+,",
+};
+
+function renderShortcutKey(key: ShortcutKey) {
+  const el = document.getElementById(`s-sc-key-${key}`)!;
+  el.textContent = accelToLabel(shortcuts[key]);
+  el.classList.remove("s-shortcut-key--capture");
+}
+
+function startCapture(key: ShortcutKey) {
+  const el = document.getElementById(`s-sc-key-${key}`)!;
+  const btn = document.getElementById(`s-sc-rebind-${key}`) as HTMLButtonElement;
+  el.textContent = "press keys...";
+  el.classList.add("s-shortcut-key--capture");
+  btn.textContent = "Cancel";
+  btn.dataset.capturing = "1";
+
+  function onKey(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      cancel();
+      return;
+    }
+    const accel = eventToAccel(e);
+    if (!accel) return;
+    e.preventDefault();
+    e.stopPropagation();
+    finish(accel);
+  }
+
+  function cancel() {
+    cleanup();
+    renderShortcutKey(key);
+    btn.textContent = "Rebind";
+    delete btn.dataset.capturing;
+  }
+
+  function cleanup() {
+    window.removeEventListener("keydown", onKey, true);
+  }
+
+  async function finish(accel: string) {
+    cleanup();
+    const prev = shortcuts[key];
+    shortcuts[key] = accel;
+    renderShortcutKey(key);
+    btn.textContent = "Rebind";
+    delete btn.dataset.capturing;
+
+    const errEl = document.getElementById("s-sc-error")!;
+    errEl.textContent = "";
+    errEl.classList.add("hidden");
+
+    try {
+      await invoke("set_shortcuts", {
+        cmdbar: shortcuts.cmdbar,
+        agent: shortcuts.agent,
+        settings: shortcuts.settings,
+      });
+    } catch (e) {
+      // Revert on failure.
+      shortcuts[key] = prev;
+      renderShortcutKey(key);
+      errEl.textContent = String(e).replace(/^error:\s*/, "");
+      errEl.classList.remove("hidden");
+      fit();
+    }
+  }
+
+  window.addEventListener("keydown", onKey, true);
+}
+
+(["cmdbar", "agent", "settings"] as ShortcutKey[]).forEach((key) => {
+  const btn = document.getElementById(`s-sc-rebind-${key}`) as HTMLButtonElement;
+  btn.addEventListener("click", () => {
+    if (btn.dataset.capturing) {
+      // Cancel active capture.
+      btn.click(); // the keydown Escape handler handles it; trigger via Escape simulation
+      // Simpler: just dispatch an Escape keydown to our own listener.
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    } else {
+      startCapture(key);
+    }
+  });
+});
+
 async function load() {
   const cfg = await invoke<any>("get_config");
   $("s-port").value = String(cfg.port);
@@ -161,6 +297,12 @@ async function load() {
   const allowedDirsEl = document.getElementById("s-allowed-dirs") as HTMLTextAreaElement;
   allowedDirsEl.value = (cfg.allowed_dirs ?? []).join("\n");
   try { setAutostart(await autoIsEnabled()); } catch {}
+
+  // Load stored shortcuts and render them.
+  shortcuts.cmdbar = cfg.shortcut_cmdbar ?? "CmdOrCtrl+K";
+  shortcuts.agent = cfg.shortcut_agent ?? "CmdOrCtrl+J";
+  shortcuts.settings = cfg.shortcut_settings ?? "CmdOrCtrl+,";
+  (["cmdbar", "agent", "settings"] as ShortcutKey[]).forEach(renderShortcutKey);
 
   try {
     const tools = await invoke<ToolInfo[]>("list_tools");
