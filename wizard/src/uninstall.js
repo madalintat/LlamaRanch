@@ -18,7 +18,6 @@ const colored = () => !process.env.NO_COLOR && process.stdout.isTTY;
 const gold   = (s) => colored() ? chalk.hex('#c7a228')(s)  : s;
 const cream  = (s) => colored() ? chalk.hex('#f5f0e8')(s)  : s;
 const muted  = (s) => colored() ? chalk.hex('#6b6456')(s)  : s;
-const warn   = (s) => colored() ? chalk.hex('#c7a228')(s)  : s;
 const dim    = (s) => colored() ? chalk.hex('#3f3d34')(s)  : s;
 
 // Clack-style glyphs
@@ -167,7 +166,7 @@ function makeSpinner(label) {
   let i = 0;
   let last = '';
   const tick = setInterval(() => {
-    const frame = chalk.hex('#f5f0e8')(SPIN_FRAMES[i % SPIN_FRAMES.length]);
+    const frame = cream(SPIN_FRAMES[i % SPIN_FRAMES.length]);
     const msg = '\r' + G_BAR + '  ' + frame + '  ' + cream(label);
     process.stdout.write(msg + ' '.repeat(Math.max(0, last.length - msg.length)));
     last = msg;
@@ -443,7 +442,7 @@ export async function runUninstall({ yes = false } = {}) {
 
   // Non-TTY without --yes: show plan only, refuse
   if (!process.stdout.isTTY && !yes) {
-    process.stdout.write(G_WARN + ' ' + warn('Non-interactive shell detected.') + '\n');
+    process.stdout.write(G_WARN + ' ' + gold('Non-interactive shell detected.') + '\n');
     process.stdout.write(G_BAR + '  ' + muted('Pass ') + cream('--yes') + muted(' to confirm deletion without a prompt.') + '\n');
     process.stdout.write(G_BAR + '  ' + muted('Nothing was removed.') + '\n');
     process.stdout.write(G_CORNER + '\n');
@@ -456,7 +455,7 @@ export async function runUninstall({ yes = false } = {}) {
   if (!confirmed) {
     if (!process.stdin.isTTY) {
       // Piped stdin without --yes
-      process.stdout.write(G_WARN + ' ' + warn('No TTY for input and --yes not set. Nothing removed.') + '\n');
+      process.stdout.write(G_WARN + ' ' + gold('No TTY for input and --yes not set. Nothing removed.') + '\n');
       process.stdout.write(G_CORNER + '\n');
       process.exit(0);
     }

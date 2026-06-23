@@ -117,19 +117,6 @@ async function runWizard() {
   }
 
   // -------------------------------------------------------------------------
-  // Gutter row: [gutter symbol] + content
-  // -------------------------------------------------------------------------
-
-  function GutterRow({ symbol, symbolColor, children }) {
-    return React.createElement(
-      Box,
-      { flexDirection: 'row' },
-      React.createElement(Text, { color: symbolColor || '#3f3d34' }, symbol + ' '),
-      children
-    );
-  }
-
-  // -------------------------------------------------------------------------
   // SubLog row: a muted line indented under the gutter
   // -------------------------------------------------------------------------
 
@@ -297,7 +284,6 @@ async function runWizard() {
 
     // models
     const [selectedModels, setSelectedModels] = useState([]);
-    const [modelsDone, setModelsDone] = useState(false);
     const [downloadPercents, setDownloadPercents] = useState({});
     const [downloadedModels, setDownloadedModels] = useState([]);
     const [failedModels, setFailedModels] = useState([]);
@@ -309,9 +295,6 @@ async function runWizard() {
     // app install
     const [appLines, setAppLines] = useState([]);
     const [appInstallResult, setAppInstallResult] = useState(null);
-
-    // outro
-    const [outroKey, setOutroKey] = useState(false);
 
     // error
     const [errorMsg, setErrorMsg] = useState(null);
@@ -474,7 +457,6 @@ async function runWizard() {
         if (!cancelled) {
           setDownloadedModels(downloaded);
           setFailedModels(failed);
-          setModelsDone(true);
           setStep('download-done');
         }
       };
@@ -566,7 +548,6 @@ async function runWizard() {
     // outro: auto-exit after 2s, or on any key (handled in top-level useInput)
     useEffect(() => {
       if (step !== 'outro') return;
-      setOutroKey(true);
       const t = setTimeout(() => exit(), 2000);
       return () => clearTimeout(t);
     }, [step]);
@@ -621,7 +602,6 @@ async function runWizard() {
          'app-install-done', 'outro'].includes(step)) {
 
       const isRunning = step === 'detect-running';
-      const isDone = !isRunning;
 
       if (isRunning) {
         rows.push(
