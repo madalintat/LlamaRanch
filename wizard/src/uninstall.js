@@ -417,7 +417,7 @@ function doRemoveWithSpinner(label, p) {
 }
 
 // ---------------------------------------------------------------------------
-// --yes path: remove only config + engine, keep models and brew
+// --yes path: remove config + engine + app, keep models and brew
 // ---------------------------------------------------------------------------
 
 async function executeYesRemoval(targets) {
@@ -454,6 +454,11 @@ async function executeYesRemoval(targets) {
     } catch { /* skip */ }
   }
 
+  // Desktop app (Windows installer owns its own uninstall, so leave a note there)
+  if (t.appPath && process.platform !== 'win32') {
+    doRemoveWithSpinner('desktop app', t.appPath);
+  }
+
   // Kept items note
   process.stdout.write(G_BAR + '\n');
   process.stdout.write(G_BAR + '  ' + G_WARN + '  ' + muted('kept: models, brew/system engine (if any)') + '\n');
@@ -468,8 +473,8 @@ async function executeYesRemoval(targets) {
   if (t.serverBinIsBrewOrSystem) {
     subrow('brew engine: run  brew uninstall llama.cpp  to remove');
   }
-  if (t.appPath && process.platform !== 'win32') {
-    subrow('desktop app at: ' + t.appPath + '  (remove manually if desired)');
+  if (t.appPath && process.platform === 'win32') {
+    subrow('desktop app: remove from Settings > Apps');
   }
   process.stdout.write(G_BAR + '\n');
 }
@@ -484,7 +489,7 @@ export async function runUninstall({ yes = false } = {}) {
 
   const targets = collectTargets();
 
-  // --yes path: plain stdout, remove only config + engine
+  // --yes path: plain stdout, remove config + engine + app
   if (yes) {
     printPlan(targets);
     await executeYesRemoval(targets);
@@ -650,10 +655,33 @@ export async function runUninstall({ yes = false } = {}) {
     return 'unknown key';
   }
 
+  // ---------------------------------------------------------------------------
+  // Path display helpers (for multiselect rows)
+  // ---------------------------------------------------------------------------
+
+  // Replace home dir prefix with ~ and middle-truncate to fit within maxLen chars.
+  function shortenPath(p, maxLen) {
+    if (!p) return '';
+    // Substitute home and real-home prefixes with ~
+    let s = p;
+    for (const home of HOME_REAL !== HOME ? [HOME_REAL, HOME] : [HOME]) {
+      if (s === home) { s = '~'; break; }
+      if (s.startsWith(home + path.sep)) { s = '~' + s.slice(home.length); break; }
+    }
+    if (s.length <= maxLen) return s;
+    // Middle-truncate: keep start and the final segment
+    const tail = path.basename(s);
+    const head = s.slice(0, Math.max(4, maxLen - tail.length - 5));
+    return head + '...' + path.sep + tail;
+  }
+
+  // Build the items array once outside the component so identity is stable.
+  const inkItems = buildItems(targets);
+
   // The Ink component (closure over targets)
-  function UninstallApp() {
+  function UninstallApp({ outroInfo }) {
     const { exit } = useApp();
-    const items = buildItems(targets);
+    const items = inkItems;
     const checkboxItems = items; // all are checkbox items
 
     const [checked, setChecked] = useState(() => {
@@ -668,8 +696,26 @@ export async function runUninstall({ yes = false } = {}) {
     const [nothingSelected, setNothingSelected] = useState(false);
     const [cancelled, setCancelled] = useState(false);
 
-    // --- Step: select ---
-    useInput((input, key) => {
+    // Guard: call exit() exactly once
+    const exitCalled = React.useRef(false);
+    const safeExit = React.useCallback(() => {
+      if (!exitCalled.current) {
+        exitCalled.current = true;
+        exit();
+      }
+    }, [exit]);
+
+    // --- Step: select + confirm input handler ---
+    // Memoized with useCallback so that Ink's useInput only re-registers the
+    // listener when the values it actually uses change.  Without memoization
+    // the anonymous function is new on every render, which causes Ink to
+    // remove and re-add the listener on every render tick - opening a window
+    // where an incoming keypress is silently dropped.
+    // Ink maps \r (carriage return) to key.return=true, and \n (linefeed from
+    // PTY on macOS) to key.name='enter' but key.return=false.  Accept both.
+    const isEnter = (input, key) => key.return || input === '\n';
+
+    const handleInput = React.useCallback((input, key) => {
       if (step === 'select') {
         if (key.upArrow) {
           setCursor(c => Math.max(0, c - 1));
@@ -686,7 +732,7 @@ export async function runUninstall({ yes = false } = {}) {
           }
           return;
         }
-        if (key.return) {
+        if (isEnter(input, key)) {
           const anyChecked = Object.values(checked).some(Boolean);
           if (!anyChecked) {
             setNothingSelected(true);
@@ -696,14 +742,14 @@ export async function runUninstall({ yes = false } = {}) {
           }
           return;
         }
-        if (input === 'q' || key.ctrl && input === 'c') {
-          exit();
+        if (input === 'q' || (key.ctrl && input === 'c')) {
+          safeExit();
           return;
         }
       }
 
       if (step === 'confirm') {
-        if (key.return) {
+        if (isEnter(input, key)) {
           const val = typedInput.trim().toLowerCase();
           if (val === 'yes' || val === 'remove') {
             setStep('removing');
@@ -722,48 +768,66 @@ export async function runUninstall({ yes = false } = {}) {
           return;
         }
       }
-    }, { isActive: step === 'select' || step === 'confirm' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [step, checked, cursor, typedInput, safeExit]);
+
+    useInput(handleInput, { isActive: step === 'select' || step === 'confirm' });
+
+    // Snapshot checked at the moment step transitions to 'removing' so the
+    // async IIFE never reads stale state via closure.
+    const checkedAtRemove = React.useRef(null);
 
     // --- Step: removing ---
     useEffect(() => {
       if (step !== 'removing') return;
+      // Capture checked state once at removal time
+      checkedAtRemove.current = checked;
       const selectedKeys = Object.entries(checked)
         .filter(([, v]) => v)
         .map(([k]) => k);
 
+      let active = true;
       (async () => {
-        const results = [];
         for (const key of selectedKeys) {
+          if (!active) break;
           const itemDef = items.find(it => it.key === key);
           const label = itemDef ? itemDef.label : key;
           setRemoveResults(prev => [...prev, { key, label, status: 'working...' }]);
           const status = await removeKey(key, targets);
+          if (!active) break;
           setRemoveResults(prev =>
             prev.map(r => r.key === key ? { ...r, status } : r)
           );
-          results.push({ key, label, status });
         }
-        setStep('outro');
+        if (active) setStep('outro');
       })();
+      return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [step]);
 
     // --- Step: outro exit ---
+    // Populate outroInfo, then exit immediately so Ink renders an empty frame.
+    // The caller prints the outro once after waitUntilExit() resolves, avoiding
+    // the double-print that occurs when Ink renders the final frame both
+    // normally and again inside unmount().
     useEffect(() => {
       if (step !== 'outro') return;
-      const timer = setTimeout(() => exit(), 100);
-      return () => clearTimeout(timer);
-    }, [step, exit]);
-
-    const selectedKeys = Object.entries(checked).filter(([, v]) => v).map(([k]) => k);
-    const keptKeys = Object.entries(checked).filter(([, v]) => !v).map(([k]) => k);
-
-    const keyLabel = (key) => {
-      const it = items.find(i => i.key === key);
-      return it ? it.label : key;
-    };
+      const keptNow = Object.entries(checked).filter(([, v]) => !v).map(([k]) => {
+        const it = items.find(i => i.key === k);
+        return it ? it.label : k;
+      });
+      outroInfo.cancelled = cancelled;
+      outroInfo.nothingSelected = nothingSelected;
+      outroInfo.removed = removeResults.map(r => r.label);
+      outroInfo.kept = keptNow;
+      safeExit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [step]);
 
     // ---- Render ----
+
+    // Label column width: pad to 18 chars so all labels align.
+    const LABEL_W = 18;
 
     if (step === 'select') {
       return React.createElement(Box, { flexDirection: 'column' },
@@ -778,25 +842,33 @@ export async function runUninstall({ yes = false } = {}) {
         ...checkboxItems.map((item, i) => {
           const isActive = i === cursor;
           const isChecked = checked[item.key];
-          const cursor_glyph = isActive ? React.createElement(Text, { color: '#c7a228' }, '❯') : React.createElement(Text, null, ' ');
-          const box_glyph = isChecked
+          const cursorGlyph = isActive
+            ? React.createElement(Text, { color: '#c7a228' }, '❯')
+            : React.createElement(Text, null, ' ');
+          const boxGlyph = isChecked
             ? React.createElement(Text, { color: '#c7a228' }, '◼')
             : React.createElement(Text, { color: '#6b6456' }, '◻');
+          // Fixed-width label, then optional size, then shortened path
+          const paddedLabel = item.label.padEnd(LABEL_W);
+          const sizeStr = item.size ? item.size.padStart(7) : '       ';
+          // Available path width: 80 cols - prefix(5) - cursor(1) - sp(1) - box(1) - sp(1) - label(LABEL_W) - size(7) - sp(2)
+          const pathMaxLen = Math.max(20, 80 - 5 - 1 - 1 - 1 - 1 - LABEL_W - 7 - 2);
+          const displayPath = shortenPath(item.path, pathMaxLen);
           return React.createElement(Box, { key: item.key },
             React.createElement(Text, { color: '#3f3d34' }, '│  '),
-            cursor_glyph,
+            cursorGlyph,
             React.createElement(Text, null, ' '),
-            box_glyph,
+            boxGlyph,
             React.createElement(Text, null, ' '),
-            React.createElement(Text, { color: '#f5f0e8' }, item.label),
-            React.createElement(Text, { color: '#6b6456' }, '   ' + item.path),
-            item.size ? React.createElement(Text, { color: '#6b6456' }, '   ' + item.size) : null,
+            React.createElement(Text, { color: '#f5f0e8' }, paddedLabel),
+            React.createElement(Text, { color: '#6b6456' }, sizeStr),
+            React.createElement(Text, { color: '#6b6456', wrap: 'truncate-end' }, '  ' + displayPath),
           );
         }),
         targets.manualModelsDir
           ? React.createElement(Box, { key: 'manual-models-info' },
               React.createElement(Text, { color: '#3f3d34' }, '│     '),
-              React.createElement(Text, { color: '#6b6456' }, 'models (custom location, remove manually): ' + targets.manualModelsDir),
+              React.createElement(Text, { color: '#6b6456', wrap: 'truncate-end' }, 'models (custom location, remove manually): ' + shortenPath(targets.manualModelsDir, 40)),
             )
           : null,
         React.createElement(Text, { color: '#3f3d34' }, '│'),
@@ -849,47 +921,33 @@ export async function runUninstall({ yes = false } = {}) {
       );
     }
 
-    // outro
-    const removedLabels = removeResults.length > 0
-      ? removeResults.map(r => r.label).join(', ')
-      : (nothingSelected ? 'nothing' : 'nothing');
-
-    const keptLabels = keptKeys.length > 0
-      ? keptKeys.map(keyLabel).join(', ')
-      : 'nothing';
-
-    return React.createElement(Box, { flexDirection: 'column' },
-      React.createElement(Text, null,
-        React.createElement(Text, { color: '#3f3d34' }, '└  '),
-        React.createElement(Text, { color: '#f5f0e8' }, 'The valley is clear.'),
-      ),
-      cancelled
-        ? React.createElement(Text, null,
-            React.createElement(Text, { color: '#3f3d34' }, '   '),
-            React.createElement(Text, { color: '#6b6456' }, 'cancelled: nothing was removed.'),
-          )
-        : null,
-      !cancelled && !nothingSelected
-        ? React.createElement(Text, null,
-            React.createElement(Text, { color: '#3f3d34' }, '   '),
-            React.createElement(Text, { color: '#6b6456' }, 'removed: ' + removedLabels),
-          )
-        : null,
-      !cancelled && keptKeys.length > 0
-        ? React.createElement(Text, null,
-            React.createElement(Text, { color: '#3f3d34' }, '   '),
-            React.createElement(Text, { color: '#6b6456' }, 'kept: ' + keptLabels),
-          )
-        : null,
-      targets.manualModelsDir
-        ? React.createElement(Text, null,
-            React.createElement(Text, { color: '#3f3d34' }, '   '),
-            React.createElement(Text, { color: '#6b6456' }, 'your custom models dir is at: ' + targets.manualModelsDir),
-          )
-        : null,
-    );
+    // outro: return null so Ink renders nothing; the caller prints the message
+    // after waitUntilExit() so it appears exactly once.
+    return null;
   }
 
-  const app = render(React.createElement(UninstallApp, null));
+  // Shared mutable object: the component writes its outro info here before
+  // calling exit().  The caller reads it after waitUntilExit() and prints it
+  // once, avoiding the double-print that happens when Ink renders the final
+  // frame both normally and again during unmount().
+  const outroInfo = { cancelled: false, nothingSelected: false, removed: [], kept: [] };
+
+  const app = render(React.createElement(UninstallApp, { outroInfo }));
   await app.waitUntilExit();
+
+  // Print outro exactly once, outside of Ink.
+  const { cancelled: wasCancelled, nothingSelected: wasNothing, removed, kept } = outroInfo;
+  process.stdout.write(G_CORNER + '  ' + cream('The valley is clear.') + '\n');
+  if (wasCancelled) {
+    process.stdout.write('   ' + muted('cancelled: nothing was removed.') + '\n');
+  } else if (removed.length > 0) {
+    process.stdout.write('   ' + muted('removed: ' + removed.join(', ')) + '\n');
+    if (kept.length > 0) {
+      process.stdout.write('   ' + muted('kept: ' + kept.join(', ')) + '\n');
+    }
+  }
+  if (targets.manualModelsDir) {
+    process.stdout.write('   ' + muted('your custom models dir is at: ' + targets.manualModelsDir) + '\n');
+  }
+  process.stdout.write('\n');
 }
