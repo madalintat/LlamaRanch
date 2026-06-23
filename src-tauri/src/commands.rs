@@ -556,8 +556,10 @@ pub fn set_model_config(
     Ok(())
 }
 
-/// Validate, persist, and live-apply a new set of global shortcut accelerators.
-/// Calls back into `lib.rs` to re-register, matching the pattern used by set_config.
+/// Validate, live-apply, and (only on success) persist a new set of global shortcut
+/// accelerators. Registration is attempted before persisting: if any accelerator
+/// fails (invalid combo or taken by another app), the old shortcuts are re-registered
+/// so the user keeps working bindings, and an error is returned to the frontend.
 #[tauri::command]
 pub fn set_shortcuts(
     cmdbar: String,
@@ -576,15 +578,28 @@ pub fn set_shortcuts(
         return Err("Settings shortcut must not be empty".into());
     }
 
+    // Snapshot current (working) shortcuts before attempting to apply the new ones.
+    let (old_cmdbar, old_agent, old_settings) = {
+        let c = cfg.0.lock().unwrap();
+        (c.shortcut_cmdbar.clone(), c.shortcut_agent.clone(), c.shortcut_settings.clone())
+    };
+
+    // Attempt to register the new trio BEFORE persisting.
+    if let Err(e) = crate::register_global_shortcuts(&app, &cmdbar, &agent, &settings) {
+        // Roll back to old shortcuts so the user keeps working bindings.
+        let _ = crate::register_global_shortcuts(&app, &old_cmdbar, &old_agent, &old_settings);
+        return Err(e);
+    }
+
+    // Registration succeeded: now persist.
     {
         let mut c = cfg.0.lock().unwrap();
-        c.shortcut_cmdbar = cmdbar.clone();
-        c.shortcut_agent = agent.clone();
-        c.shortcut_settings = settings.clone();
+        c.shortcut_cmdbar = cmdbar;
+        c.shortcut_agent = agent;
+        c.shortcut_settings = settings;
         config::save_to(&config::config_path(), &c).map_err(|e| e.to_string())?;
     }
 
-    crate::register_global_shortcuts(&app, &cmdbar, &agent, &settings);
     Ok(())
 }
 

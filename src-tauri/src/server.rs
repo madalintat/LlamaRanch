@@ -356,10 +356,11 @@ fn model_action(port: u16, action: &str, id: &str) -> Result<(), String> {
             let body = resp.into_string().unwrap_or_default();
             let lower = body.to_lowercase();
             let benign = match action {
-                "load" => lower.contains("already"),
-                "unload" => code == 404 || lower.contains("not running") || lower.contains("not loaded"),
+                "load" => lower.contains("already running") || lower.contains("already loaded"),
+                "unload" => lower.contains("not running") || lower.contains("not loaded") || lower.contains("not found"),
                 _ => false,
             };
+            let _ = code;
             if benign {
                 Ok(())
             } else {

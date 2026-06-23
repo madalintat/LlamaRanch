@@ -195,6 +195,9 @@ function eventToAccel(e: KeyboardEvent): string | null {
 
 type ShortcutKey = "cmdbar" | "agent" | "settings";
 
+// Guard: only one shortcut capture can be active at a time.
+let activeCapture = false;
+
 const shortcuts: Record<ShortcutKey, string> = {
   cmdbar: "CmdOrCtrl+K",
   agent: "CmdOrCtrl+J",
@@ -208,6 +211,9 @@ function renderShortcutKey(key: ShortcutKey) {
 }
 
 function startCapture(key: ShortcutKey) {
+  if (activeCapture) return;
+  activeCapture = true;
+
   const el = document.getElementById(`s-sc-key-${key}`)!;
   const btn = document.getElementById(`s-sc-rebind-${key}`) as HTMLButtonElement;
   el.textContent = "press keys...";
@@ -217,6 +223,7 @@ function startCapture(key: ShortcutKey) {
 
   function onKey(e: KeyboardEvent) {
     if (e.key === "Escape") {
+      e.preventDefault();
       cancel();
       return;
     }
@@ -232,6 +239,7 @@ function startCapture(key: ShortcutKey) {
     renderShortcutKey(key);
     btn.textContent = "Rebind";
     delete btn.dataset.capturing;
+    activeCapture = false;
   }
 
   function cleanup() {
@@ -245,6 +253,7 @@ function startCapture(key: ShortcutKey) {
     renderShortcutKey(key);
     btn.textContent = "Rebind";
     delete btn.dataset.capturing;
+    activeCapture = false;
 
     const errEl = document.getElementById("s-sc-error")!;
     errEl.textContent = "";
@@ -273,9 +282,7 @@ function startCapture(key: ShortcutKey) {
   const btn = document.getElementById(`s-sc-rebind-${key}`) as HTMLButtonElement;
   btn.addEventListener("click", () => {
     if (btn.dataset.capturing) {
-      // Cancel active capture.
-      btn.click(); // the keydown Escape handler handles it; trigger via Escape simulation
-      // Simpler: just dispatch an Escape keydown to our own listener.
+      // Cancel active capture by dispatching Escape to our own listener.
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     } else {
       startCapture(key);
@@ -332,9 +339,13 @@ async function save() {
   try { existingCfg = await invoke<any>("get_config"); } catch {}
 
   try {
+    // Re-read config immediately before saving so shortcut changes made via
+    // set_shortcuts (while settings were open) are not reverted by a stale snapshot.
+    let freshCfg: any = existingCfg;
+    try { freshCfg = await invoke<any>("get_config"); } catch {}
     await invoke("set_config", {
       newCfg: {
-        ...existingCfg,
+        ...freshCfg,
         port: Number($("s-port").value),
         models_dir: $("s-models").value,
         server_bin: $("s-bin").value,

@@ -102,7 +102,7 @@ pub fn run() {
             }
             tray.menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "open" => show_window(app),
+                    "open" => show_named_window(app, "main"),
                     "quit" => {
                         if let Some(srv) = app.try_state::<SharedServer>() {
                             server::stop(&mut srv.lock());
@@ -131,12 +131,14 @@ pub fn run() {
             // Best-effort: failures are logged, not fatal.
             {
                 let cfg = app.state::<AppConfig>().0.lock().unwrap().clone();
-                register_global_shortcuts(
+                if let Err(e) = register_global_shortcuts(
                     app.handle(),
                     &cfg.shortcut_cmdbar,
                     &cfg.shortcut_agent,
                     &cfg.shortcut_settings,
-                );
+                ) {
+                    eprintln!("llamaranch: startup shortcut registration: {e}");
+                }
             }
 
             let h = app.handle().clone();
@@ -292,14 +294,6 @@ fn toggle_popover<R: Runtime>(app: &AppHandle<R>, rect: tauri::Rect) {
     show_popover(app, rect);
 }
 
-fn show_window<R: Runtime>(app: &AppHandle<R>) {
-    if let Some(win) = app.get_webview_window("main") {
-        let _ = win.show();
-        let _ = win.unminimize();
-        let _ = win.set_focus();
-    }
-}
-
 /// Show and focus a named window (chat or settings). Best-effort: errors are ignored.
 fn show_named_window<R: Runtime>(app: &AppHandle<R>, label: &str) {
     if let Some(win) = app.get_webview_window(label) {
@@ -310,21 +304,24 @@ fn show_named_window<R: Runtime>(app: &AppHandle<R>, label: &str) {
 }
 
 /// Unregister all current global shortcuts, then re-register the three
-/// configurable shortcuts. Each registration is best-effort: a failure (e.g.
-/// the combination is already held by another app) is logged and skipped so
-/// app startup and live rebinding never panic.
+/// configurable shortcuts. Returns Ok(()) if all three registered successfully,
+/// or Err listing the accelerators that failed. Registration is best-effort per
+/// shortcut (failures are logged and accumulated, not fatal), so the app never
+/// panics on a taken or invalid combo.
 pub fn register_global_shortcuts<R: Runtime>(
     app: &AppHandle<R>,
     cmdbar: &str,
     agent: &str,
     settings: &str,
-) {
+) -> Result<(), String> {
     let gs = app.global_shortcut();
 
     // Drop any previously registered shortcuts so we can swap bindings live.
     if let Err(e) = gs.unregister_all() {
         eprintln!("llamaranch: could not unregister shortcuts ({e})");
     }
+
+    let mut failures: Vec<String> = Vec::new();
 
     // Command bar: show the main popover + emit open-cmdk.
     // Skip if any app window is already focused (in-window handler takes over).
@@ -347,6 +344,7 @@ pub fn register_global_shortcuts<R: Runtime>(
         }
     }) {
         eprintln!("llamaranch: could not register command bar shortcut {cmdbar:?} ({e}); the in-window shortcut still works.");
+        failures.push(cmdbar.to_string());
     }
 
     // Agent (chat) window shortcut.
@@ -357,6 +355,7 @@ pub fn register_global_shortcuts<R: Runtime>(
         }
     }) {
         eprintln!("llamaranch: could not register agent shortcut {agent:?} ({e}).");
+        failures.push(agent.to_string());
     }
 
     // Settings window shortcut.
@@ -367,6 +366,13 @@ pub fn register_global_shortcuts<R: Runtime>(
         }
     }) {
         eprintln!("llamaranch: could not register settings shortcut {settings:?} ({e}).");
+        failures.push(settings.to_string());
+    }
+
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("could not register shortcut(s): {}", failures.join(", ")))
     }
 }
 
