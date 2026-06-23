@@ -9,6 +9,7 @@ import {
   isEnabled as autoIsEnabled,
 } from "@tauri-apps/plugin-autostart";
 import { saveTheme, getStoredTheme, type Theme } from "./brand/theme.ts";
+import { basename } from "./paths.ts";
 import "./styles.css";
 
 tagOS(); // match the main window: Linux opaque, macOS/Windows frosted
@@ -300,11 +301,6 @@ function startCapture(key: ShortcutKey) {
 // allowed_dirs from this list so the two never disagree.
 let allowedDirs: string[] = [];
 
-function basename(p: string): string {
-  const parts = p.replace(/[/\\]+$/, "").split(/[/\\]/);
-  return parts[parts.length - 1] || p;
-}
-
 function renderChips() {
   const list = document.getElementById("s-chips")!;
   const empty = document.getElementById("s-chips-empty")!;
@@ -416,19 +412,6 @@ async function save() {
     if ((await autoIsEnabled()) !== want) want ? await autoEnable() : await autoDisable();
   } catch {}
 
-  // allowed_dirs come from the chips (the primary UI). The power-user textarea
-  // is kept in sync with the chips, so if it now differs the user hand-edited it,
-  // in which case the textarea wins. Either way Save never wipes a granted path.
-  const allowedDirsEl = document.getElementById("s-allowed-dirs") as HTMLTextAreaElement;
-  const fromText = allowedDirsEl.value
-    .split("\n")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-  const sameAsChips =
-    fromText.length === allowedDirs.length &&
-    fromText.every((p, i) => p === allowedDirs[i]);
-  const allowed_dirs = sameAsChips ? allowedDirs : fromText;
-
   // We must send the full Config - load existing to preserve fields we don't expose
   let existingCfg: any = {};
   try { existingCfg = await invoke<any>("get_config"); } catch {}
@@ -438,6 +421,24 @@ async function save() {
     // set_shortcuts (while settings were open) are not reverted by a stale snapshot.
     let freshCfg: any = existingCfg;
     try { freshCfg = await invoke<any>("get_config"); } catch {}
+
+    // allowed_dirs: chip add/remove, drag-drop, and @-mention grants all persist
+    // live via add_allowed_dirs, so the fresh on-disk value is the source of truth
+    // and Save must NOT clobber it with the stale chips snapshot taken at load.
+    // The one exception is the power-user textarea: if it is shown AND its content
+    // differs from the chips, the user hand-edited it, so the textarea wins.
+    const allowedDirsEl = document.getElementById("s-allowed-dirs") as HTMLTextAreaElement;
+    const textShown = allowedDirsEl.style.display !== "none";
+    const fromText = allowedDirsEl.value
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    const sameAsChips =
+      fromText.length === allowedDirs.length &&
+      fromText.every((p, i) => p === allowedDirs[i]);
+    const allowed_dirs =
+      textShown && !sameAsChips ? fromText : (freshCfg.allowed_dirs ?? []);
+
     await invoke("set_config", {
       newCfg: {
         ...freshCfg,
