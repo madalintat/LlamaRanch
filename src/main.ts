@@ -834,7 +834,11 @@ async function init() {
   // Settings lives in its own window (defined in tauri.conf.json); just reveal it.
   $("settings-btn").onclick = async () => {
     const w = await WebviewWindow.getByLabel("settings");
-    if (w) { await w.center(); await w.show(); await w.setFocus(); }
+    if (!w) return;
+    // Centering is best-effort: never let it block the window from opening.
+    try { await w.center(); } catch { /* ignore */ }
+    await w.show();
+    await w.setFocus();
   };
   // The Settings window emits this after saving; refresh the panel to match.
   await listen("config-changed", async () => { await refresh(); startPolling(); });
