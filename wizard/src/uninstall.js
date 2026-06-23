@@ -330,8 +330,7 @@ function printPlan(targets) {
   }
   // Custom models_dir outside known LlamaRanch locations: shown but not removed
   if (t.manualModelsDir) {
-    row('models (custom', t.manualModelsDir);
-    subrow('location, remove manually if desired)');
+    row('models (custom location, remove manually):', t.manualModelsDir);
   }
 
   // Engine
@@ -600,34 +599,35 @@ export async function runUninstall({ yes = false } = {}) {
     };
 
     if (key === 'config') {
-      doSafe('config file', t.configFilePath);
+      const primaryStatus = doSafe('config file', t.configFilePath);
+      // Secondary: clean up empty config dir silently
       if (fs.existsSync(t.configDirPath)) {
         try {
           const rem = fs.readdirSync(t.configDirPath);
           if (rem.length === 0) doSafe('config dir', t.configDirPath);
         } catch { /* skip */ }
       }
-      return 'removed';
+      return primaryStatus;
     }
 
     if (key === 'models' || key.startsWith('models_')) {
       // Find corresponding dir by index
       const idx = key === 'models' ? 0 : parseInt(key.slice('models_'.length), 10);
       const dir = t.modelsDirs[idx];
-      if (dir) doSafe('models dir', dir);
-      return 'removed';
+      if (!dir) return 'skipped: dir not found';
+      return doSafe('models dir', dir);
     }
 
     if (key === 'engine') {
-      doSafe('engine dir', t.engineInstallDir);
-      // Parent dir if now empty
+      const primaryStatus = doSafe('engine dir', t.engineInstallDir);
+      // Secondary: clean up empty parent dir silently
       if (t.llamaRanchDir !== HOME && fs.existsSync(t.llamaRanchDir)) {
         try {
           const rem = fs.readdirSync(t.llamaRanchDir);
           if (rem.length === 0) doSafe('~/.llamaranch', t.llamaRanchDir);
         } catch { /* skip */ }
       }
-      return 'removed';
+      return primaryStatus;
     }
 
     if (key === 'brew') {
@@ -641,9 +641,10 @@ export async function runUninstall({ yes = false } = {}) {
     }
 
     if (key === 'app') {
-      doSafe('desktop app', t.appPath);
+      const primaryStatus = doSafe('desktop app', t.appPath);
+      // Secondary: remove .desktop entry silently
       if (t.desktopEntryPath) doSafe('.desktop entry', t.desktopEntryPath);
-      return 'removed';
+      return primaryStatus;
     }
 
     return 'unknown key';
