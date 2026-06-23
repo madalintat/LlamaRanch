@@ -4,7 +4,6 @@ import chalk from 'chalk';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-import { createInterface } from 'readline';
 import { getConfigPath, readConfig } from './config.js';
 import { getModelsDir } from './models.js';
 import { LLAMA_INSTALL_DIR } from './engine.js';
@@ -50,29 +49,36 @@ function blank() {
 // ---------------------------------------------------------------------------
 
 const HOME = os.homedir();
+// Also track the real (symlink-resolved) home so that realpathSync results
+// pass the safety check on platforms where the user home dir is itself a
+// symlink (e.g. macOS /var -> /private/var).
+let HOME_REAL = HOME;
+try { HOME_REAL = fs.realpathSync(HOME); } catch { /* leave as HOME */ }
 
 // Known safe prefixes: only delete inside these
 function safePrefix(p) {
-  const home = HOME;
-  const known = [
-    // config dir (platform-specific, always inside home)
-    path.join(home, 'Library', 'Application Support', 'llamaranch'),
-    path.join(home, '.config', 'llamaranch'),
-    // Windows APPDATA -- may be outside home, but still guard it
-    // models dir defaults
-    path.join(home, 'Library', 'Application Support', 'llamaranch', 'models'),
-    path.join(home, '.local', 'share', 'llamaranch', 'models'),
-    // engine
-    path.join(home, '.llamaranch'),
-    // desktop app (macOS)
-    '/Applications/LlamaRanch.app',
-    // desktop app (Linux)
-    path.join(home, '.local', 'bin', 'LlamaRanch.AppImage'),
-    path.join(home, 'Applications', 'LlamaRanch.AppImage'),
-    path.join(home, '.local', 'share', 'applications', 'llamaranch.desktop'),
-    // Windows APPDATA llamaranch dir
-    path.join(home, 'AppData', 'Roaming', 'llamaranch'),
-  ];
+  const homes = HOME_REAL !== HOME ? [HOME, HOME_REAL] : [HOME];
+  const known = [];
+  for (const home of homes) {
+    known.push(
+      // config dir (platform-specific, always inside home)
+      path.join(home, 'Library', 'Application Support', 'llamaranch'),
+      path.join(home, '.config', 'llamaranch'),
+      // models dir defaults
+      path.join(home, 'Library', 'Application Support', 'llamaranch', 'models'),
+      path.join(home, '.local', 'share', 'llamaranch', 'models'),
+      // engine
+      path.join(home, '.llamaranch'),
+      // desktop app (macOS)
+      '/Applications/LlamaRanch.app',
+      // desktop app (Linux)
+      path.join(home, '.local', 'bin', 'LlamaRanch.AppImage'),
+      path.join(home, 'Applications', 'LlamaRanch.AppImage'),
+      path.join(home, '.local', 'share', 'applications', 'llamaranch.desktop'),
+      // Windows APPDATA llamaranch dir
+      path.join(home, 'AppData', 'Roaming', 'llamaranch'),
+    );
+  }
 
   // Also accept dynamic APPDATA path
   if (process.env.APPDATA) {
@@ -94,7 +100,7 @@ function assertSafe(p) {
     throw new Error('path is empty');
   }
   const resolved = path.resolve(p);
-  if (resolved === HOME || resolved === '/') {
+  if (resolved === HOME || resolved === HOME_REAL || resolved === '/') {
     throw new Error('refusing to delete home or root: ' + resolved);
   }
   // Only the macOS app absolute path is allowed outside home.
@@ -219,26 +225,6 @@ function makeSpinner(label) {
 }
 
 // ---------------------------------------------------------------------------
-// Ask the user to TYPE a confirmation word, not just press Enter.
-// Accepts: "yes" or "remove" (case-insensitive). Anything else cancels.
-// ---------------------------------------------------------------------------
-
-function askTypedConfirm() {
-  return new Promise((resolve) => {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    process.stdout.write(
-      G_SPIN + ' ' + cream('Type ') + gold('yes') + cream(' or ') + gold('remove') +
-      cream(' and press Enter to proceed, or anything else to cancel: ')
-    );
-    rl.question('', (answer) => {
-      rl.close();
-      const val = answer.trim().toLowerCase();
-      resolve(val === 'yes' || val === 'remove');
-    });
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Collect what we are going to remove
 // ---------------------------------------------------------------------------
 
@@ -317,7 +303,7 @@ function collectTargets() {
 }
 
 // ---------------------------------------------------------------------------
-// Print the removal plan
+// Print the removal plan (used for non-TTY and --yes paths)
 // ---------------------------------------------------------------------------
 
 function printPlan(targets) {
@@ -344,8 +330,7 @@ function printPlan(targets) {
   }
   // Custom models_dir outside known LlamaRanch locations: shown but not removed
   if (t.manualModelsDir) {
-    row('models (custom,', t.manualModelsDir);
-    subrow('custom location, remove manually if desired)');
+    row('models (custom location, remove manually)', t.manualModelsDir);
   }
 
   // Engine
@@ -384,134 +369,118 @@ function printPlan(targets) {
 }
 
 // ---------------------------------------------------------------------------
-// Execute removal
+// Safe-remove helper with spinner (used in --yes path)
 // ---------------------------------------------------------------------------
 
-async function executeRemoval(targets, { brewConfirmed = false } = {}) {
-  const t = targets;
+function doRemoveWithSpinner(label, p) {
+  const sp = makeSpinner(label);
+  let status;
+  try {
+    const resolved = assertSafe(p);
 
-  // Helper: safe-remove with spinner, including symlink-resolve guard.
-  function doRemove(label, p, extraGuard) {
-    const sp = makeSpinner(label);
-    let status;
-    try {
-      const resolved = assertSafe(p);
-      if (extraGuard && !extraGuard(resolved)) {
-        sp.stop(G_WARN, 'skipped (safety check)');
-        return;
-      }
-
-      // Symlink-resolve guard: compute realpath and re-run assertSafe on it.
-      // If the real path falls outside whitelisted locations, skip entirely.
-      if (fs.existsSync(p) || isSymlink(p)) {
-        try {
-          const realp = fs.realpathSync(p);
-          if (realp !== resolved) {
-            // Real path differs from the logical resolved path.
-            // Re-check the real destination against the whitelist.
-            assertSafe(realp);
+    // Symlink-resolve guard: compute realpath and re-run assertSafe on it.
+    if (fs.existsSync(p) || isSymlink(p)) {
+      try {
+        const realp = fs.realpathSync(p);
+        if (realp !== resolved) {
+          assertSafe(realp);
+        }
+      } catch (realErr) {
+        if (realErr.message && realErr.message.startsWith('path not in')) {
+          try {
+            const realp2 = fs.realpathSync(p);
+            sp.stop(G_WARN, p + ' resolves outside LlamaRanch (' + realp2 + '), skipped for safety');
+          } catch {
+            sp.stop(G_WARN, 'skipped (symlink resolves outside LlamaRanch)');
           }
-        } catch (realErr) {
-          // realpathSync may throw on dangling symlinks; that is fine, we
-          // will handle it in removePath. But if assertSafe threw, skip.
-          if (realErr.message && realErr.message.startsWith('path not in')) {
-            try {
-              const realp2 = fs.realpathSync(p);
-              sp.stop(G_WARN, p + ' resolves outside LlamaRanch (' + realp2 + '), skipped for safety');
-            } catch {
-              sp.stop(G_WARN, 'skipped (symlink resolves outside LlamaRanch)');
-            }
-            return;
-          }
-          // Other errors from realpathSync are fine: removePath handles them.
+          return;
         }
       }
-
-      status = removePath(resolved);
-    } catch (err) {
-      sp.stop(G_WARN, 'skipped: ' + err.message);
-      return;
     }
 
-    if (status && status.startsWith('symlink-skip:')) {
-      const realTarget = status.slice('symlink-skip:'.length);
-      sp.stop(G_WARN, p + ' resolves outside LlamaRanch (' + realTarget + '), skipped for safety');
-    } else if (status === 'removed' || status === 'removed (dangling symlink)') {
-      sp.stop(G_CHECK, 'removed');
-    } else if (status === 'already removed') {
-      sp.stop(G_WARN, 'already removed');
-    } else {
-      sp.stop(G_WARN, status);
-    }
+    status = removePath(resolved);
+  } catch (err) {
+    sp.stop(G_WARN, 'skipped: ' + err.message);
+    return;
   }
 
-  process.stdout.write(G_BAR + '\n');
-
-  // 1. Config file
-  doRemove('config file', t.configFilePath);
-
-  // 2. Config dir (only if it becomes empty)
-  if (fs.existsSync(t.configDirPath)) {
-    try {
-      const remaining = fs.readdirSync(t.configDirPath);
-      if (remaining.length === 0) {
-        doRemove('config dir (empty)', t.configDirPath);
-      } else {
-        // Warn but leave it: models dir might live here on some platforms
-        const sp = makeSpinner('config dir');
-        sp.stop(G_WARN, 'not empty, leaving: ' + t.configDirPath);
-      }
-    } catch {
-      // skip
-    }
-  }
-
-  // 3. Models dirs
-  for (const dir of t.modelsDirs) {
-    doRemove('models dir', dir);
-  }
-
-  // 4. Engine dir
-  doRemove('engine dir', t.engineInstallDir);
-
-  // 5. ~/.llamaranch parent dir (only if empty after removing llama.cpp subdir)
-  const llamaRanchDir = t.llamaRanchDir;
-  if (llamaRanchDir !== HOME && fs.existsSync(llamaRanchDir)) {
-    try {
-      const remaining = fs.readdirSync(llamaRanchDir);
-      if (remaining.length === 0) {
-        doRemove('~/.llamaranch (empty)', llamaRanchDir);
-      }
-    } catch { /* skip */ }
-  }
-
-  // 6. Brew/system engine
-  if (t.serverBinIsBrewOrSystem && brewConfirmed) {
-    const { execa } = await import('execa');
-    const sp = makeSpinner('brew uninstall llama.cpp');
-    try {
-      await execa('brew', ['uninstall', 'llama.cpp'], { all: true });
-      sp.stop(G_CHECK, 'uninstalled');
-    } catch (err) {
-      sp.stop(G_WARN, 'failed: ' + err.message);
-    }
-  } else if (t.serverBinIsBrewOrSystem && !brewConfirmed) {
-    process.stdout.write(G_BAR + '  ' + G_WARN + '  ' + muted('brew engine skipped: run ') + cream('brew uninstall llama.cpp') + muted(' manually') + '\n');
-  }
-
-  // 7. Desktop app
-  if (process.platform !== 'win32' && t.appPath) {
-    doRemove('desktop app', t.appPath);
-  }
-
-  // 8. Linux .desktop entry
-  if (t.desktopEntryPath) {
-    doRemove('.desktop entry', t.desktopEntryPath);
+  if (status && status.startsWith('symlink-skip:')) {
+    const realTarget = status.slice('symlink-skip:'.length);
+    sp.stop(G_WARN, p + ' resolves outside LlamaRanch (' + realTarget + '), skipped for safety');
+  } else if (status === 'removed' || status === 'removed (dangling symlink)') {
+    sp.stop(G_CHECK, 'removed');
+  } else if (status === 'already removed') {
+    sp.stop(G_WARN, 'already removed');
+  } else {
+    sp.stop(G_WARN, status);
   }
 }
 
 // ---------------------------------------------------------------------------
-// Main export
+// --yes path: remove config + engine + app, keep models and brew
+// ---------------------------------------------------------------------------
+
+async function executeYesRemoval(targets) {
+  const t = targets;
+
+  process.stdout.write(G_BAR + '\n');
+
+  // Config file
+  doRemoveWithSpinner('config file', t.configFilePath);
+
+  // Config dir (only if empty after config file removal)
+  if (fs.existsSync(t.configDirPath)) {
+    try {
+      const remaining = fs.readdirSync(t.configDirPath);
+      if (remaining.length === 0) {
+        doRemoveWithSpinner('config dir (empty)', t.configDirPath);
+      } else {
+        const sp = makeSpinner('config dir');
+        sp.stop(G_WARN, 'not empty, leaving: ' + t.configDirPath);
+      }
+    } catch { /* skip */ }
+  }
+
+  // Engine dir
+  doRemoveWithSpinner('engine dir', t.engineInstallDir);
+
+  // ~/.llamaranch parent dir (only if empty after removing llama.cpp subdir)
+  if (t.llamaRanchDir !== HOME && fs.existsSync(t.llamaRanchDir)) {
+    try {
+      const remaining = fs.readdirSync(t.llamaRanchDir);
+      if (remaining.length === 0) {
+        doRemoveWithSpinner('~/.llamaranch (empty)', t.llamaRanchDir);
+      }
+    } catch { /* skip */ }
+  }
+
+  // Desktop app (Windows installer owns its own uninstall, so leave a note there)
+  if (t.appPath && process.platform !== 'win32') {
+    doRemoveWithSpinner('desktop app', t.appPath);
+  }
+
+  // Kept items note
+  process.stdout.write(G_BAR + '\n');
+  process.stdout.write(G_BAR + '  ' + G_WARN + '  ' + muted('kept: models, brew/system engine (if any)') + '\n');
+  if (t.modelsDirs.length > 0) {
+    for (const dir of t.modelsDirs) {
+      subrow('models at: ' + dir + '  (remove manually if desired)');
+    }
+  }
+  if (t.manualModelsDir) {
+    subrow('custom models at: ' + t.manualModelsDir + '  (remove manually if desired)');
+  }
+  if (t.serverBinIsBrewOrSystem) {
+    subrow('brew engine: run  brew uninstall llama.cpp  to remove');
+  }
+  if (t.appPath && process.platform === 'win32') {
+    subrow('desktop app: remove from Settings > Apps');
+  }
+  process.stdout.write(G_BAR + '\n');
+}
+
+// ---------------------------------------------------------------------------
+// Ink-based selective removal for interactive TTY
 // ---------------------------------------------------------------------------
 
 export async function runUninstall({ yes = false } = {}) {
@@ -520,58 +489,455 @@ export async function runUninstall({ yes = false } = {}) {
 
   const targets = collectTargets();
 
-  printPlan(targets);
+  // --yes path: plain stdout, remove config + engine + app
+  if (yes) {
+    printPlan(targets);
+    await executeYesRemoval(targets);
+    process.stdout.write(G_CORNER + ' ' + cream('The valley is clear.') + '  ' + muted('models and brew engine were kept.') + '\n');
+    process.stdout.write('\n');
+    return;
+  }
 
-  // Non-TTY without --yes: show plan only, refuse
-  if (!process.stdout.isTTY && !yes) {
+  // Non-TTY without --yes: plain stdout, show plan, remove nothing
+  if (!process.stdout.isTTY) {
+    printPlan(targets);
     process.stdout.write(G_WARN + ' ' + gold('Non-interactive shell detected.') + '\n');
-    process.stdout.write(G_BAR + '  ' + muted('Pass ') + cream('--yes') + muted(' to confirm deletion without a prompt.') + '\n');
+    process.stdout.write(G_BAR + '  ' + muted('Run interactively to choose what to remove, or pass ') + cream('--yes') + muted(' to remove the default set.') + '\n');
     process.stdout.write(G_BAR + '  ' + muted('Nothing was removed.') + '\n');
     process.stdout.write(G_CORNER + '\n');
     process.exit(0);
   }
 
-  // Determine confirmation
-  let confirmed = yes;
+  // Ink interactive path
+  const { render, Text, Box, useInput, useApp } = await import('ink');
+  const React = (await import('react')).default;
+  const { useState, useEffect } = React;
 
-  if (!confirmed) {
-    if (!process.stdin.isTTY) {
-      // Piped stdin without --yes
-      process.stdout.write(G_WARN + ' ' + gold('No TTY for input and --yes not set. Nothing removed.') + '\n');
-      process.stdout.write(G_CORNER + '\n');
-      process.exit(0);
-    }
-    // Typed confirmation: user must type "yes" or "remove", not just press Enter.
-    confirmed = await askTypedConfirm();
-  }
+  // Build the items array from targets (closure over targets)
+  function buildItems(t) {
+    const items = [];
 
-  if (!confirmed) {
-    process.stdout.write(G_BAR + '\n');
-    line(G_CORNER, muted('Nothing was removed.'));
-    process.exit(0);
-  }
+    // config
+    items.push({
+      key: 'config',
+      label: 'config',
+      path: t.configFilePath,
+      size: '',
+      defaultChecked: true,
+    });
 
-  // Extra confirm for brew (brew still uses the simple y/N prompt, not typed)
-  let brewConfirmed = false;
-  if (targets.serverBinIsBrewOrSystem && !yes) {
-    if (process.stdin.isTTY) {
-      const rl = createInterface({ input: process.stdin, output: process.stdout });
-      brewConfirmed = await new Promise((resolve) => {
-        rl.question(gold('◆ ') + cream('Also run brew uninstall llama.cpp?') + ' ' + muted('[y/N] '), (answer) => {
-          rl.close();
-          resolve(answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes');
-        });
+    // models
+    for (let i = 0; i < t.modelsDirs.length; i++) {
+      const dir = t.modelsDirs[i];
+      const exists = fs.existsSync(dir);
+      let sizeStr = '';
+      if (exists) {
+        const bytes = dirSizeBytes(dir);
+        sizeStr = humanSize(bytes);
+      }
+      items.push({
+        key: i === 0 ? 'models' : 'models_' + i,
+        label: 'models',
+        path: dir,
+        size: sizeStr,
+        defaultChecked: false,
       });
     }
-  } else if (targets.serverBinIsBrewOrSystem && yes) {
-    // --yes: skip brew to be conservative; brew manages its own packages
-    brewConfirmed = false;
+
+    // engine
+    items.push({
+      key: 'engine',
+      label: 'llama.cpp engine',
+      path: t.engineInstallDir,
+      size: '',
+      defaultChecked: true,
+    });
+
+    // brew (only if applicable)
+    if (t.serverBinIsBrewOrSystem) {
+      items.push({
+        key: 'brew',
+        label: 'brew uninstall llama.cpp',
+        path: t.serverBin || '',
+        size: '',
+        defaultChecked: false,
+      });
+    }
+
+    // desktop app (macOS or Linux, not Windows)
+    if (t.appPath && process.platform !== 'win32') {
+      items.push({
+        key: 'app',
+        label: 'desktop app',
+        path: t.appPath,
+        size: '',
+        defaultChecked: true,
+      });
+    }
+
+    return items;
   }
 
-  await executeRemoval(targets, { brewConfirmed });
+  // Safe-remove a single key, return { key, label, status } asynchronously
+  async function removeKey(key, t) {
+    const doSafe = (label, p) => {
+      try {
+        const resolved = assertSafe(p);
+        if (fs.existsSync(p) || isSymlink(p)) {
+          try {
+            const realp = fs.realpathSync(p);
+            if (realp !== resolved) {
+              assertSafe(realp);
+            }
+          } catch (realErr) {
+            if (realErr.message && realErr.message.startsWith('path not in')) {
+              return 'skipped (symlink outside LlamaRanch)';
+            }
+          }
+        }
+        const status = removePath(resolved);
+        if (status && status.startsWith('symlink-skip:')) return 'skipped (symlink outside LlamaRanch)';
+        return status;
+      } catch (err) {
+        return 'skipped: ' + err.message;
+      }
+    };
 
-  // Outro
-  process.stdout.write(G_BAR + '\n');
-  process.stdout.write(G_CORNER + ' ' + cream('The valley is clear.') + '  ' + muted('models you added elsewhere are untouched.') + '\n');
+    if (key === 'config') {
+      const primaryStatus = doSafe('config file', t.configFilePath);
+      // Secondary: clean up empty config dir silently
+      if (fs.existsSync(t.configDirPath)) {
+        try {
+          const rem = fs.readdirSync(t.configDirPath);
+          if (rem.length === 0) doSafe('config dir', t.configDirPath);
+        } catch { /* skip */ }
+      }
+      return primaryStatus;
+    }
+
+    if (key === 'models' || key.startsWith('models_')) {
+      // Find corresponding dir by index
+      const idx = key === 'models' ? 0 : parseInt(key.slice('models_'.length), 10);
+      const dir = t.modelsDirs[idx];
+      if (!dir) return 'skipped: dir not found';
+      return doSafe('models dir', dir);
+    }
+
+    if (key === 'engine') {
+      const primaryStatus = doSafe('engine dir', t.engineInstallDir);
+      // Secondary: clean up empty parent dir silently
+      if (t.llamaRanchDir !== HOME && fs.existsSync(t.llamaRanchDir)) {
+        try {
+          const rem = fs.readdirSync(t.llamaRanchDir);
+          if (rem.length === 0) doSafe('~/.llamaranch', t.llamaRanchDir);
+        } catch { /* skip */ }
+      }
+      return primaryStatus;
+    }
+
+    if (key === 'brew') {
+      try {
+        const { execa } = await import('execa');
+        await execa('brew', ['uninstall', 'llama.cpp'], { all: true });
+        return 'uninstalled';
+      } catch (err) {
+        return 'failed: ' + err.message;
+      }
+    }
+
+    if (key === 'app') {
+      const primaryStatus = doSafe('desktop app', t.appPath);
+      // Secondary: remove .desktop entry silently
+      if (t.desktopEntryPath) doSafe('.desktop entry', t.desktopEntryPath);
+      return primaryStatus;
+    }
+
+    return 'unknown key';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Path display helpers (for multiselect rows)
+  // ---------------------------------------------------------------------------
+
+  // Replace home dir prefix with ~ and middle-truncate to fit within maxLen chars.
+  function shortenPath(p, maxLen) {
+    if (!p) return '';
+    // Substitute home and real-home prefixes with ~
+    let s = p;
+    for (const home of HOME_REAL !== HOME ? [HOME_REAL, HOME] : [HOME]) {
+      if (s === home) { s = '~'; break; }
+      if (s.startsWith(home + path.sep)) { s = '~' + s.slice(home.length); break; }
+    }
+    if (s.length <= maxLen) return s;
+    // Middle-truncate: keep start and the final segment
+    const tail = path.basename(s);
+    const head = s.slice(0, Math.max(4, maxLen - tail.length - 5));
+    return head + '...' + path.sep + tail;
+  }
+
+  // Build the items array once outside the component so identity is stable.
+  const inkItems = buildItems(targets);
+
+  // The Ink component (closure over targets)
+  function UninstallApp({ outroInfo }) {
+    const { exit } = useApp();
+    const items = inkItems;
+    const checkboxItems = items; // all are checkbox items
+
+    const [checked, setChecked] = useState(() => {
+      const init = {};
+      for (const it of items) init[it.key] = it.defaultChecked;
+      return init;
+    });
+    const [cursor, setCursor] = useState(0);
+    const [step, setStep] = useState('select'); // select | confirm | removing | outro
+    const [confirmIdx, setConfirmIdx] = useState(0); // 0 = No (default), 1 = Yes
+    const [removeResults, setRemoveResults] = useState([]);
+    const [nothingSelected, setNothingSelected] = useState(false);
+    const [cancelled, setCancelled] = useState(false);
+
+    // Live refs mirror state so the stable input handler never reads stale
+    // values and useInput never re-registers mid-typing (which drops keys).
+    const stepRef = React.useRef(step); stepRef.current = step;
+    const cursorRef = React.useRef(cursor); cursorRef.current = cursor;
+    const checkedRef = React.useRef(checked); checkedRef.current = checked;
+    const confirmRef = React.useRef(confirmIdx); confirmRef.current = confirmIdx;
+
+    // Guard: call exit() exactly once
+    const exitCalled = React.useRef(false);
+    const safeExit = React.useCallback(() => {
+      if (!exitCalled.current) {
+        exitCalled.current = true;
+        exit();
+      }
+    }, [exit]);
+
+    // --- Step: select + confirm input handler ---
+    // Memoized with useCallback so that Ink's useInput only re-registers the
+    // listener when the values it actually uses change.  Without memoization
+    // the anonymous function is new on every render, which causes Ink to
+    // remove and re-add the listener on every render tick - opening a window
+    // where an incoming keypress is silently dropped.
+    // Ink maps \r (carriage return) to key.return=true, and \n (linefeed from
+    // PTY on macOS) to key.name='enter' but key.return=false.  Accept both.
+    const isEnter = (input, key) => key.return || input === '\r' || input === '\n';
+
+    // Stable handler (refs, not closure values) so useInput registers exactly
+    // once. A handler whose identity changed each keystroke made useInput
+    // deregister and re-register, and a key pressed in that gap was dropped,
+    // which is what silently swallowed the typed confirmation input.
+    const handleInput = React.useCallback((input, key) => {
+      const s = stepRef.current;
+      if (s === 'select') {
+        if (key.upArrow) { setCursor(c => Math.max(0, c - 1)); return; }
+        if (key.downArrow) { setCursor(c => Math.min(checkboxItems.length - 1, c + 1)); return; }
+        if (input === ' ') {
+          const itemKey = checkboxItems[cursorRef.current]?.key;
+          if (itemKey) setChecked(prev => ({ ...prev, [itemKey]: !prev[itemKey] }));
+          return;
+        }
+        if (isEnter(input, key)) {
+          const anyChecked = Object.values(checkedRef.current).some(Boolean);
+          if (!anyChecked) { setNothingSelected(true); setStep('outro'); }
+          else { setStep('confirm'); }
+          return;
+        }
+        if (input === 'q' || (key.ctrl && input === 'c')) { safeExit(); return; }
+        return;
+      }
+      if (s === 'confirm') {
+        if (key.upArrow || key.downArrow || key.leftArrow || key.rightArrow) {
+          setConfirmIdx(i => (i === 0 ? 1 : 0));
+          return;
+        }
+        if (isEnter(input, key)) {
+          if (confirmRef.current === 1) setStep('removing');
+          else { setCancelled(true); setStep('outro'); }
+          return;
+        }
+        if (input === 'q' || (key.ctrl && input === 'c')) { setCancelled(true); setStep('outro'); return; }
+        return;
+      }
+    }, [checkboxItems, safeExit]);
+
+    useInput(handleInput, { isActive: true });
+
+    // Snapshot checked at the moment step transitions to 'removing' so the
+    // async IIFE never reads stale state via closure.
+    const checkedAtRemove = React.useRef(null);
+
+    // --- Step: removing ---
+    useEffect(() => {
+      if (step !== 'removing') return;
+      // Capture checked state once at removal time
+      checkedAtRemove.current = checked;
+      const selectedKeys = Object.entries(checked)
+        .filter(([, v]) => v)
+        .map(([k]) => k);
+
+      let active = true;
+      (async () => {
+        for (const key of selectedKeys) {
+          if (!active) break;
+          const itemDef = items.find(it => it.key === key);
+          const label = itemDef ? itemDef.label : key;
+          setRemoveResults(prev => [...prev, { key, label, status: 'working...' }]);
+          const status = await removeKey(key, targets);
+          if (!active) break;
+          setRemoveResults(prev =>
+            prev.map(r => r.key === key ? { ...r, status } : r)
+          );
+        }
+        if (active) setStep('outro');
+      })();
+      return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [step]);
+
+    // --- Step: outro exit ---
+    // Populate outroInfo, then exit immediately so Ink renders an empty frame.
+    // The caller prints the outro once after waitUntilExit() resolves, avoiding
+    // the double-print that occurs when Ink renders the final frame both
+    // normally and again inside unmount().
+    useEffect(() => {
+      if (step !== 'outro') return;
+      const keptNow = Object.entries(checked).filter(([, v]) => !v).map(([k]) => {
+        const it = items.find(i => i.key === k);
+        return it ? it.label : k;
+      });
+      outroInfo.cancelled = cancelled;
+      outroInfo.nothingSelected = nothingSelected;
+      outroInfo.removed = removeResults.map(r => r.label);
+      outroInfo.kept = keptNow;
+      safeExit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [step]);
+
+    // ---- Render ----
+
+    // Label column width: pad to 18 chars so all labels align.
+    const LABEL_W = 18;
+
+    if (step === 'select') {
+      return React.createElement(Box, { flexDirection: 'column' },
+        React.createElement(Text, { color: '#3f3d34' }, '┌'),
+        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, null,
+          React.createElement(Text, { color: '#c7a228' }, '◆ '),
+          React.createElement(Text, { color: '#f5f0e8', bold: true }, 'LlamaRanch'),
+          React.createElement(Text, { color: '#6b6456' }, '  uninstall · choose what to remove'),
+        ),
+        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        ...checkboxItems.map((item, i) => {
+          const isActive = i === cursor;
+          const isChecked = checked[item.key];
+          const cursorGlyph = isActive
+            ? React.createElement(Text, { color: '#c7a228' }, '❯')
+            : React.createElement(Text, null, ' ');
+          const boxGlyph = isChecked
+            ? React.createElement(Text, { color: '#c7a228' }, '◼')
+            : React.createElement(Text, { color: '#6b6456' }, '◻');
+          // Fixed-width label, then optional size, then shortened path
+          const paddedLabel = item.label.padEnd(LABEL_W);
+          const sizeStr = item.size ? item.size.padStart(7) : '       ';
+          // Available path width: 80 cols - prefix(5) - cursor(1) - sp(1) - box(1) - sp(1) - label(LABEL_W) - size(7) - sp(2)
+          const pathMaxLen = Math.max(20, 80 - 5 - 1 - 1 - 1 - 1 - LABEL_W - 7 - 2);
+          const displayPath = shortenPath(item.path, pathMaxLen);
+          return React.createElement(Box, { key: item.key },
+            React.createElement(Text, { color: '#3f3d34' }, '│  '),
+            cursorGlyph,
+            React.createElement(Text, null, ' '),
+            boxGlyph,
+            React.createElement(Text, null, ' '),
+            React.createElement(Text, { color: '#f5f0e8' }, paddedLabel),
+            React.createElement(Text, { color: '#6b6456' }, sizeStr),
+            React.createElement(Text, { color: '#6b6456', wrap: 'truncate-end' }, '  ' + displayPath),
+          );
+        }),
+        targets.manualModelsDir
+          ? React.createElement(Box, { key: 'manual-models-info' },
+              React.createElement(Text, { color: '#3f3d34' }, '│     '),
+              React.createElement(Text, { color: '#6b6456', wrap: 'truncate-end' }, 'models (custom location, remove manually): ' + shortenPath(targets.manualModelsDir, 40)),
+            )
+          : null,
+        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, { color: '#6b6456' },
+          '│  space toggles · enter confirms · your models and llama.cpp are kept unless you check them'
+        ),
+      );
+    }
+
+    if (step === 'confirm') {
+      return React.createElement(Box, { flexDirection: 'column' },
+        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, null,
+          React.createElement(Text, { color: '#3f3d34' }, '│  '),
+          React.createElement(Text, { color: '#c7a228' }, '▲  '),
+          React.createElement(Text, { color: '#c7a228' }, 'This permanently deletes the items above. Models and config cannot be recovered.'),
+        ),
+        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, null,
+          React.createElement(Text, { color: '#c7a228' }, '◆  '),
+          React.createElement(Text, { color: '#f5f0e8' }, 'Remove the selected items?'),
+        ),
+        React.createElement(Text, null,
+          React.createElement(Text, { color: '#3f3d34' }, '│  '),
+          React.createElement(Text, { color: confirmIdx === 0 ? '#c7a228' : '#6b6456' }, (confirmIdx === 0 ? '❯ ' : '  ') + 'No, keep everything'),
+        ),
+        React.createElement(Text, null,
+          React.createElement(Text, { color: '#3f3d34' }, '│  '),
+          React.createElement(Text, { color: confirmIdx === 1 ? '#c7a228' : '#6b6456' }, (confirmIdx === 1 ? '❯ ' : '  ') + 'Yes, remove the selected items'),
+        ),
+        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, { color: '#6b6456' }, '│  arrow keys move · enter selects · default is No'),
+      );
+    }
+
+    if (step === 'removing') {
+      return React.createElement(Box, { flexDirection: 'column' },
+        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, null,
+          React.createElement(Text, { color: '#c7a228' }, '◆  '),
+          React.createElement(Text, { color: '#f5f0e8' }, 'Removing selected items...'),
+        ),
+        ...removeResults.map(r =>
+          React.createElement(Text, { key: r.key },
+            React.createElement(Text, { color: '#3f3d34' }, '│  '),
+            React.createElement(Text, { color: '#c7a228' }, '◒  '),
+            React.createElement(Text, { color: '#f5f0e8' }, r.label),
+            React.createElement(Text, { color: '#6b6456' }, '   ' + r.status),
+          )
+        ),
+      );
+    }
+
+    // outro: return null so Ink renders nothing; the caller prints the message
+    // after waitUntilExit() so it appears exactly once.
+    return null;
+  }
+
+  // Shared mutable object: the component writes its outro info here before
+  // calling exit().  The caller reads it after waitUntilExit() and prints it
+  // once, avoiding the double-print that happens when Ink renders the final
+  // frame both normally and again during unmount().
+  const outroInfo = { cancelled: false, nothingSelected: false, removed: [], kept: [] };
+
+  const app = render(React.createElement(UninstallApp, { outroInfo }));
+  await app.waitUntilExit();
+
+  // Print outro exactly once, outside of Ink.
+  const { cancelled: wasCancelled, nothingSelected: wasNothing, removed, kept } = outroInfo;
+  process.stdout.write(G_CORNER + '  ' + cream('The valley is clear.') + '\n');
+  if (wasCancelled) {
+    process.stdout.write('   ' + muted('cancelled: nothing was removed.') + '\n');
+  } else if (removed.length > 0) {
+    process.stdout.write('   ' + muted('removed: ' + removed.join(', ')) + '\n');
+    if (kept.length > 0) {
+      process.stdout.write('   ' + muted('kept: ' + kept.join(', ')) + '\n');
+    }
+  }
+  if (targets.manualModelsDir) {
+    process.stdout.write('   ' + muted('your custom models dir is at: ' + targets.manualModelsDir) + '\n');
+  }
   process.stdout.write('\n');
 }
