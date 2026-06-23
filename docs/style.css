@@ -159,7 +159,8 @@ body {
   color: var(--ink);
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
-  line-height: 1.5;
+  font-size: 16px;
+  line-height: 1.65;
 }
 
 /* ── Layout wrapper ── */
@@ -205,7 +206,7 @@ body {
   gap: 26px;
   align-items: center;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
@@ -275,7 +276,7 @@ body {
   align-items: center;
   gap: 10px;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
@@ -300,7 +301,7 @@ body {
 }
 .hero-body {
   font-size: 17px;
-  line-height: 1.65;
+  line-height: 1.68;
   color: var(--soft);
   margin-bottom: 38px;
   max-width: 36ch;
@@ -339,7 +340,7 @@ body {
 .hero-note {
   margin-top: 28px;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
@@ -348,7 +349,7 @@ body {
 /* ── Shared section layout helpers ── */
 .section-eyebrow {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
@@ -357,7 +358,7 @@ body {
 .section-headline {
   font-family: var(--serif);
   font-weight: 400;
-  font-size: clamp(30px, 3.6vw, 50px);
+  font-size: clamp(32px, 3.8vw, 54px);
   line-height: 1.1;
   letter-spacing: -0.01em;
   color: var(--ink);
@@ -365,7 +366,7 @@ body {
 }
 .section-body {
   font-size: 16px;
-  line-height: 1.62;
+  line-height: 1.65;
   color: var(--soft);
   max-width: 46ch;
 }
@@ -409,7 +410,7 @@ body {
 }
 .agent-tag {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   border: 1px solid var(--line-4);
@@ -508,7 +509,7 @@ body {
 }
 .model-tab {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
@@ -529,7 +530,7 @@ body {
 }
 .model-count-chip {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.06em;
   color: var(--muted);
   border: 1px solid var(--line-2);
@@ -576,7 +577,7 @@ body {
 
 .model-num {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--faint); /* decorative part-number prefix - intentionally faint */
   flex: none;
   width: 20px;
@@ -584,13 +585,13 @@ body {
 .model-name {
   font-family: var(--sans);
   font-weight: 500;
-  font-size: 14px;
+  font-size: 15px;
   color: var(--ink);
   flex: 1;
 }
 .model-meta {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   flex: none;
 }
@@ -600,7 +601,7 @@ body {
 }
 .model-tag {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   border: 1px solid var(--line-4);
@@ -624,7 +625,7 @@ body {
 .model-more {
   padding: 12px 20px;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   background: var(--panel);
 }
@@ -668,7 +669,7 @@ body {
   margin-bottom: 28px;
 }
 .mission-body {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.7;
   color: var(--soft);
   max-width: 52ch;
@@ -708,7 +709,7 @@ body {
 }
 .download-card-num {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--faint); /* decorative part-number - intentionally faint */
 }
 .download-card-led {
@@ -728,7 +729,7 @@ body {
 }
 .download-card-meta {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .download-card-tags {
@@ -738,7 +739,7 @@ body {
 }
 .download-tag {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   border: 1px solid var(--line-4);
@@ -748,7 +749,7 @@ body {
 }
 .download-card-formats {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
   margin-bottom: 12px;
 }
@@ -770,7 +771,7 @@ body {
 }
 .works-with-label {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
@@ -778,7 +779,7 @@ body {
 }
 .works-with-items {
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 0.04em;
   color: var(--soft);
 }
@@ -817,7 +818,7 @@ body {
   flex-wrap: wrap;
 }
 .status-tag {
-  font-size: 9.5px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   color: var(--lcd-mut);
   border: 1px solid #39372e;
@@ -847,24 +848,24 @@ body {
 }
 .feature-num {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--faint); /* decorative part-number prefix - intentionally faint */
   margin-bottom: 12px;
 }
 .feature-title {
   font-family: var(--serif);
-  font-size: 20px;
+  font-size: 22px;
   margin-bottom: 7px;
   color: var(--ink);
 }
 .feature-body {
-  font-size: 15px;
-  line-height: 1.62;
+  font-size: 16px;
+  line-height: 1.65;
   color: var(--soft);
 }
 .code-chip {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13.5px;
   background: #e7e3d9;
   padding: 1px 5px;
   border-radius: 4px;
@@ -896,8 +897,8 @@ body {
   color: var(--ink);
 }
 .endpoint-tagline {
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 16px;
+  line-height: 1.6;
   color: var(--soft);
 }
 .endpoint-clients {
@@ -906,7 +907,7 @@ body {
   flex-direction: column;
   gap: 7px;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--muted);
   letter-spacing: 0.04em;
 }
@@ -949,7 +950,7 @@ body {
   background: #2e2c24;
 }
 .endpoint-header-url {
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   color: #6a6858;
   flex: 1;
@@ -969,7 +970,7 @@ body {
   animation: livePulse 2s ease-in-out infinite;
 }
 .endpoint-live-label {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   color: var(--lcd-ink);
 }
@@ -977,7 +978,7 @@ body {
 /* Terminal body */
 .endpoint-body {
   padding: 20px 22px 24px;
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 2;
   color: #cfcbbf;
   display: flex;
@@ -993,7 +994,7 @@ body {
 }
 .endpoint-response {
   color: #4a4840;
-  font-size: 11.5px;
+  font-size: 13px;
   padding-left: 14px;
   line-height: 1.8;
   margin-bottom: 4px;
@@ -1073,7 +1074,7 @@ body {
 }
 .footer-col-head {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1085,7 +1086,7 @@ body {
   gap: 9px;
 }
 .footer-col-links a {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--soft);
   text-decoration: none;
   transition: color 0.15s;
@@ -1097,7 +1098,7 @@ body {
   align-items: center;
   margin-top: 36px;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   color: var(--muted);
   flex-wrap: wrap;
@@ -1297,7 +1298,7 @@ body {
     font-size: clamp(30px, 9vw, 44px);
   }
   .hero-body {
-    font-size: 15px;
+    font-size: 16px;
     max-width: 100%;
   }
   .hero-install {
@@ -1329,7 +1330,7 @@ body {
     gap: 10px;
   }
   .works-with-items {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   /* Status band */
@@ -1393,7 +1394,7 @@ body {
   }
   .endpoint-body {
     min-width: 0;
-    font-size: 11.5px;
+    font-size: 13px;
   }
 
   /* Mission */
@@ -1404,7 +1405,7 @@ body {
     font-size: clamp(26px, 8vw, 38px);
   }
   .mission-body {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   /* Download */
@@ -1424,7 +1425,7 @@ body {
     max-width: 100%;
   }
   .install-note-wide {
-    font-size: 10.5px;
+    font-size: 12px;
   }
 
   /* Footer */
@@ -1443,7 +1444,7 @@ body {
     flex-wrap: wrap;
   }
   .footer-bottom {
-    font-size: 9.5px;
+    font-size: 11px;
     flex-wrap: wrap;
     gap: 6px;
   }
@@ -1470,16 +1471,16 @@ body {
     font-size: clamp(28px, 10vw, 36px);
   }
   .hero-body {
-    font-size: 14px;
+    font-size: 15px;
   }
   .hero-note {
-    font-size: 10.5px;
+    font-size: 12px;
   }
 
   .site-nav { padding: 12px 16px; }
 
   .status-band { padding: 14px 16px; }
-  .status-endpoint { font-size: 12px; }
+  .status-endpoint { font-size: 13px; }
   .status-tags { gap: 5px; }
 
   .agent-left,
@@ -1487,11 +1488,11 @@ body {
   .models-left,
   .endpoint { padding-left: 16px; padding-right: 16px; }
 
-  .endpoint-body { font-size: 11px; padding: 14px 14px 18px; }
+  .endpoint-body { font-size: 12.5px; padding: 14px 14px 18px; }
 
   .section-headline { font-size: clamp(22px, 8vw, 30px); }
   .mission-quote { font-size: clamp(24px, 8.5vw, 32px); }
-  .mission-body { font-size: 13.5px; }
+  .mission-body { font-size: 14.5px; }
 
   .download-section { padding: 44px 16px; }
   .download-card { padding: 22px 18px; }
@@ -1506,7 +1507,7 @@ body {
   }
 
   .works-with { padding: 12px 16px; }
-  .works-with-items { font-size: 11px; }
+  .works-with-items { font-size: 12.5px; }
 
   .features { }
   .feature { padding: clamp(28px, 5vw, 48px) 16px; }
@@ -1545,7 +1546,7 @@ body {
 .install-copy {
   flex: none;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--lcd-ink);
@@ -1560,7 +1561,7 @@ body {
 .install-copy.copied { color: #8fd6a6; border-color: #3f6b4d; }
 .install-note {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.03em;
   color: var(--muted);
   margin-top: 11px;
