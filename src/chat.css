@@ -838,6 +838,20 @@ body {
   .led--loading { animation: none; }
 }
 
+/* Rail LCD actively loading: a light opacity pulse on the status text so the
+   user sees real-time progress. Kept to opacity only (cheap to composite, no
+   box-shadow/blur churn). */
+.rail__lcd-status.lcd--loading {
+  animation: lcd-loading-pulse 1s ease-in-out infinite;
+}
+@keyframes lcd-loading-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail__lcd-status.lcd--loading { animation: none; }
+}
+
 /* ── Dark mode overrides for mix-blend ────────────────────────── */
 
 @media (prefers-color-scheme: dark) {

@@ -81,6 +81,8 @@ function setActiveModel(id: string): void {
   } else if (modelState !== "loading") {
     modelState = "idle";
   }
+  // Reaching a resolved LCD state ends any loading animation.
+  setLoadingVisual(false);
 }
 
 /** Render tool rows in the rail and privacy panel, and update the web-research chip. */
@@ -222,7 +224,12 @@ async function refreshPool(): Promise<void> {
     const view = await invoke<PoolView>("model_pool");
     lastPoolView = view;
     renderPoolStrip(view);
-    setActiveModel(view.active ?? "");
+    // While a load is actively in progress, the load flow owns the LCD (the
+    // live "loading Ns" counter). Only let the background sync set the active
+    // model when nothing is mid-load, so it never clobbers loading feedback.
+    if (modelState !== "loading") {
+      setActiveModel(view.active ?? "");
+    }
   } catch {
     /* router not ready yet - leave the strip empty */
   }
@@ -419,6 +426,12 @@ function clearLoadIntervals(): void {
   if (loadPollInterval !== null) { clearInterval(loadPollInterval); loadPollInterval = null; }
 }
 
+/** Toggle the animated loading pulse on the rail LCD (status text + panel glow). */
+function setLoadingVisual(on: boolean): void {
+  if (lcdStatus) lcdStatus.classList.toggle("lcd--loading", on);
+  if (lcdEl) lcdEl.classList.toggle("lcd--loading", on);
+}
+
 /**
  * Load a model by ID with real-time feedback:
  * 1. Immediately shows "loading Ns" counter in the LCD.
@@ -443,77 +456,62 @@ async function pickAndLoadModel(modelId: string): Promise<void> {
   const name = prettyName(modelId) || modelId;
   lcdModel.textContent = name;
   if (lcdStatus) lcdStatus.textContent = "loading 0s";
+  setLoadingVisual(true);
   titlebarModel.textContent = `${name} · loading`;
 
-  // Clear any leftover intervals from a previous load
+  // Clear any leftover interval from a previous load
   clearLoadIntervals();
 
-  // Elapsed-seconds counter that ticks once per second.
-  // Capture the interval id locally so token-mismatch clears THIS timer only.
-  let elapsed = 0;
-  let elapsedId: ReturnType<typeof setInterval>;
-  elapsedId = setInterval(() => {
+  // Elapsed-seconds counter that ticks once per second (cheap text update).
+  // Capture the interval id locally so a token mismatch clears THIS timer only.
+  const startedAt = Date.now();
+  const elapsedId: ReturnType<typeof setInterval> = setInterval(() => {
     if (loadToken !== myToken) { clearInterval(elapsedId); return; }
-    elapsed++;
     if (lcdStatus && modelState === "loading") {
-      lcdStatus.textContent = `loading ${elapsed}s`;
+      const secs = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+      lcdStatus.textContent = `loading ${secs}s`;
     }
   }, 1000);
   loadElapsedInterval = elapsedId;
 
-  // Poll model_pool every 600ms so the LCD and pool strip update live.
-  // Capture the interval id locally so token-mismatch clears THIS poll only.
-  let pollId: ReturnType<typeof setInterval>;
-  pollId = setInterval(async () => {
-    if (loadToken !== myToken) { clearInterval(pollId); return; }
-    try {
-      const view = await invoke<PoolView>("model_pool");
-      lastPoolView = view;
-      // Update pool strip via shared helper
-      renderPoolStrip(view);
-      // Check if our model is now loaded/active
-      const entry = view.resident.find((e) => e.id === modelId);
-      if (entry && (entry.status === "loaded" || entry.status === "sleeping")) {
-        // Router reports loaded: flip LCD to serving and unblock the send gate immediately
-        if (loadToken === myToken) {
-          if (lcdStatus) lcdStatus.textContent = "SERVING";
-          titlebarModel.textContent = `${name} · local`;
-          modelState = "ready";
-        }
-      }
-      // Rebuild popup rows if open
-      if (modelPopup.classList.contains("model-popup--open")) {
-        buildModelPopup(view);
-      }
-    } catch { /* router not ready yet */ }
-  }, 600);
-  loadPollInterval = pollId;
+  const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
   try {
-    // Fire the load. This blocks (in Tauri IPC) until the router returns (up to 300s).
+    // The router answers /models/load with success IMMEDIATELY and loads the
+    // model asynchronously, so we then poll model_pool until the model is
+    // actually resident (loaded). This awaited loop sleeps between polls, so it
+    // never spins the CPU.
     await invoke("load_model", { modelId });
-
     if (loadToken !== myToken) return; // superseded by another load
 
-    // Load returned successfully: do a final authoritative refresh
-    await refreshPool();
-    // Refresh picker in case new models became available after this load
-    loadPicker();
+    const deadline = Date.now() + 180_000; // 3 min safety cap
+    for (;;) {
+      if (loadToken !== myToken) return;
+      let view: PoolView | null = null;
+      try { view = await invoke<PoolView>("model_pool"); } catch { /* router busy */ }
+      if (loadToken !== myToken) return;
+      if (view) {
+        lastPoolView = view;
+        renderPoolStrip(view);
+        if (modelPopup.classList.contains("model-popup--open")) buildModelPopup(view);
+        const entry = view.resident.find((e) => e.id === modelId);
+        if (entry && (entry.status === "loaded" || entry.status === "sleeping")) {
+          setActiveModel(modelId); // ready + SERVING, clears the loading visual
+          loadPicker();
+          return;
+        }
+      }
+      if (Date.now() > deadline) throw new Error("the model took too long to load");
+      await sleep(600);
+    }
   } catch (err) {
     if (loadToken !== myToken) return;
-
-    // Surface load error as a chat bubble
     bubble("error", `model load failed: ${String(err)}`);
-    // Reset LCD and state
     modelState = "idle";
-    lcdModel.textContent = "no model";
-    if (lcdStatus) lcdStatus.textContent = "idle";
-    titlebarModel.textContent = "new chat · no model loaded";
+    setActiveModel(""); // resets the LCD and clears the loading visual
     modelPick.value = "";
   } finally {
-    if (loadToken === myToken) {
-      clearLoadIntervals();
-    }
+    if (loadToken === myToken) clearLoadIntervals();
   }
 }
 
