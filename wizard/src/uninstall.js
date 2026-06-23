@@ -134,21 +134,58 @@ function humanSize(bytes) {
 }
 
 // ---------------------------------------------------------------------------
-// Remove a path (file or directory), return status string
+// Remove a path (file or directory), return status string.
+// Safety: if the target is a symlink, remove only the link itself (never
+// recurse through it). If the resolved realpath falls outside the whitelist,
+// skip and warn instead of deleting.
 // ---------------------------------------------------------------------------
 
-function removePath(p) {
-  if (!fs.existsSync(p)) return 'already removed';
+function removePath(logicalPath) {
+  if (!fs.existsSync(logicalPath) && !isSymlink(logicalPath)) return 'already removed';
   try {
-    const st = fs.statSync(p);
+    // Symlink guard: if this entry is itself a symlink, unlink the link only.
+    if (isSymlink(logicalPath)) {
+      // Resolve the real destination and re-run the safety check on it.
+      let realTarget;
+      try {
+        realTarget = fs.realpathSync(logicalPath);
+      } catch {
+        // If we cannot resolve it (dangling symlink), it is safe to remove the
+        // link itself because there is no destination to accidentally destroy.
+        fs.unlinkSync(logicalPath);
+        return 'removed (dangling symlink)';
+      }
+      if (realTarget !== logicalPath) {
+        // Real destination differs: ensure it is also a whitelisted location.
+        const allowedAbs = realTarget === '/Applications/LlamaRanch.app' ||
+          realTarget.startsWith('/Applications/LlamaRanch.app' + path.sep);
+        if (!safePrefix(realTarget) && !allowedAbs) {
+          return 'symlink-skip:' + realTarget;
+        }
+      }
+      // Remove only the symlink entry, never recurse through it.
+      fs.unlinkSync(logicalPath);
+      return 'removed';
+    }
+
+    // Regular file or directory: standard removal.
+    const st = fs.statSync(logicalPath);
     if (st.isDirectory()) {
-      fs.rmSync(p, { recursive: true, force: true });
+      fs.rmSync(logicalPath, { recursive: true, force: true });
     } else {
-      fs.unlinkSync(p);
+      fs.unlinkSync(logicalPath);
     }
     return 'removed';
   } catch (err) {
     return 'error: ' + err.message;
+  }
+}
+
+function isSymlink(p) {
+  try {
+    return fs.lstatSync(p).isSymbolicLink();
+  } catch {
+    return false;
   }
 }
 
@@ -182,15 +219,21 @@ function makeSpinner(label) {
 }
 
 // ---------------------------------------------------------------------------
-// Ask yes/no in TTY
+// Ask the user to TYPE a confirmation word, not just press Enter.
+// Accepts: "yes" or "remove" (case-insensitive). Anything else cancels.
 // ---------------------------------------------------------------------------
 
-function askConfirm(prompt) {
+function askTypedConfirm() {
   return new Promise((resolve) => {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(gold('◆ ') + cream(prompt) + ' ' + muted('[y/N] '), (answer) => {
+    process.stdout.write(
+      G_SPIN + ' ' + cream('Type ') + gold('yes') + cream(' or ') + gold('remove') +
+      cream(' and press Enter to proceed, or anything else to cancel: ')
+    );
+    rl.question('', (answer) => {
       rl.close();
-      resolve(answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes');
+      const val = answer.trim().toLowerCase();
+      resolve(val === 'yes' || val === 'remove');
     });
   });
 }
@@ -330,6 +373,14 @@ function printPlan(targets) {
   }
 
   blank();
+
+  // Destructive action warning
+  process.stdout.write(
+    G_BAR + '  ' + G_WARN + '  ' +
+    gold('This permanently deletes the items above. Models and config cannot be recovered.') +
+    '\n'
+  );
+  blank();
 }
 
 // ---------------------------------------------------------------------------
@@ -339,7 +390,7 @@ function printPlan(targets) {
 async function executeRemoval(targets, { brewConfirmed = false } = {}) {
   const t = targets;
 
-  // Helper: safe-remove with spinner
+  // Helper: safe-remove with spinner, including symlink-resolve guard.
   function doRemove(label, p, extraGuard) {
     const sp = makeSpinner(label);
     let status;
@@ -349,12 +400,43 @@ async function executeRemoval(targets, { brewConfirmed = false } = {}) {
         sp.stop(G_WARN, 'skipped (safety check)');
         return;
       }
+
+      // Symlink-resolve guard: compute realpath and re-run assertSafe on it.
+      // If the real path falls outside whitelisted locations, skip entirely.
+      if (fs.existsSync(p) || isSymlink(p)) {
+        try {
+          const realp = fs.realpathSync(p);
+          if (realp !== resolved) {
+            // Real path differs from the logical resolved path.
+            // Re-check the real destination against the whitelist.
+            assertSafe(realp);
+          }
+        } catch (realErr) {
+          // realpathSync may throw on dangling symlinks; that is fine, we
+          // will handle it in removePath. But if assertSafe threw, skip.
+          if (realErr.message && realErr.message.startsWith('path not in')) {
+            try {
+              const realp2 = fs.realpathSync(p);
+              sp.stop(G_WARN, p + ' resolves outside LlamaRanch (' + realp2 + '), skipped for safety');
+            } catch {
+              sp.stop(G_WARN, 'skipped (symlink resolves outside LlamaRanch)');
+            }
+            return;
+          }
+          // Other errors from realpathSync are fine: removePath handles them.
+        }
+      }
+
       status = removePath(resolved);
     } catch (err) {
       sp.stop(G_WARN, 'skipped: ' + err.message);
       return;
     }
-    if (status === 'removed') {
+
+    if (status && status.startsWith('symlink-skip:')) {
+      const realTarget = status.slice('symlink-skip:'.length);
+      sp.stop(G_WARN, p + ' resolves outside LlamaRanch (' + realTarget + '), skipped for safety');
+    } else if (status === 'removed' || status === 'removed (dangling symlink)') {
       sp.stop(G_CHECK, 'removed');
     } else if (status === 'already removed') {
       sp.stop(G_WARN, 'already removed');
@@ -459,20 +541,27 @@ export async function runUninstall({ yes = false } = {}) {
       process.stdout.write(G_CORNER + '\n');
       process.exit(0);
     }
-    confirmed = await askConfirm('Remove all of this?');
+    // Typed confirmation: user must type "yes" or "remove", not just press Enter.
+    confirmed = await askTypedConfirm();
   }
 
   if (!confirmed) {
     process.stdout.write(G_BAR + '\n');
-    line(G_CORNER, muted('Nothing removed. The valley stands.'));
+    line(G_CORNER, muted('Nothing was removed.'));
     process.exit(0);
   }
 
-  // Extra confirm for brew
+  // Extra confirm for brew (brew still uses the simple y/N prompt, not typed)
   let brewConfirmed = false;
   if (targets.serverBinIsBrewOrSystem && !yes) {
     if (process.stdin.isTTY) {
-      brewConfirmed = await askConfirm('Also run brew uninstall llama.cpp?');
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      brewConfirmed = await new Promise((resolve) => {
+        rl.question(gold('◆ ') + cream('Also run brew uninstall llama.cpp?') + ' ' + muted('[y/N] '), (answer) => {
+          rl.close();
+          resolve(answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes');
+        });
+      });
     }
   } else if (targets.serverBinIsBrewOrSystem && yes) {
     // --yes: skip brew to be conservative; brew manages its own packages
