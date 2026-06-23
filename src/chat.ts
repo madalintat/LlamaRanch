@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { mountDither } from "./dither";
 import { applyTheme, type Theme } from "./brand/theme";
 import { tagOS } from "./platform";
@@ -730,6 +731,265 @@ async function cancelStream() {
 }
 // Expose for potential keybinding hooks
 (window as Window & typeof globalThis & { chat_cancel?: () => void }).chat_cancel = cancelStream;
+
+// ============================================================
+// Drag-and-drop file/folder access
+// ============================================================
+//
+// Uses the Tauri v2 webview drag-drop event (NOT browser ondrop, which never
+// fires for OS file drops). Dropping a file or folder onto the chat grants the
+// agent access to it via add_allowed_dirs, then references each granted path in
+// the composer so the next message can ask about it. The listener is registered
+// once on load and lives for the window lifetime; every payload is wrapped so a
+// failure can never crash the listener.
+
+const chatMain = document.querySelector(".chat-main") as HTMLElement | null;
+
+/** Toggle the drop affordance overlay on the chat area. */
+function setDropAffordance(on: boolean): void {
+  document.body.classList.toggle("dragover", on);
+  if (chatMain) chatMain.classList.toggle("dragover", on);
+}
+
+/** Append granted absolute paths to the composer, one per line, no auto-send. */
+function referencePathsInComposer(paths: string[]): void {
+  if (paths.length === 0) return;
+  const existing = input.value;
+  const needsBreak = existing.length > 0 && !existing.endsWith("\n");
+  const block = paths.join("\n");
+  input.value = existing + (needsBreak ? "\n" : "") + block + "\n";
+  // Nudge the textarea so any autosize/scroll reacts, and focus for typing.
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.focus();
+  input.selectionStart = input.selectionEnd = input.value.length;
+}
+
+function basenameOf(p: string): string {
+  const parts = p.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || p;
+}
+
+async function handleDroppedPaths(paths: string[]): Promise<void> {
+  if (!paths || paths.length === 0) return;
+  try {
+    const granted = await invoke<string[]>("add_allowed_dirs", { paths });
+    if (!granted || granted.length === 0) {
+      bubble("error", "could not grant access to the dropped item(s).");
+      return;
+    }
+    const names = granted.map(basenameOf).join(", ");
+    bubble("trace", `Granted access to ${granted.length} item(s): ${names}`);
+    referencePathsInComposer(granted);
+  } catch (err) {
+    bubble("error", `granting file access failed: ${String(err)}`);
+  }
+}
+
+// Register the OS-level drag-drop listener once. Wrapped so listener never dies.
+getCurrentWebviewWindow()
+  .onDragDropEvent((event) => {
+    try {
+      const t = event.payload.type;
+      if (t === "over") {
+        setDropAffordance(true);
+      } else if (t === "drop") {
+        setDropAffordance(false);
+        const paths = (event.payload as { paths?: string[] }).paths ?? [];
+        void handleDroppedPaths(paths);
+      } else {
+        // "leave" | "cancel" | anything else: clear the affordance.
+        setDropAffordance(false);
+      }
+    } catch {
+      setDropAffordance(false);
+    }
+  })
+  .catch(() => { /* drag-drop unavailable; ignore */ });
+
+// ============================================================
+// "@"-mention file picker (insert a granted file's path)
+// ============================================================
+//
+// Typing "@" at the start of the input or after whitespace opens a fuzzy search
+// over the agent's GRANTED folders only (config.allowed_dirs, via the backend
+// list_allowed_files command, which itself never leaves the allowlist). Selecting
+// a file replaces the "@query" run with the file's ABSOLUTE path + a space, so the
+// model can read_file it. Robust by design: every backend call is wrapped, the
+// listener is registered once, and a backend that is not ready just shows nothing.
+
+const atPopup = document.getElementById("at-popup") as HTMLDivElement;
+const atPopupList = document.getElementById("at-popup-list") as HTMLDivElement;
+
+// Index into the input where the current "@" sits (-1 = picker closed).
+let atStart = -1;
+let atResults: string[] = [];
+let atActive = 0;
+let atDebounce: ReturnType<typeof setTimeout> | null = null;
+let atSearchToken = 0;
+
+function atIsOpen(): boolean {
+  return atPopup.classList.contains("at-popup--open");
+}
+
+function closeAtPopup(): void {
+  atPopup.classList.remove("at-popup--open");
+  atPopup.setAttribute("aria-hidden", "true");
+  atStart = -1;
+  atResults = [];
+  atActive = 0;
+  if (atDebounce !== null) { clearTimeout(atDebounce); atDebounce = null; }
+}
+
+/** Shorten a directory path for the muted right-hand label. */
+function shortenDir(p: string): string {
+  const parts = p.split(/[\\/]/).filter(Boolean);
+  parts.pop(); // drop the basename
+  const dir = parts.join("/");
+  if (dir.length <= 38) return dir;
+  return "…" + dir.slice(dir.length - 37);
+}
+
+/** Position the popup above the composer input, left-aligned to it. */
+function positionAtPopup(): void {
+  const r = input.getBoundingClientRect();
+  const margin = 8;
+  // Render to measure, then place above the input.
+  atPopup.style.left = `${Math.max(margin, r.left)}px`;
+  const height = atPopup.offsetHeight || 200;
+  let top = r.top - height - 6;
+  if (top < margin) top = r.bottom + 6; // fall back to below if no room above
+  atPopup.style.top = `${top}px`;
+}
+
+function renderAtResults(): void {
+  atPopupList.innerHTML = "";
+  if (atResults.length === 0) {
+    const hint = document.createElement("div");
+    hint.className = "at-popup__hint";
+    hint.textContent = "No granted files. Add a folder in Settings or drop one here.";
+    atPopupList.appendChild(hint);
+    positionAtPopup();
+    return;
+  }
+  atResults.forEach((path, i) => {
+    const row = document.createElement("div");
+    row.className = "at-popup__row" + (i === atActive ? " at-popup__row--active" : "");
+    row.setAttribute("role", "option");
+    const base = document.createElement("span");
+    base.className = "at-popup__base";
+    base.textContent = basenameOf(path);
+    const dir = document.createElement("span");
+    dir.className = "at-popup__dir";
+    dir.textContent = shortenDir(path);
+    row.appendChild(base);
+    row.appendChild(dir);
+    row.addEventListener("mousedown", (e) => {
+      // mousedown (not click) so the textarea never loses focus first.
+      e.preventDefault();
+      selectAtResult(i);
+    });
+    atPopupList.appendChild(row);
+  });
+  positionAtPopup();
+}
+
+/** Replace the "@query" run with the chosen absolute path + a trailing space. */
+function selectAtResult(i: number): void {
+  const path = atResults[i];
+  if (atStart < 0 || !path) { closeAtPopup(); return; }
+  const value = input.value;
+  const cursor = input.selectionStart ?? value.length;
+  const before = value.slice(0, atStart);
+  const after = value.slice(cursor);
+  const insert = path + " ";
+  input.value = before + insert + after;
+  const caret = before.length + insert.length;
+  input.selectionStart = input.selectionEnd = caret;
+  closeAtPopup();
+  input.focus();
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+/** Inspect the text before the caret; return the query if a mention is active. */
+function currentMention(): { start: number; query: string } | null {
+  const value = input.value;
+  const cursor = input.selectionStart ?? value.length;
+  // Walk back from the cursor to find an "@" not interrupted by whitespace.
+  let i = cursor - 1;
+  while (i >= 0) {
+    const ch = value[i];
+    if (ch === "@") {
+      // Valid trigger only at start or right after whitespace.
+      const prev = i > 0 ? value[i - 1] : "";
+      if (i === 0 || /\s/.test(prev)) {
+        return { start: i, query: value.slice(i + 1, cursor) };
+      }
+      return null;
+    }
+    if (/\s/.test(ch)) return null; // whitespace breaks the mention
+    i--;
+  }
+  return null;
+}
+
+async function runAtSearch(query: string): Promise<void> {
+  const token = ++atSearchToken;
+  let results: string[] = [];
+  try {
+    results = await invoke<string[]>("list_allowed_files", { query });
+  } catch {
+    results = []; // backend not ready: show the empty-state hint, never throw
+  }
+  if (token !== atSearchToken || atStart < 0) return; // superseded or closed
+  atResults = results;
+  atActive = 0;
+  renderAtResults();
+}
+
+/** Re-evaluate the mention state after any input/selection change. */
+function syncAtPicker(): void {
+  const mention = currentMention();
+  if (!mention) {
+    if (atIsOpen()) closeAtPopup();
+    return;
+  }
+  atStart = mention.start;
+  if (!atIsOpen()) {
+    atPopup.classList.add("at-popup--open");
+    atPopup.setAttribute("aria-hidden", "false");
+    atResults = [];
+    renderAtResults(); // show hint immediately while the search debounces
+  }
+  if (atDebounce !== null) clearTimeout(atDebounce);
+  atDebounce = setTimeout(() => { void runAtSearch(mention.query); }, 120);
+}
+
+input.addEventListener("input", syncAtPicker);
+input.addEventListener("click", syncAtPicker);
+
+// Keyboard navigation while the picker is open. Capture phase so Enter/Tab/arrows
+// are handled here before the form submit or textarea default kicks in.
+input.addEventListener("keydown", (e) => {
+  if (!atIsOpen()) return;
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeAtPopup();
+  } else if (e.key === "ArrowDown") {
+    if (atResults.length === 0) return;
+    e.preventDefault();
+    atActive = (atActive + 1) % atResults.length;
+    renderAtResults();
+  } else if (e.key === "ArrowUp") {
+    if (atResults.length === 0) return;
+    e.preventDefault();
+    atActive = (atActive - 1 + atResults.length) % atResults.length;
+    renderAtResults();
+  } else if (e.key === "Enter" || e.key === "Tab") {
+    if (atResults.length === 0) return;
+    e.preventDefault();
+    selectAtResult(atActive);
+  }
+});
 
 // Initialize
 syncEmptyState();

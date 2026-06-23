@@ -47,6 +47,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppConfig(Mutex::new(cfg)))
         .manage(shared)
         .manage(commands::Cancels::default())
@@ -61,6 +62,9 @@ pub fn run() {
             commands::unload_model,
             commands::get_config,
             commands::set_config,
+            commands::add_allowed_dirs,
+            commands::remove_allowed_dir,
+            commands::list_allowed_files,
             commands::restart_router,
             commands::llama_cpp_version,
             commands::list_catalog,

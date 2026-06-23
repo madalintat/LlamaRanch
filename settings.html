@@ -95,13 +95,21 @@
             <input id="s-searxng" class="field" type="text" placeholder="http://localhost:8888" />
           </label>
 
-          <!-- Allowed folders -->
-          <label class="s-field-wrap">
-            <span class="label s-field-wrap__label">Allowed folders for file read (one per line)</span>
-            <textarea id="s-allowed-dirs" class="field" rows="3"
+          <!-- Allowed folders, granted via native picker, shown as removable chips -->
+          <div class="s-field-wrap">
+            <span class="label s-field-wrap__label">File access for the agent</span>
+            <div class="s-grant-actions">
+              <button type="button" class="s-grant-btn" id="s-add-folder">Add folder</button>
+              <button type="button" class="s-grant-btn" id="s-add-files">Add files</button>
+            </div>
+            <div class="s-chips" id="s-chips"></div>
+            <div class="meta s-chips-empty" id="s-chips-empty">No folders or files granted yet.</div>
+            <button type="button" class="s-grant-disclosure" id="s-allowed-toggle"
+              aria-expanded="false">Edit as text</button>
+            <textarea id="s-allowed-dirs" class="field s-allowed-text" rows="3"
               placeholder="/Users/you/Documents&#10;/Users/you/Projects"
-              style="resize:vertical;font-family:inherit;"></textarea>
-          </label>
+              style="resize:vertical;font-family:inherit;display:none;"></textarea>
+          </div>
         </section>
 
         <!-- ── PANEL: Server ─────────────────────────────────────── -->
