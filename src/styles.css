@@ -523,17 +523,15 @@ html, body {
    touches or overflows the window's rounded edge. */
 :root { --s-inset: 24px; }
 
-/* App shell override: settings uses --panel bg */
-#app:has(.s-body) {
-  background: var(--panel);
-}
-
-/* Fade + micro-lift in. Runs once on load. Respects prefers-reduced-motion. */
+/* Fade + micro-lift in. Runs once on load (and is re-triggered on focus in settings.ts).
+   Respects prefers-reduced-motion. */
 @keyframes s-appear {
   from { opacity: 0; transform: translateY(4px) scale(0.99); }
   to   { opacity: 1; transform: none; }
 }
+/* App shell override: settings uses --panel bg + entrance animation */
 #app:has(.s-body) {
+  background: var(--panel);
   animation: s-appear 140ms ease-out both;
 }
 @media (prefers-reduced-motion: reduce) {

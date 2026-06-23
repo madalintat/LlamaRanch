@@ -14,7 +14,30 @@ tagOS(); // match the main window: Linux opaque, macOS/Windows frosted
 
 const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
 const win = getCurrentWindow();
-const fit = () => fitWindow(400, 640);
+const fit = () => fitWindow(440, 640);
+
+// Re-trigger the s-appear fade-in when the window is shown after being
+// preloaded hidden (Tauri webview preload pattern). Toggling the class
+// forces the browser to re-run the animation on each open, rather than
+// having it finish while the window is still OS-hidden.
+// Respects prefers-reduced-motion.
+(function wireFadeOnShow() {
+  const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const app = document.getElementById("app");
+  if (!app) return;
+
+  function retriggerFade() {
+    if (prefersReduced.matches) return;
+    // Remove then synchronously force a reflow to reset the animation.
+    app!.style.animation = "none";
+    void app!.offsetWidth; // reflow
+    app!.style.animation = "";
+  }
+
+  win.onFocusChanged(({ payload: focused }) => {
+    if (focused) retriggerFade();
+  });
+})();
 
 // ── Settings tab switching ────────────────────────────────────────
 type SettingsTab = "general" | "tools" | "server";

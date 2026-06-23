@@ -195,23 +195,33 @@ if (offlineToggle) {
 // Last pool view seen, used for popup state rendering
 let lastPoolView: PoolView | null = null;
 
+/** Render the compact pool strip (the dot row above the chat log). */
+function renderPoolStrip(view: PoolView): void {
+  pool.innerHTML = "";
+  for (const m of view.resident) {
+    const dot = document.createElement("span");
+    dot.className = "pooldot";
+    if (m.id === view.active) dot.classList.add("active");
+    if (m.pinned) dot.classList.add("pinned");
+    const led = document.createElement("span");
+    if (m.id === view.active) {
+      led.className = "led led--sm";
+    } else if (m.status === "loading") {
+      led.className = "led led--sm led--loading";
+    } else {
+      led.className = "led led--idle";
+    }
+    dot.appendChild(led);
+    dot.append(" " + prettyName(m.id));
+    pool.appendChild(dot);
+  }
+}
+
 async function refreshPool(): Promise<void> {
   try {
     const view = await invoke<PoolView>("model_pool");
     lastPoolView = view;
-    pool.innerHTML = "";
-    for (const m of view.resident) {
-      const dot = document.createElement("span");
-      dot.className = "pooldot";
-      if (m.id === view.active) dot.classList.add("active");
-      if (m.pinned) dot.classList.add("pinned");
-      // Square LED instead of emoji
-      const led = document.createElement("span");
-      led.className = m.id === view.active ? "led led--sm" : "led led--idle";
-      dot.appendChild(led);
-      dot.append(" " + prettyName(m.id));
-      pool.appendChild(dot);
-    }
+    renderPoolStrip(view);
     setActiveModel(view.active ?? "");
   } catch {
     /* router not ready yet - leave the strip empty */
@@ -310,6 +320,8 @@ function buildModelPopup(livePool: PoolView | null): void {
       row.appendChild(hint);
 
       row.addEventListener("click", async () => {
+        // Do not allow unload while a model is loading - it would leave inconsistent state.
+        if (modelState === "loading") return;
         closeModelPopup();
         try {
           await invoke("unload_model", { modelId: m.id });
@@ -345,6 +357,14 @@ function openModelPopup(): void {
   // Focus first enabled row if present
   const first = modelPopupList.querySelector<HTMLButtonElement>(".model-popup__row:not(:disabled)");
   if (first) first.focus();
+  // If pool data is not yet available, kick a refresh and rebuild on completion.
+  if (lastPoolView === null) {
+    refreshPool().then(() => {
+      if (modelPopup.classList.contains("model-popup--open")) {
+        buildModelPopup(lastPoolView);
+      }
+    });
+  }
 }
 
 function closeModelPopup(): void {
@@ -428,42 +448,37 @@ async function pickAndLoadModel(modelId: string): Promise<void> {
   // Clear any leftover intervals from a previous load
   clearLoadIntervals();
 
-  // Elapsed-seconds counter that ticks once per second
+  // Elapsed-seconds counter that ticks once per second.
+  // Capture the interval id locally so token-mismatch clears THIS timer only.
   let elapsed = 0;
-  loadElapsedInterval = setInterval(() => {
-    if (loadToken !== myToken) { clearInterval(loadElapsedInterval!); loadElapsedInterval = null; return; }
+  let elapsedId: ReturnType<typeof setInterval>;
+  elapsedId = setInterval(() => {
+    if (loadToken !== myToken) { clearInterval(elapsedId); return; }
     elapsed++;
     if (lcdStatus && modelState === "loading") {
       lcdStatus.textContent = `loading ${elapsed}s`;
     }
   }, 1000);
+  loadElapsedInterval = elapsedId;
 
-  // Poll model_pool every 600ms so the LCD and pool strip update live
-  loadPollInterval = setInterval(async () => {
-    if (loadToken !== myToken) { clearInterval(loadPollInterval!); loadPollInterval = null; return; }
+  // Poll model_pool every 600ms so the LCD and pool strip update live.
+  // Capture the interval id locally so token-mismatch clears THIS poll only.
+  let pollId: ReturnType<typeof setInterval>;
+  pollId = setInterval(async () => {
+    if (loadToken !== myToken) { clearInterval(pollId); return; }
     try {
       const view = await invoke<PoolView>("model_pool");
       lastPoolView = view;
-      // Update pool strip
-      pool.innerHTML = "";
-      for (const m of view.resident) {
-        const dot = document.createElement("span");
-        dot.className = "pooldot";
-        if (m.id === view.active) dot.classList.add("active");
-        if (m.pinned) dot.classList.add("pinned");
-        const led = document.createElement("span");
-        led.className = m.id === view.active ? "led led--sm" : "led led--idle";
-        dot.appendChild(led);
-        dot.append(" " + prettyName(m.id));
-        pool.appendChild(dot);
-      }
+      // Update pool strip via shared helper
+      renderPoolStrip(view);
       // Check if our model is now loaded/active
       const entry = view.resident.find((e) => e.id === modelId);
       if (entry && (entry.status === "loaded" || entry.status === "sleeping")) {
-        // Router reports loaded: flip LCD to serving immediately
+        // Router reports loaded: flip LCD to serving and unblock the send gate immediately
         if (loadToken === myToken) {
           if (lcdStatus) lcdStatus.textContent = "SERVING";
           titlebarModel.textContent = `${name} · local`;
+          modelState = "ready";
         }
       }
       // Rebuild popup rows if open
@@ -472,6 +487,7 @@ async function pickAndLoadModel(modelId: string): Promise<void> {
       }
     } catch { /* router not ready yet */ }
   }, 600);
+  loadPollInterval = pollId;
 
   try {
     // Fire the load. This blocks (in Tauri IPC) until the router returns (up to 300s).
