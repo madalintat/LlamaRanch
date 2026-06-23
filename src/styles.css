@@ -537,7 +537,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 17px 20px 14px;
+  padding: 38px 20px 14px;
   border-bottom: 1px solid var(--line-2);
   flex: none;
 }
@@ -717,6 +717,68 @@ html, body {
 button:focus-visible {
   outline: 1.5px solid var(--ink);
   outline-offset: 2px;
+}
+
+/* ── General panel: theme segmented control ────────────────── */
+
+.s-theme-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0 8px;
+  border-top: 1px solid var(--line-3);
+}
+
+.s-theme-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .06em;
+  color: var(--muted);
+  flex: none;
+  min-width: 48px;
+}
+
+.s-theme-seg {
+  display: flex;
+  border: 1px solid var(--line-4);
+  border-radius: 7px;
+  overflow: hidden;
+  flex: none;
+}
+
+.s-theme-seg__btn {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  padding: 6px 14px;
+  cursor: pointer;
+  line-height: 1;
+  transition: background .1s, color .1s;
+  border-right: 1px solid var(--line-4);
+}
+
+.s-theme-seg__btn:last-child {
+  border-right: none;
+}
+
+.s-theme-seg__btn:hover {
+  color: var(--ink);
+  background: var(--line-3);
+}
+
+.s-theme-seg__btn--active {
+  background: var(--inv-bg);
+  color: var(--inv-ink);
+}
+
+.s-theme-seg__btn--active:hover {
+  background: var(--inv-bg);
+  color: var(--inv-ink);
+  opacity: .9;
 }
 
 /* ── ⌘K Command bar overlay ────────────────────────────────── */

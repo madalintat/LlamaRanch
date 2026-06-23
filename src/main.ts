@@ -11,7 +11,7 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
-import "./brand/theme";
+import { applyTheme, type Theme } from "./brand/theme";
 import "./styles.css";
 import { mountDither, Dither } from "./dither";
 import llamaMark from "./assets/llama.svg";
@@ -710,8 +710,11 @@ async function init() {
   dither = mountDither();
   updateHairlineColor(); // sync canvas data-color to current theme
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-    updateHairlineColor();
-    render();
+    // Only act when no explicit override is set (system mode).
+    if (!document.documentElement.dataset.theme) {
+      updateHairlineColor();
+      render();
+    }
   });
 
   // Footer: "LLAMARANCH <appVersion> · LLAMA.CPP b<build>"
@@ -838,6 +841,13 @@ async function init() {
 
   // Global OS shortcut (registered by Rust) emits "open-cmdk" to show the command bar.
   await listen("open-cmdk", () => openCmdk());
+
+  // Live theme updates from the Settings window.
+  await listen<Theme>("theme-changed", (e) => {
+    applyTheme(e.payload);
+    updateHairlineColor();
+    render();
+  });
 
   await listen<{ id: string; done: number; total: number }>("download:progress", (e) => {
     dl.set(e.payload.id, { done: e.payload.done, total: e.payload.total });

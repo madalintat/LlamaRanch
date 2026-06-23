@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { mountDither } from "./dither";
-import "./brand/theme";
+import { applyTheme, type Theme } from "./brand/theme";
 import { tagOS } from "./platform";
 import { prettyName } from "./pretty";
 
@@ -437,6 +437,18 @@ async function startNewSession(): Promise<void> {
 
 async function init() {
   try {
+    // Live theme updates from Settings window.
+    await listen<Theme>("theme-changed", (e) => {
+      applyTheme(e.payload);
+    });
+
+    // Respect OS theme changes when in system mode.
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+      if (!document.documentElement.dataset.theme) {
+        dither.refresh();
+      }
+    });
+
     await startNewSession();
     loadPicker();
     refreshTools();

@@ -7,7 +7,7 @@ import {
   disable as autoDisable,
   isEnabled as autoIsEnabled,
 } from "@tauri-apps/plugin-autostart";
-import "./brand/theme.ts";
+import { saveTheme, getStoredTheme, type Theme } from "./brand/theme.ts";
 import "./styles.css";
 
 tagOS(); // match the main window: Linux opaque, macOS/Windows frosted
@@ -17,10 +17,10 @@ const win = getCurrentWindow();
 const fit = () => fitWindow(400, 640);
 
 // ── Settings tab switching ────────────────────────────────────────
-type SettingsTab = "tools" | "server";
+type SettingsTab = "general" | "tools" | "server";
 
 function switchTab(tab: SettingsTab) {
-  const tabs: SettingsTab[] = ["tools", "server"];
+  const tabs: SettingsTab[] = ["general", "tools", "server"];
   tabs.forEach((t) => {
     const btn = document.getElementById(`s-tab-${t}`)!;
     const panel = document.getElementById(`s-panel-${t}`)!;
@@ -31,8 +31,33 @@ function switchTab(tab: SettingsTab) {
   fit();
 }
 
+document.getElementById("s-tab-general")?.addEventListener("click", () => switchTab("general"));
 document.getElementById("s-tab-tools")?.addEventListener("click", () => switchTab("tools"));
 document.getElementById("s-tab-server")?.addEventListener("click", () => switchTab("server"));
+
+// ── Theme segmented control ───────────────────────────────────────
+
+function syncThemeSeg(current: Theme) {
+  document.querySelectorAll<HTMLButtonElement>(".s-theme-seg__btn").forEach((btn) => {
+    const val = btn.dataset.themeVal as Theme;
+    const active = val === current;
+    btn.classList.toggle("s-theme-seg__btn--active", active);
+    btn.setAttribute("aria-pressed", String(active));
+  });
+}
+
+document.querySelectorAll<HTMLButtonElement>(".s-theme-seg__btn").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    const val = btn.dataset.themeVal as Theme;
+    saveTheme(val);
+    syncThemeSeg(val);
+    // Notify other windows so they re-apply immediately.
+    await emit("theme-changed", val);
+  });
+});
+
+// Initialize segmented control to match stored preference.
+syncThemeSeg(getStoredTheme());
 
 type ToolInfo = {
   name: string;
