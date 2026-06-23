@@ -330,7 +330,7 @@ function printPlan(targets) {
   }
   // Custom models_dir outside known LlamaRanch locations: shown but not removed
   if (t.manualModelsDir) {
-    row('models (custom location, remove manually):', t.manualModelsDir);
+    row('models (custom location, remove manually)', t.manualModelsDir);
   }
 
   // Engine
