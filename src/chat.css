@@ -816,6 +816,28 @@ body {
   border-top: 1px solid var(--line-2);
 }
 
+/* Inline unload/state hint text inside a popup row */
+.model-popup__row-hint {
+  font-size: 9px;
+  letter-spacing: .06em;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+/* LED pulse animation for a model that is actively loading */
+.led--loading {
+  animation: led-pulse .8s ease-in-out infinite;
+}
+
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .led--loading { animation: none; }
+}
+
 /* ── Dark mode overrides for mix-blend ────────────────────────── */
 
 @media (prefers-color-scheme: dark) {

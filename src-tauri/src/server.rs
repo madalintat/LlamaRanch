@@ -341,9 +341,15 @@ pub fn list_models(port: u16) -> Vec<RouterModel> {
 }
 
 fn model_action(port: u16, action: &str, id: &str) -> Result<(), String> {
+    // Load can take minutes for large models; unload is near-instant.
+    let timeout = if action == "load" {
+        Duration::from_secs(300)
+    } else {
+        Duration::from_secs(15)
+    };
     let url = format!("http://127.0.0.1:{port}/models/{action}");
     match ureq::post(&url)
-        .timeout(Duration::from_secs(10))
+        .timeout(timeout)
         .send_json(serde_json::json!({ "model": id }))
     {
         Ok(_) => Ok(()),
