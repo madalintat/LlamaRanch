@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { emit } from "@tauri-apps/api/event";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { tagOS, fitWindow } from "./platform";
 import {
   enable as autoEnable,
@@ -293,6 +294,90 @@ function startCapture(key: ShortcutKey) {
   });
 });
 
+// ── File access: granted paths shown as removable chips ───────────
+// Chips are the source of truth in the UI. add/remove persist immediately
+// in the backend (so granting works before Save), and Save derives
+// allowed_dirs from this list so the two never disagree.
+let allowedDirs: string[] = [];
+
+function basename(p: string): string {
+  const parts = p.replace(/[/\\]+$/, "").split(/[/\\]/);
+  return parts[parts.length - 1] || p;
+}
+
+function renderChips() {
+  const list = document.getElementById("s-chips")!;
+  const empty = document.getElementById("s-chips-empty")!;
+  const textEl = document.getElementById("s-allowed-dirs") as HTMLTextAreaElement;
+  list.innerHTML = "";
+  allowedDirs.forEach((path) => {
+    const chip = document.createElement("span");
+    chip.className = "s-chip";
+    chip.title = path;
+    const label = document.createElement("span");
+    label.className = "s-chip__label";
+    label.textContent = basename(path);
+    const x = document.createElement("button");
+    x.type = "button";
+    x.className = "s-chip__x";
+    x.setAttribute("aria-label", `Remove ${path}`);
+    x.textContent = "×"; // multiplication sign, used as a close glyph
+    x.addEventListener("click", async () => {
+      try {
+        allowedDirs = await invoke<string[]>("remove_allowed_dir", { path });
+        renderChips();
+      } catch (e) {
+        console.error("remove_allowed_dir failed", e);
+      }
+    });
+    chip.appendChild(label);
+    chip.appendChild(x);
+    list.appendChild(chip);
+  });
+  empty.style.display = allowedDirs.length === 0 ? "block" : "none";
+  // Keep the power-user textarea in sync with the chips.
+  textEl.value = allowedDirs.join("\n");
+}
+
+function normalizePaths(picked: string | string[] | null): string[] {
+  if (picked === null) return [];
+  return Array.isArray(picked) ? picked : [picked];
+}
+
+async function grantPaths(picked: string | string[] | null) {
+  const paths = normalizePaths(picked);
+  if (paths.length === 0) return;
+  try {
+    allowedDirs = await invoke<string[]>("add_allowed_dirs", { paths });
+    renderChips();
+    fit();
+  } catch (e) {
+    console.error("add_allowed_dirs failed", e);
+  }
+}
+
+document.getElementById("s-add-folder")?.addEventListener("click", async () => {
+  const picked = await openDialog({ directory: true, multiple: true });
+  await grantPaths(picked as string | string[] | null);
+});
+
+document.getElementById("s-add-files")?.addEventListener("click", async () => {
+  const picked = await openDialog({ multiple: true });
+  await grantPaths(picked as string | string[] | null);
+});
+
+// "Edit as text" disclosure: reveal the raw textarea for power users. Editing it
+// only takes effect on Save (which reads the textarea and reconciles the chips).
+document.getElementById("s-allowed-toggle")?.addEventListener("click", () => {
+  const btn = document.getElementById("s-allowed-toggle") as HTMLButtonElement;
+  const textEl = document.getElementById("s-allowed-dirs") as HTMLTextAreaElement;
+  const show = textEl.style.display === "none";
+  textEl.style.display = show ? "block" : "none";
+  btn.setAttribute("aria-expanded", String(show));
+  btn.textContent = show ? "Hide text" : "Edit as text";
+  fit();
+});
+
 async function load() {
   const cfg = await invoke<any>("get_config");
   $("s-port").value = String(cfg.port);
@@ -305,8 +390,8 @@ async function load() {
   setExpose(cfg.expose_to_network);
   setOffline(cfg.offline_mode ?? false);
   ($("s-searxng") as HTMLInputElement).value = cfg.searxng_url ?? "";
-  const allowedDirsEl = document.getElementById("s-allowed-dirs") as HTMLTextAreaElement;
-  allowedDirsEl.value = (cfg.allowed_dirs ?? []).join("\n");
+  allowedDirs = (cfg.allowed_dirs ?? []) as string[];
+  renderChips();
   try { setAutostart(await autoIsEnabled()); } catch {}
 
   // Load stored shortcuts and render them.
@@ -331,12 +416,18 @@ async function save() {
     if ((await autoIsEnabled()) !== want) want ? await autoEnable() : await autoDisable();
   } catch {}
 
-  // Parse allowed_dirs from textarea (one path per line, trim blanks)
+  // allowed_dirs come from the chips (the primary UI). The power-user textarea
+  // is kept in sync with the chips, so if it now differs the user hand-edited it,
+  // in which case the textarea wins. Either way Save never wipes a granted path.
   const allowedDirsEl = document.getElementById("s-allowed-dirs") as HTMLTextAreaElement;
-  const allowed_dirs = allowedDirsEl.value
+  const fromText = allowedDirsEl.value
     .split("\n")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
+  const sameAsChips =
+    fromText.length === allowedDirs.length &&
+    fromText.every((p, i) => p === allowedDirs[i]);
+  const allowed_dirs = sameAsChips ? allowedDirs : fromText;
 
   // We must send the full Config - load existing to preserve fields we don't expose
   let existingCfg: any = {};

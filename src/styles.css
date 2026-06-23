@@ -692,6 +692,109 @@ html, body {
 
 /* Brand field inputs get the .field class directly via HTML */
 
+/* ── File access: grant buttons + removable chips ─────────────────── */
+.s-grant-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.s-grant-btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  padding: 7px 12px;
+  border: 1px solid var(--line-4);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.s-grant-btn:hover {
+  background: var(--line-3);
+  border-color: var(--field-line);
+}
+
+.s-grant-btn:active { background: var(--line-4); }
+
+.s-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+}
+
+.s-chips:empty { display: none; }
+
+.s-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid var(--field-line);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.s-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.s-chip__x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--faint);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.s-chip__x:hover {
+  background: var(--inv-bg);
+  color: var(--inv-ink);
+}
+
+.s-chips-empty {
+  margin-top: 2px;
+  color: var(--faint);
+}
+
+.s-grant-disclosure {
+  align-self: flex-start;
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.s-grant-disclosure:hover { color: var(--ink); }
+
+.s-allowed-text { margin-top: 8px; }
+
 /* Expose / autostart / offline toggle rows */
 .s-toggle-row {
   display: flex;

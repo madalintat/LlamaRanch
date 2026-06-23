@@ -294,6 +294,55 @@ pub fn restart_router(app: AppHandle) {
     crate::start_router(&app);
 }
 
+/// Merge `new` paths into `existing`, preserving order and dropping duplicates
+/// (an entry already present in `existing` or repeated within `new` is skipped).
+/// Pure list logic, unit-tested below; the canonicalize step lives in the command.
+fn merge_allowed(existing: &[String], new: &[String]) -> Vec<String> {
+    let mut out = existing.to_vec();
+    for p in new {
+        if !out.iter().any(|e| e == p) {
+            out.push(p.clone());
+        }
+    }
+    out
+}
+
+/// Grant the agent file access to one or more paths. Each path is canonicalized
+/// (paths that fail to resolve are skipped), merged into `allowed_dirs` without
+/// duplicates, then the config is persisted. The router is NOT restarted: file
+/// access reads `allowed_dirs` live and needs no relaunch. Returns the updated list.
+#[tauri::command]
+pub fn add_allowed_dirs(
+    paths: Vec<String>,
+    cfg: State<AppConfig>,
+    _app: AppHandle,
+) -> Result<Vec<String>, String> {
+    let resolved: Vec<String> = paths
+        .iter()
+        .filter_map(|p| std::fs::canonicalize(p).ok())
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+
+    let mut c = cfg.0.lock().unwrap();
+    c.allowed_dirs = merge_allowed(&c.allowed_dirs, &resolved);
+    config::save_to(&config::config_path(), &c).map_err(|e| e.to_string())?;
+    Ok(c.allowed_dirs.clone())
+}
+
+/// Revoke file access for one granted path (exact match). Persists and returns
+/// the updated list. The router is NOT restarted (file access reads it live).
+#[tauri::command]
+pub fn remove_allowed_dir(
+    path: String,
+    cfg: State<AppConfig>,
+    _app: AppHandle,
+) -> Result<Vec<String>, String> {
+    let mut c = cfg.0.lock().unwrap();
+    c.allowed_dirs.retain(|p| p != &path);
+    config::save_to(&config::config_path(), &c).map_err(|e| e.to_string())?;
+    Ok(c.allowed_dirs.clone())
+}
+
 #[derive(Serialize)]
 pub struct CatalogView {
     pub id: String,
@@ -751,6 +800,26 @@ mod tests {
         std::fs::File::create(snap.join("mmproj-Q4_K_M.gguf")).unwrap().set_len(5).unwrap();
         let got = hf_cache_file(hub, "squ11z1/Mythos-nano-GGUF:Q4_K_M").unwrap();
         assert_eq!(got, want);
+    }
+
+    #[test]
+    fn merge_allowed_dedups_and_preserves_order() {
+        let existing = vec!["/a".to_string(), "/b".to_string()];
+        // "/b" is a dup of an existing entry; "/c" appears twice in `new`.
+        let new = vec!["/b".to_string(), "/c".to_string(), "/c".to_string()];
+        let merged = merge_allowed(&existing, &new);
+        assert_eq!(
+            merged,
+            vec!["/a".to_string(), "/b".to_string(), "/c".to_string()]
+        );
+    }
+
+    #[test]
+    fn merge_allowed_empty_inputs() {
+        assert!(merge_allowed(&[], &[]).is_empty());
+        let one = vec!["/x".to_string()];
+        assert_eq!(merge_allowed(&one, &[]), one);
+        assert_eq!(merge_allowed(&[], &one), one);
     }
 
     #[test]
