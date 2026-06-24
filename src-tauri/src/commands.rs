@@ -74,6 +74,12 @@ pub fn list_tools(cfg: State<AppConfig>) -> Vec<ToolInfo> {
 
 pub struct AppConfig(pub Mutex<Config>);
 
+/// Persist a config to the standard on-disk path, stringifying any IO error so it
+/// flows back to the frontend. Wraps the one save call every command repeats.
+fn persist(c: &Config) -> Result<(), String> {
+    config::save_to(&config::config_path(), c).map_err(|e| e.to_string())
+}
+
 /// Report whether the app-managed SearXNG web search is configured and live, so
 /// the UI can show whether web search is up. `running` does a quick health probe.
 #[tauri::command]
@@ -239,7 +245,7 @@ pub async fn websearch_setup(
         let mut c = cfg.0.lock().unwrap();
         c.searxng_url = WEBSEARCH_URL.to_string();
         c.searxng_managed = true;
-        config::save_to(&config::config_path(), &c).map_err(|e| e.to_string())?;
+        persist(&c)?;
     }
 
     emit_progress(&app, "done", "Web search is ready.");
@@ -272,7 +278,7 @@ pub async fn websearch_remove(
         let mut c = cfg.0.lock().unwrap();
         c.searxng_managed = false;
         c.searxng_url.clear();
-        config::save_to(&config::config_path(), &c).map_err(|e| e.to_string())?;
+        persist(&c)?;
     }
 
     emit_progress(&app, "done", "Web search removed.");
@@ -489,7 +495,7 @@ pub fn set_config(new_cfg: Config, cfg: State<AppConfig>, app: AppHandle) -> Res
         return Err(format!("llama-server not found at {}", new_cfg.server_bin));
     }
     *cfg.0.lock().unwrap() = new_cfg.clone();
-    config::save_to(&config::config_path(), &new_cfg).map_err(|e| e.to_string())?;
+    persist(&new_cfg)?;
     crate::start_router(&app);
     Ok(())
 }
@@ -546,7 +552,7 @@ pub fn add_allowed_dirs(
 
     let mut c = cfg.0.lock().unwrap();
     c.allowed_dirs = merge_allowed(&c.allowed_dirs, &resolved);
-    config::save_to(&config::config_path(), &c).map_err(|e| e.to_string())?;
+    persist(&c)?;
     Ok(c.allowed_dirs.clone())
 }
 
@@ -559,7 +565,7 @@ pub fn remove_allowed_dir(
 ) -> Result<Vec<String>, String> {
     let mut c = cfg.0.lock().unwrap();
     c.allowed_dirs.retain(|p| p != &path);
-    config::save_to(&config::config_path(), &c).map_err(|e| e.to_string())?;
+    persist(&c)?;
     Ok(c.allowed_dirs.clone())
 }
 
@@ -916,7 +922,7 @@ pub fn delete_model(model_id: String, app: AppHandle, cfg: State<AppConfig>) -> 
     let save = if removed.is_ok() {
         let mut cc = cfg.0.lock().unwrap();
         cc.model_config.remove(&model_id);
-        config::save_to(&config::config_path(), &cc).map_err(|e| e.to_string())
+        persist(&cc)
     } else {
         Ok(())
     };
@@ -963,7 +969,7 @@ pub fn set_model_config(
         } else {
             c.model_config.insert(model_id, r#override);
         }
-        config::save_to(&config::config_path(), &c).map_err(|e| e.to_string())?;
+        persist(&c)?;
     }
     crate::start_router(&app);
     Ok(())
@@ -1010,7 +1016,7 @@ pub fn set_shortcuts(
         c.shortcut_cmdbar = cmdbar;
         c.shortcut_agent = agent;
         c.shortcut_settings = settings;
-        config::save_to(&config::config_path(), &c).map_err(|e| e.to_string())?;
+        persist(&c)?;
     }
 
     Ok(())

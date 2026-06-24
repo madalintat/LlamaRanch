@@ -134,7 +134,7 @@ function renderTools(tools: ToolInfo[]) {
     const toggleClass = t.enabled ? "toggle toggle--on" : "toggle toggle--off";
     const nameClass = t.enabled ? "s-row__name" : "s-row__name s-row__name--off";
     const noteHtml = (!t.enabled && t.note)
-      ? `<div class="meta" style="color:var(--fg-dim,#888);">${t.note}</div>`
+      ? `<div class="meta">${t.note}</div>`
       : "";
     row.innerHTML = `
       <span class="partno">${String(i + 1).padStart(2, "0")}</span>
@@ -635,6 +635,12 @@ async function renderWebSearch() {
     return;
   }
 
+  // Keep the advanced URL field in sync with on-disk reality. After an in-app
+  // managed setup the backend writes searxng_url to disk, but the field was only
+  // painted once at load. Repaint it here whenever a url exists so a later Save
+  // never reads a stale empty field and clobbers a managed searxng_url.
+  if (st.url) ($("s-searxng") as HTMLInputElement).value = st.url;
+
   // State 1: running.
   if (st.running) {
     setWsHead("led--on", "Web search is on", st.url);
@@ -765,6 +771,14 @@ async function save() {
     const allowed_dirs =
       textShown && !sameAsChips ? fromText : (freshCfg.allowed_dirs ?? []);
 
+    // searxng_url is set out-of-band by the managed web-search setup
+    // (websearch_setup writes it to disk + flips searxng_managed). The advanced
+    // field is only painted at load/render, so if it is empty here, prefer the
+    // fresh on-disk value: a Server-tab Save must never wipe a managed url and
+    // orphan the container. A non-empty field is an explicit custom URL and wins.
+    const searxngField = ($("s-searxng") as HTMLInputElement).value.trim();
+    const searxng_url = searxngField || (freshCfg.searxng_url ?? "");
+
     await invoke("set_config", {
       newCfg: {
         ...freshCfg,
@@ -778,7 +792,7 @@ async function save() {
         hf_token: $("s-hf").value.trim(),
         expose_to_network: $("s-expose").checked,
         offline_mode: $("s-offline").checked,
-        searxng_url: ($("s-searxng") as HTMLInputElement).value.trim(),
+        searxng_url,
         allowed_dirs,
       },
     });
