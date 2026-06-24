@@ -853,7 +853,7 @@ html, body {
 }
 .s-ws-status__hint {
   margin-top: 2px;
-  color: var(--fg-dim, var(--soft));
+  color: var(--soft);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
