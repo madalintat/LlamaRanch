@@ -104,10 +104,12 @@ fn emit_progress(app: &AppHandle, stage: &str, message: &str) {
     );
 }
 
-/// Report which container runtime (if any) is available and the host OS, so the
-/// Settings UI can pick between a one-click "Set up" button (runtime present) and
-/// an "install a runtime" card (none). `runtime` is null when neither Docker nor
-/// Podman responds.
+/// Report the container-runtime situation and the host OS so the Settings UI can
+/// pick the right state. `installed` is true when a Docker/Podman CLI is present
+/// (even with its daemon stopped); `daemon` is true only when that runtime's
+/// daemon answers. `runtime` is the CLI name when installed, else null. This lets
+/// the UI tell "installed but stopped" (offer to start) from "not installed at
+/// all" (offer the install card).
 #[tauri::command]
 pub fn websearch_runtime() -> serde_json::Value {
     let os = if cfg!(target_os = "macos") {
@@ -119,10 +121,47 @@ pub fn websearch_runtime() -> serde_json::Value {
     } else {
         "unknown"
     };
+    let cli = crate::searxng::cli_present();
+    let daemon = cli.map(crate::searxng::daemon_up).unwrap_or(false);
     serde_json::json!({
-        "runtime": crate::searxng::runtime(),
+        "runtime": cli,
+        "installed": cli.is_some(),
+        "daemon": daemon,
         "os": os,
     })
+}
+
+/// Start an installed-but-stopped container runtime (OrbStack, Docker Desktop, or
+/// a Podman machine), then wait for its daemon to come up. The kick-off and the
+/// up-to-~30s poll both run off the UI thread (a VM can take a while to boot), so
+/// the command never stalls the window. Returns the fresh `installed` + `daemon`
+/// state. Best-effort: a start failure surfaces as Err, never a panic.
+#[tauri::command]
+pub async fn websearch_start_runtime() -> Result<serde_json::Value, String> {
+    let res: Result<(), String> = tauri::async_runtime::spawn_blocking(|| {
+        crate::searxng::start_runtime()?;
+        // Poll for the daemon for up to ~30s; starting a VM is not instant.
+        for _ in 0..15 {
+            if crate::searxng::cli_present()
+                .map(crate::searxng::daemon_up)
+                .unwrap_or(false)
+            {
+                return Ok(());
+            }
+            std::thread::sleep(Duration::from_secs(2));
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("start task failed: {e}"))?;
+    res?;
+
+    let cli = crate::searxng::cli_present();
+    let daemon = cli.map(crate::searxng::daemon_up).unwrap_or(false);
+    Ok(serde_json::json!({
+        "installed": cli.is_some(),
+        "daemon": daemon,
+    }))
 }
 
 /// One-click, in-app provisioning of the local SearXNG web-search container,
@@ -140,6 +179,17 @@ pub async fn websearch_setup(
 ) -> Result<serde_json::Value, String> {
     emit_progress(&app, "detect", "Looking for a container runtime...");
     let Some(rt) = crate::searxng::runtime() else {
+        // No daemon answered. Distinguish "installed but stopped" (the user can
+        // start it) from "not installed at all" (the user must install one) so
+        // the UI can offer the right next step.
+        if crate::searxng::cli_present().is_some() {
+            emit_progress(
+                &app,
+                "error",
+                "Your container runtime is installed but not running. Start it, then try again.",
+            );
+            return Err("daemon-down".into());
+        }
         emit_progress(
             &app,
             "error",

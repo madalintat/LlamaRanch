@@ -41,12 +41,27 @@ fn compose_file() -> PathBuf {
     searxng_dir().join("docker-compose.yml")
 }
 
-/// Prefer Docker, then Podman; None when neither responds. Cheap probe: ask each
-/// runtime for its version and check the exit status (no daemon work required).
+/// Prefer Docker, then Podman; None when neither's daemon responds. `<rt> version`
+/// talks to the SERVER, so it only succeeds when the daemon is reachable. This is
+/// the right gate for start()/stop() (which need a live daemon), but NOT for
+/// telling "installed" from "running" (use cli_present + daemon_up for that).
 fn detect_runtime() -> Option<&'static str> {
     for rt in ["docker", "podman"] {
+        if daemon_up(rt) {
+            return Some(rt);
+        }
+    }
+    None
+}
+
+/// The first installed container CLI (Docker, then Podman), regardless of whether
+/// its daemon is up. `<rt> --version` only touches the CLI binary, so it succeeds
+/// even when Docker Desktop / OrbStack / the Podman machine is stopped. Lets the
+/// UI tell "installed but stopped" apart from "not installed at all".
+pub fn cli_present() -> Option<&'static str> {
+    for rt in ["docker", "podman"] {
         let ok = Command::new(rt)
-            .arg("version")
+            .arg("--version")
             .output()
             .map(|o| o.status.success())
             .unwrap_or(false);
@@ -55,6 +70,61 @@ fn detect_runtime() -> Option<&'static str> {
         }
     }
     None
+}
+
+/// True when `rt`'s daemon is reachable. `<rt> info` (and `<rt> version`) round-trip
+/// to the server, so a non-zero exit means the CLI is installed but the daemon is
+/// down. Cheap, best-effort, never panics.
+pub fn daemon_up(rt: &str) -> bool {
+    Command::new(rt)
+        .arg("info")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Best-effort start of an installed-but-stopped container runtime. Prefers
+/// OrbStack (`orb start`), then Docker Desktop on macOS (`open -a Docker`), then a
+/// Podman machine (`podman machine start`). Returns quickly: it only kicks off the
+/// start, callers poll `daemon_up` for readiness. Non-fatal, never panics; returns
+/// Err with a short hint when nothing can be launched.
+pub fn start_runtime() -> Result<(), String> {
+    // OrbStack: the `orb` CLI brings up the whole runtime (Docker + machines).
+    if which("orb") {
+        return Command::new("orb")
+            .arg("start")
+            .status()
+            .map(|_| ())
+            .map_err(|e| format!("could not run orb start: {e}"));
+    }
+    // Docker Desktop on macOS: open the app, which starts the daemon.
+    #[cfg(target_os = "macos")]
+    if which("docker") {
+        return Command::new("open")
+            .args(["-a", "Docker"])
+            .status()
+            .map(|_| ())
+            .map_err(|e| format!("could not launch Docker Desktop: {e}"));
+    }
+    // Podman: bring up its VM.
+    if which("podman") {
+        return Command::new("podman")
+            .args(["machine", "start"])
+            .status()
+            .map(|_| ())
+            .map_err(|e| format!("could not run podman machine start: {e}"));
+    }
+    Err("open Docker, OrbStack, or Podman manually, then try again".into())
+}
+
+/// True when `name` resolves on PATH. Cheap probe via `<name> --version` so it works
+/// for both real binaries and shim CLIs without spawning a shell.
+fn which(name: &str) -> bool {
+    Command::new(name)
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 /// True when `url` points at the local loopback (the only place the app-managed

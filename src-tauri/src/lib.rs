@@ -78,6 +78,7 @@ pub fn run() {
             commands::websearch_status,
             commands::websearch_setup,
             commands::websearch_runtime,
+            commands::websearch_start_runtime,
             commands::websearch_remove,
             brain::chat_new_session,
             brain::chat_send,
