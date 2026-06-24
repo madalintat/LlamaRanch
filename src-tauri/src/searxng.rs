@@ -13,7 +13,10 @@
 use crate::config::Config;
 use std::path::PathBuf;
 use std::process::Command;
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+/// The container name the wizard uses; keep both sides in lockstep.
+const CONTAINER_NAME: &str = "llamaranch-searxng";
 
 /// `~/.llamaranch/searxng`, resolved the same way the rest of the code resolves home.
 fn searxng_dir() -> PathBuf {
@@ -21,6 +24,16 @@ fn searxng_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".llamaranch")
         .join("searxng")
+}
+
+/// `~/.llamaranch/searxng/config`, where settings.yml lives (mounted at /etc/searxng).
+fn config_dir() -> PathBuf {
+    searxng_dir().join("config")
+}
+
+/// The settings file the wizard writes.
+fn settings_file() -> PathBuf {
+    config_dir().join("settings.yml")
 }
 
 /// The compose file the wizard writes.
@@ -117,6 +130,176 @@ pub fn stop() {
     }
 }
 
+/// Public probe for a container runtime, Docker then Podman, None when neither
+/// responds. Lets the commands layer decide between a "Set up" button and an
+/// "install a runtime" card without reaching into the private detector.
+pub fn runtime() -> Option<&'static str> {
+    detect_runtime()
+}
+
+/// The exact settings.yml the wizard writes (wizard/src/searxng.js, settingsYaml).
+/// `secret_key` is a per-install random hex string. Keep this byte-for-byte in
+/// sync with the wizard so a re-run from either side never drifts the config.
+fn settings_yml(secret_key: &str) -> String {
+    [
+        "use_default_settings: true",
+        "server:",
+        &format!("  secret_key: \"{secret_key}\""),
+        "  limiter: false",
+        "  image_proxy: false",
+        "search:",
+        "  formats:",
+        "    - html",
+        "    - json",
+        "",
+    ]
+    .join("\n")
+}
+
+/// The exact docker-compose.yml the wizard writes (wizard/src/searxng.js,
+/// composeYaml). Container name, loopback bind, and `restart: "no"` are the
+/// load-bearing parts of the shared contract; the app owns start/stop.
+fn compose_yml() -> String {
+    [
+        "services:",
+        "  searxng:",
+        "    image: searxng/searxng:latest",
+        &format!("    container_name: {CONTAINER_NAME}"),
+        "    ports:",
+        "      - \"127.0.0.1:8888:8080\"",
+        "    volumes:",
+        "      - ./config:/etc/searxng:rw",
+        "    environment:",
+        "      - SEARXNG_BASE_URL=http://localhost:8888/",
+        "    restart: \"no\"",
+        "",
+    ]
+    .join("\n")
+}
+
+/// A 64-char random hex secret_key without pulling in `rand`. We mix the wall
+/// clock (nanos), the process id, and the setup dir into a tiny xorshift PRNG.
+/// This is only a SearXNG session secret on a loopback-only instance, so it does
+/// not need cryptographic strength, only to be unguessable and unique per install.
+fn random_hex_key() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0);
+    let pid = std::process::id() as u64;
+    // Fold the home path bytes in too, so two installs that happen to share a
+    // clock tick still diverge.
+    let mut path_mix: u64 = 0xcbf2_9ce4_8422_2325; // FNV offset basis
+    for b in searxng_dir().to_string_lossy().bytes() {
+        path_mix = (path_mix ^ b as u64).wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    let mut state = nanos ^ pid.rotate_left(32) ^ path_mix ^ 0x9e37_79b9_7f4a_7c15;
+    if state == 0 {
+        state = 0x1234_5678_9abc_def0;
+    }
+    let mut next = || {
+        // xorshift64*
+        state ^= state >> 12;
+        state ^= state << 25;
+        state ^= state >> 27;
+        state.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    };
+    let mut out = String::with_capacity(64);
+    // 8 u64 -> 64 hex chars (well past the 32-hex minimum).
+    for _ in 0..8 {
+        out.push_str(&format!("{:016x}", next()));
+    }
+    out
+}
+
+/// Provision the on-disk files the app-managed container needs, matching the
+/// wizard exactly. Creates `~/.llamaranch/searxng/config/`, writes settings.yml
+/// only when absent (so a user's hand-edits and the stable secret_key survive a
+/// re-run), and always (re)writes docker-compose.yml so the contract stays fresh.
+pub fn write_files() -> std::io::Result<()> {
+    std::fs::create_dir_all(config_dir())?;
+    let settings = settings_file();
+    if !settings.exists() {
+        std::fs::write(&settings, settings_yml(&random_hex_key()))?;
+    }
+    std::fs::write(compose_file(), compose_yml())?;
+    Ok(())
+}
+
+/// Pull the SearXNG image with the given runtime, running compose from the setup
+/// dir. Falls back to a plain `<rt> pull` when an older compose plugin lacks the
+/// `pull` subcommand (mirrors the wizard's fallback). Blocking; call off the UI thread.
+pub fn pull(rt: &str) -> Result<(), String> {
+    let compose = compose_file();
+    let dir = searxng_dir();
+    let via_compose = Command::new(rt)
+        .args(["compose", "-f", &compose.to_string_lossy(), "pull"])
+        .current_dir(&dir)
+        .status();
+    if let Ok(s) = via_compose {
+        if s.success() {
+            return Ok(());
+        }
+    }
+    // Fallback: pull the image directly.
+    let status = Command::new(rt)
+        .args(["pull", "searxng/searxng:latest"])
+        .status()
+        .map_err(|e| format!("could not run {rt} pull: {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("image pull exited with {status}"))
+    }
+}
+
+/// `<rt> compose -f <file> up -d`, run from the setup dir (the compose mounts a
+/// relative ./config volume). Blocking; call off the UI thread.
+pub fn up(rt: &str) -> Result<(), String> {
+    let compose = compose_file();
+    let status = Command::new(rt)
+        .args(["compose", "-f", &compose.to_string_lossy(), "up", "-d"])
+        .current_dir(searxng_dir())
+        .status()
+        .map_err(|e| format!("could not run {rt} compose up: {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("compose up exited with {status}"))
+    }
+}
+
+/// Poll `health(url)` until it answers a JSON search or `timeout_secs` elapses.
+/// Returns true once SearXNG is up, false on timeout. Blocking; call off the UI thread.
+pub fn wait_healthy(url: &str, timeout_secs: u64) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(timeout_secs);
+    loop {
+        if health(url) {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(Duration::from_secs(2));
+    }
+}
+
+/// `<rt> compose -f <file> down`, removing the managed container. Best-effort,
+/// run from the setup dir. Blocking; call off the UI thread.
+pub fn down(rt: &str) -> Result<(), String> {
+    let compose = compose_file();
+    let status = Command::new(rt)
+        .args(["compose", "-f", &compose.to_string_lossy(), "down"])
+        .current_dir(searxng_dir())
+        .status()
+        .map_err(|e| format!("could not run {rt} compose down: {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("compose down exited with {status}"))
+    }
+}
+
 /// GET `<url>/search?q=ok&format=json` with a ~2s timeout; true on 200. Optional
 /// helper so a status command can report whether web search is actually up.
 pub fn health(port_url: &str) -> bool {
@@ -162,5 +345,36 @@ mod tests {
     fn health_false_when_nothing_listening() {
         // Port 1 is never a SearXNG; must not panic, must be false.
         assert!(!health("http://127.0.0.1:1"));
+    }
+
+    #[test]
+    fn compose_matches_wizard_contract() {
+        let c = compose_yml();
+        assert!(c.contains("llamaranch-searxng"), "container name drifted");
+        assert!(c.contains("127.0.0.1:8888:8080"), "loopback bind drifted");
+        assert!(c.contains("restart: \"no\""), "restart policy drifted");
+        assert!(c.contains("image: searxng/searxng:latest"));
+        assert!(c.contains("./config:/etc/searxng:rw"));
+    }
+
+    #[test]
+    fn settings_matches_wizard_contract() {
+        let s = settings_yml("deadbeef");
+        assert!(s.contains("use_default_settings: true"));
+        assert!(s.contains("secret_key: \"deadbeef\""));
+        assert!(s.contains("limiter: false"), "limiter must be off");
+        assert!(s.contains("image_proxy: false"));
+        assert!(s.contains("formats"), "search.formats missing");
+        assert!(s.contains("- json"), "json format is the 403 fix, required");
+        assert!(s.contains("- html"));
+    }
+
+    #[test]
+    fn random_hex_key_is_long_and_hex() {
+        let k = random_hex_key();
+        assert!(k.len() >= 32, "key must be at least 32 hex chars, got {}", k.len());
+        assert!(k.chars().all(|c| c.is_ascii_hexdigit()), "key must be hex: {k}");
+        // Two calls should differ (PRNG advances on time/state).
+        assert_ne!(random_hex_key(), random_hex_key());
     }
 }
