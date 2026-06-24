@@ -89,20 +89,29 @@
             <input type="checkbox" id="s-offline" class="s-hidden-check" />
           </div>
 
-          <!-- SearXNG URL -->
-          <label class="s-field-wrap">
-            <span class="label s-field-wrap__label">SearXNG URL (for web search)</span>
-            <input id="s-searxng" class="field" type="text" placeholder="http://localhost:8888" />
-          </label>
-
-          <!-- Web search status (driven by websearch_status) -->
-          <div class="s-ws-status" id="s-ws-status">
-            <span class="led led--idle" id="s-ws-led"></span>
-            <div class="s-ws-status__body">
-              <div class="s-ws-status__name" id="s-ws-name">Web search: checking</div>
-              <div class="meta s-ws-status__hint" id="s-ws-hint"></div>
+          <!-- Web search: adaptive one-click block (rendered by settings.ts) -->
+          <div class="s-field-wrap">
+            <span class="label s-field-wrap__label">Web search</span>
+            <div class="s-ws" id="s-ws">
+              <div class="s-ws__row">
+                <span class="led led--idle" id="s-ws-led"></span>
+                <div class="s-ws__body">
+                  <div class="s-ws__name" id="s-ws-name">Checking web search...</div>
+                  <div class="meta s-ws__hint" id="s-ws-hint"></div>
+                </div>
+                <div class="s-ws__actions" id="s-ws-actions"></div>
+              </div>
+              <!-- Extra content: progress line, install card, etc. -->
+              <div class="s-ws__extra" id="s-ws-extra"></div>
             </div>
           </div>
+
+          <!-- SearXNG URL: advanced manual override -->
+          <label class="s-field-wrap">
+            <span class="label s-field-wrap__label">SearXNG URL (advanced)</span>
+            <input id="s-searxng" class="field" type="text" placeholder="http://localhost:8888" />
+            <span class="meta s-field-wrap__hint">Point at your own SearXNG instance. Leave blank to use the app-managed one above.</span>
+          </label>
 
           <!-- Allowed folders, granted via native picker, shown as removable chips -->
           <div class="s-field-wrap">

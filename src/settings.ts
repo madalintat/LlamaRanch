@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { emit } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { tagOS, fitWindow } from "./platform";
 import {
@@ -374,42 +375,253 @@ document.getElementById("s-allowed-toggle")?.addEventListener("click", () => {
   fit();
 });
 
-// ── Web search status row ─────────────────────────────────────────
-// Read-only indicator driven by the websearch_status command. Non-fatal:
-// if the backend errors we fall back to the URL field as the only signal.
+// ── Web search: adaptive one-click block ──────────────────────────
+// One self-contained block that renders one of five states from
+// websearch_status + websearch_runtime, drives a live setup with progress
+// events, and offers OS-aware runtime install links. Non-fatal: if a command
+// errors the block degrades to whatever the URL field shows so settings still
+// load.
 type WebSearchStatus = { managed: boolean; url: string; running: boolean };
+type WebSearchRuntime = { runtime: string | null; os: "macos" | "linux" | "windows" };
+type ProgressPayload = { stage: string; message: string };
 
-function setWsStatus(led: string, name: string, hint: string) {
-  const ledEl = document.getElementById("s-ws-led")!;
+// Runtime install options per OS. macOS leads with OrbStack (light + fast).
+const RUNTIME_OPTIONS: Record<string, { name: string; tag: string; url: string }[]> = {
+  macos: [
+    { name: "OrbStack", tag: "recommended, light and fast", url: "https://orbstack.dev/" },
+    { name: "Docker Desktop", tag: "the standard", url: "https://www.docker.com/products/docker-desktop/" },
+    { name: "Podman", tag: "daemonless", url: "https://podman.io/" },
+  ],
+  linux: [
+    { name: "Docker", tag: "Docker Engine", url: "https://docs.docker.com/engine/install/" },
+    { name: "Podman", tag: "daemonless", url: "https://podman.io/" },
+  ],
+  windows: [
+    { name: "Docker Desktop", tag: "the standard", url: "https://www.docker.com/products/docker-desktop/" },
+    { name: "Podman", tag: "daemonless", url: "https://podman.io/" },
+  ],
+};
+
+// One run token guards against overlapping setups / stale progress events: each
+// setup increments it and the listener ignores any event from an older run.
+let wsRunToken = 0;
+let wsBusy = false;
+
+function wsEl(id: string) { return document.getElementById(id)!; }
+
+function setWsHead(led: string, name: string, hint: string) {
+  const ledEl = wsEl("s-ws-led");
   ledEl.className = `led ${led}`;
-  document.getElementById("s-ws-name")!.textContent = name;
-  document.getElementById("s-ws-hint")!.textContent = hint;
+  wsEl("s-ws-name").textContent = name;
+  wsEl("s-ws-hint").textContent = hint;
 }
 
-async function renderWebSearchStatus() {
+function clearWs() {
+  wsEl("s-ws-actions").innerHTML = "";
+  wsEl("s-ws-extra").innerHTML = "";
+}
+
+function mkBtn(label: string, cls: string, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = cls;
+  b.textContent = label;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+// Register the progress listener exactly once (module load). It paints the line
+// belonging to the current run only; events from a superseded or finished run
+// are dropped because their tracked row no longer carries the live token.
+let wsProgressMsg: HTMLElement | null = null;
+let wsProgressRow: HTMLElement | null = null;
+
+void listen<ProgressPayload>("websearch-progress", (e) => {
+  // Stale guard: the tracked row is tagged with the run that created it. If that
+  // does not match the live run token, the event is from an old setup, drop it.
+  if (!wsProgressRow || !wsProgressMsg) return;
+  if (Number(wsProgressRow.dataset.run) !== wsRunToken) return;
+  const { stage, message } = e.payload ?? { stage: "", message: "" };
+  if (stage === "error") wsProgressRow.classList.add("s-ws-progress--error");
+  wsProgressMsg.textContent = message || stage;
+});
+
+function showWsProgress(initial: string, token: number) {
+  const extra = wsEl("s-ws-extra");
+  extra.innerHTML = "";
+  const row = document.createElement("div");
+  row.className = "s-ws-progress";
+  row.dataset.run = String(token);
+  const spin = document.createElement("span");
+  spin.className = "s-ws-spinner";
+  const msg = document.createElement("span");
+  msg.className = "s-ws-progress__msg";
+  msg.textContent = initial;
+  row.appendChild(spin);
+  row.appendChild(msg);
+  extra.appendChild(row);
+  wsProgressRow = row;
+  wsProgressMsg = msg;
+  fit();
+}
+
+// Drive a setup: disable triggers, show live progress, invoke, then re-render.
+async function runWebSearchSetup() {
+  if (wsBusy) return;
+  wsBusy = true;
+  const token = ++wsRunToken;
+  setWsHead("led--idle", "Setting up web search", "");
+  wsEl("s-ws-actions").innerHTML = "";
+  showWsProgress("Looking for a container runtime...", token);
+  try {
+    await invoke<WebSearchStatus>("websearch_setup");
+    if (token !== wsRunToken) return; // superseded
+    wsBusy = false;
+    await renderWebSearch();
+  } catch (err) {
+    if (token !== wsRunToken) { wsBusy = false; return; }
+    wsBusy = false;
+    const msg = String(err).replace(/^error:\s*/, "");
+    if (msg === "no-runtime") {
+      // Runtime vanished mid-flight: drop back to the install card.
+      await renderWebSearch();
+      return;
+    }
+    if (wsProgressRow && wsProgressMsg) {
+      wsProgressRow.classList.add("s-ws-progress--error");
+      wsProgressMsg.textContent = msg;
+    }
+    setWsHead("led--cloud", "Setup did not finish", "");
+    const actions = wsEl("s-ws-actions");
+    actions.innerHTML = "";
+    actions.appendChild(mkBtn("Try again", "s-ws-btn", () => void runWebSearchSetup()));
+    fit();
+  }
+}
+
+// State 4: no runtime. Show the install card with OS-aware options.
+function renderRuntimeCard(rt: WebSearchRuntime) {
+  setWsHead("led--cloud", "Web search is off", "");
+  wsEl("s-ws-actions").innerHTML = "";
+  const extra = wsEl("s-ws-extra");
+  extra.innerHTML = "";
+
+  const card = document.createElement("div");
+  card.className = "s-ws-card";
+
+  const lead = document.createElement("div");
+  lead.className = "s-ws-card__lead";
+  lead.textContent =
+    "Web search needs a container runtime. It runs a private local search engine on your machine.";
+  card.appendChild(lead);
+
+  const options = document.createElement("div");
+  options.className = "s-ws-card__options";
+  const opts = RUNTIME_OPTIONS[rt.os] ?? RUNTIME_OPTIONS.linux;
+  opts.forEach((o) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "s-ws-install";
+    b.innerHTML = `<span class="s-ws-install__name">${o.name}</span><span class="s-ws-install__tag">${o.tag}</span>`;
+    b.addEventListener("click", () => { void openUrl(o.url); });
+    options.appendChild(b);
+  });
+  card.appendChild(options);
+
+  const foot = document.createElement("div");
+  foot.className = "s-ws-card__foot";
+  const note = document.createElement("span");
+  note.className = "meta s-ws-card__note";
+  const installed = mkBtn("I installed it, set up", "s-ws-btn--ghost s-ws-btn", async () => {
+    note.textContent = "";
+    let fresh: WebSearchRuntime | null = null;
+    try { fresh = await invoke<WebSearchRuntime>("websearch_runtime"); } catch {}
+    if (fresh && fresh.runtime) {
+      await runWebSearchSetup();
+    } else {
+      note.textContent = "Still not found, make sure it is running.";
+      fit();
+    }
+  });
+  foot.appendChild(installed);
+  foot.appendChild(note);
+  card.appendChild(foot);
+
+  extra.appendChild(card);
+  fit();
+}
+
+async function renderWebSearch() {
+  // A live setup owns the block; do not stomp its progress line.
+  if (wsBusy) return;
+  clearWs();
+
   let st: WebSearchStatus | null = null;
   try {
     st = await invoke<WebSearchStatus>("websearch_status");
   } catch {
-    // Fall back to whatever the URL field shows so the row is never blank.
+    // Degrade to the URL field so the block is never blank.
     const url = ($("s-searxng") as HTMLInputElement).value.trim();
-    if (url) setWsStatus("led--idle", "Web search: custom", url);
-    else setWsStatus("led--cloud", "Web search: not set up",
-      "run npx @llamaranch/wizard websearch to enable");
+    if (url) setWsHead("led--idle", "Using a custom SearXNG", url);
+    else setWsHead("led--cloud", "Web search is off", "set it up below");
+    fit();
     return;
   }
 
+  // State 1: running.
   if (st.running) {
-    setWsStatus("led--on", "Web search: running", st.url);
-  } else if (st.managed) {
-    setWsStatus("led--idle", "Web search: set up, not running",
-      "start LlamaRanch or check Docker");
-  } else if (st.url) {
-    setWsStatus("led--idle", "Web search: custom", st.url);
-  } else {
-    setWsStatus("led--cloud", "Web search: not set up",
-      "run npx @llamaranch/wizard websearch to enable");
+    setWsHead("led--on", "Web search is on", st.url);
+    const actions = wsEl("s-ws-actions");
+    let confirming = false;
+    const remove = mkBtn("Remove", "s-ws-link s-ws-link--danger", async () => {
+      if (!confirming) {
+        confirming = true;
+        remove.textContent = "Click to confirm";
+        return;
+      }
+      remove.disabled = true;
+      remove.textContent = "Removing...";
+      try { await invoke("websearch_remove"); } catch {}
+      await renderWebSearch();
+    });
+    actions.appendChild(remove);
+    fit();
+    return;
   }
+
+  // State 5: custom URL (user pointed at their own instance, not managed).
+  if (!st.managed && st.url) {
+    setWsHead("led--idle", "Using a custom SearXNG", st.url);
+    fit();
+    return;
+  }
+
+  // State 2: managed but not running.
+  if (st.managed) {
+    setWsHead("led--idle", "Web search is set up",
+      "start LlamaRanch or check that Docker is running");
+    const actions = wsEl("s-ws-actions");
+    actions.appendChild(mkBtn("Retry", "s-ws-btn--ghost s-ws-btn", () => void runWebSearchSetup()));
+    fit();
+    return;
+  }
+
+  // States 3 + 4 hinge on whether a runtime is present.
+  let rt: WebSearchRuntime | null = null;
+  try { rt = await invoke<WebSearchRuntime>("websearch_runtime"); } catch {}
+
+  if (rt && rt.runtime) {
+    // State 3: not set up, runtime present.
+    setWsHead("led--cloud", "Web search is off",
+      "one click sets up a private local search engine");
+    const actions = wsEl("s-ws-actions");
+    actions.appendChild(mkBtn("Set up web search", "s-ws-btn", () => void runWebSearchSetup()));
+    fit();
+    return;
+  }
+
+  // State 4: not set up, no runtime.
+  renderRuntimeCard(rt ?? { runtime: null, os: "linux" });
 }
 
 async function load() {
@@ -424,7 +636,7 @@ async function load() {
   setExpose(cfg.expose_to_network);
   setOffline(cfg.offline_mode ?? false);
   ($("s-searxng") as HTMLInputElement).value = cfg.searxng_url ?? "";
-  void renderWebSearchStatus();
+  void renderWebSearch();
   allowedDirs = (cfg.allowed_dirs ?? []) as string[];
   renderChips();
   try { setAutostart(await autoIsEnabled()); } catch {}

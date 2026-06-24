@@ -91,6 +91,144 @@ pub fn websearch_status(cfg: State<AppConfig>) -> serde_json::Value {
     })
 }
 
+/// The loopback URL the app-managed SearXNG always binds to. Single source of
+/// truth shared between setup and the config write.
+const WEBSEARCH_URL: &str = "http://127.0.0.1:8888";
+
+/// Emit a `websearch-progress` event so the Settings UI can show a live step.
+/// Best-effort, never fails the command.
+fn emit_progress(app: &AppHandle, stage: &str, message: &str) {
+    let _ = app.emit(
+        "websearch-progress",
+        serde_json::json!({ "stage": stage, "message": message }),
+    );
+}
+
+/// Report which container runtime (if any) is available and the host OS, so the
+/// Settings UI can pick between a one-click "Set up" button (runtime present) and
+/// an "install a runtime" card (none). `runtime` is null when neither Docker nor
+/// Podman responds.
+#[tauri::command]
+pub fn websearch_runtime() -> serde_json::Value {
+    let os = if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else {
+        "unknown"
+    };
+    serde_json::json!({
+        "runtime": crate::searxng::runtime(),
+        "os": os,
+    })
+}
+
+/// One-click, in-app provisioning of the local SearXNG web-search container,
+/// matching exactly what the wizard does. Runs the blocking Docker work off the
+/// UI thread and streams `websearch-progress` events (stages: detect, writing,
+/// pulling, starting, verifying, then done or error). On success it persists
+/// `searxng_url` + `searxng_managed = true` (same path set_config uses) and
+/// returns the fresh `websearch_status` json. On failure it emits an `error`
+/// stage and returns Err with a helpful message. Returns Err("no-runtime") when
+/// neither Docker nor Podman is installed (the UI then shows install options).
+#[tauri::command]
+pub async fn websearch_setup(
+    app: AppHandle,
+    cfg: State<'_, AppConfig>,
+) -> Result<serde_json::Value, String> {
+    emit_progress(&app, "detect", "Looking for a container runtime...");
+    let Some(rt) = crate::searxng::runtime() else {
+        emit_progress(
+            &app,
+            "error",
+            "No container runtime found. Install Docker Desktop or Podman, then try again.",
+        );
+        return Err("no-runtime".into());
+    };
+
+    // All the slow, blocking Docker work happens on a blocking task so the async
+    // command never stalls the UI thread.
+    let app_bg = app.clone();
+    let result: Result<(), String> = tauri::async_runtime::spawn_blocking(move || {
+        emit_progress(&app_bg, "writing", "Writing SearXNG config and compose files...");
+        crate::searxng::write_files()
+            .map_err(|e| format!("could not write SearXNG files: {e}"))?;
+
+        emit_progress(
+            &app_bg,
+            "pulling",
+            "Pulling searxng/searxng:latest (this can take a minute)...",
+        );
+        crate::searxng::pull(rt).map_err(|e| format!("image pull failed: {e}"))?;
+
+        emit_progress(&app_bg, "starting", "Starting the SearXNG container...");
+        crate::searxng::up(rt).map_err(|e| format!("could not start the container: {e}"))?;
+
+        emit_progress(&app_bg, "verifying", "Verifying SearXNG answers a search...");
+        if !crate::searxng::wait_healthy(WEBSEARCH_URL, 60) {
+            return Err(
+                "SearXNG did not answer a JSON search within 60s. The files are in place; try again."
+                    .into(),
+            );
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("setup task failed: {e}"))?;
+
+    if let Err(e) = result {
+        emit_progress(&app, "error", &e);
+        return Err(e);
+    }
+
+    // Persist config the same way set_config does: update in-memory state, then
+    // write the config file.
+    {
+        let mut c = cfg.0.lock().unwrap();
+        c.searxng_url = WEBSEARCH_URL.to_string();
+        c.searxng_managed = true;
+        config::save_to(&config::config_path(), &c).map_err(|e| e.to_string())?;
+    }
+
+    emit_progress(&app, "done", "Web search is ready.");
+    Ok(websearch_status(cfg))
+}
+
+/// Tear down the app-managed SearXNG container and stop managing its lifecycle.
+/// Runs `<rt> compose down`, sets `searxng_managed = false` and clears
+/// `searxng_url` (so the disabled web_search tool is unambiguous; the files stay
+/// on disk so a later re-setup reuses the same secret_key). Persists, then
+/// returns the fresh status. Best-effort: a down failure is non-fatal, we still
+/// flip the config so the app stops trying to manage the container.
+#[tauri::command]
+pub async fn websearch_remove(
+    app: AppHandle,
+    cfg: State<'_, AppConfig>,
+) -> Result<serde_json::Value, String> {
+    if let Some(rt) = crate::searxng::runtime() {
+        let app_bg = app.clone();
+        let _ = tauri::async_runtime::spawn_blocking(move || {
+            emit_progress(&app_bg, "removing", "Stopping the SearXNG container...");
+            if let Err(e) = crate::searxng::down(rt) {
+                emit_progress(&app_bg, "error", &format!("could not stop the container: {e}"));
+            }
+        })
+        .await;
+    }
+
+    {
+        let mut c = cfg.0.lock().unwrap();
+        c.searxng_managed = false;
+        c.searxng_url.clear();
+        config::save_to(&config::config_path(), &c).map_err(|e| e.to_string())?;
+    }
+
+    emit_progress(&app, "done", "Web search removed.");
+    Ok(websearch_status(cfg))
+}
+
 #[derive(Serialize)]
 pub struct ModelView {
     pub id: String,
