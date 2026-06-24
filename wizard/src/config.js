@@ -31,7 +31,7 @@ export function getConfigPath() {
 // writeConfig({ serverBin, modelsDir, generalModel, port })
 // ---------------------------------------------------------------------------
 
-export async function writeConfig({ serverBin, modelsDir, generalModel, port = 2276 }) {
+export async function writeConfig({ serverBin, modelsDir, generalModel, port, searxngUrl, searxngManaged } = {}) {
   const configPath = getConfigPath();
   const configDir = path.dirname(configPath);
 
@@ -47,14 +47,20 @@ export async function writeConfig({ serverBin, modelsDir, generalModel, port = 2
     existing = {};
   }
 
-  // Build new values
-  const newValues = {
-    port,
-    models_dir: modelsDir,
-    server_bin: serverBin,
-    expose_to_network: false,
-    general_model: generalModel,
-  };
+  // Build new values. Only set a key when its arg was actually provided, so the
+  // standalone `websearch` patch never wipes server_bin/models_dir, and the main
+  // wizard never clears searxng when web search was skipped.
+  const newValues = {};
+  if (port !== undefined) newValues.port = port;
+  else if (existing.port === undefined) newValues.port = 2276;
+  if (serverBin !== undefined) newValues.server_bin = serverBin;
+  if (modelsDir !== undefined) newValues.models_dir = modelsDir;
+  if (generalModel !== undefined) newValues.general_model = generalModel;
+  if (serverBin !== undefined || modelsDir !== undefined || generalModel !== undefined) {
+    if (existing.expose_to_network === undefined) newValues.expose_to_network = false;
+  }
+  if (searxngUrl !== undefined) newValues.searxng_url = searxngUrl;
+  if (searxngManaged !== undefined) newValues.searxng_managed = searxngManaged;
 
   // Merge: existing keys survive, new values overwrite matching keys
   const config = Object.assign(existing, newValues);
