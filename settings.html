@@ -95,6 +95,15 @@
             <input id="s-searxng" class="field" type="text" placeholder="http://localhost:8888" />
           </label>
 
+          <!-- Web search status (driven by websearch_status) -->
+          <div class="s-ws-status" id="s-ws-status">
+            <span class="led led--idle" id="s-ws-led"></span>
+            <div class="s-ws-status__body">
+              <div class="s-ws-status__name" id="s-ws-name">Web search: checking</div>
+              <div class="meta s-ws-status__hint" id="s-ws-hint"></div>
+            </div>
+          </div>
+
           <!-- Allowed folders, granted via native picker, shown as removable chips -->
           <div class="s-field-wrap">
             <span class="label s-field-wrap__label">File access for the agent</span>

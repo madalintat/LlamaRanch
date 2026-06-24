@@ -49,6 +49,7 @@
           <li><a href="#models">Models</a></li>
           <li><a href="#agent">The chat agent</a></li>
           <li><a href="#tools">Tools and privacy</a></li>
+          <li><a href="#web-search">Web search</a></li>
           <li><a href="#configuration">Configuration</a></li>
           <li><a href="#wizard">Wizard reference</a></li>
           <li><a href="#build">Build from source</a></li>
@@ -400,9 +401,51 @@
 
         <hr class="doc-divider" />
 
-        <!-- ── 9. CONFIGURATION ── -->
-        <section class="doc-section" id="configuration">
+        <!-- ── 9. WEB SEARCH ── -->
+        <section class="doc-section" id="web-search">
           <div class="doc-section-num">09</div>
+          <h2 class="doc-h2">Web search</h2>
+          <p class="doc-p">SearXNG is a private, self-hosted metasearch engine. LlamaRanch uses it so the agent can search the web from one local endpoint, with no API key and nothing routed through a third-party service. It is an ONLINE tool, so the searches it runs do reach the internet, but there is no account, no tracking, and no middleman holding your queries.</p>
+
+          <h3 class="doc-h3">One-command setup</h3>
+          <p class="doc-p">Web search needs a container runtime, either Docker or Podman, installed and running. With that in place, one command sets everything up:</p>
+
+          <div class="doc-code-block">
+            <div class="doc-code-header">
+              <div class="doc-code-dots" aria-hidden="true">
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+                <span class="doc-code-dot"></span>
+              </div>
+              <span class="doc-code-label">shell</span>
+              <button class="doc-copy-btn" type="button" data-copy="npx @llamaranch/wizard websearch">Copy</button>
+            </div>
+            <div class="doc-code-body">
+              <span class="prompt">$</span> npx @llamaranch/wizard websearch
+            </div>
+          </div>
+
+          <p class="doc-p">That writes a local, loopback-only SearXNG (bound to 127.0.0.1:8888), enables the JSON format, turns the limiter off, writes a secret key, verifies the instance answers, and points LlamaRanch at it. The wizard's main setup offers this same step. Once it finishes, turn web search on in the chat and ask the agent something current.</p>
+
+          <h3 class="doc-h3">It just runs</h3>
+          <p class="doc-p">LlamaRanch starts the SearXNG container when the app launches and stops it when you quit. There is nothing to babysit.</p>
+
+          <h3 class="doc-h3">Advanced</h3>
+          <p class="doc-p">The config lives in <span class="chip">~/.llamaranch/searxng/</span> as a <span class="chip">docker-compose.yml</span> and <span class="chip">config/settings.yml</span>, and both are yours to edit. If you already run a SearXNG instance, point at it instead under Settings &middot; Tools &middot; SearXNG URL, and LlamaRanch will use that rather than managing its own.</p>
+
+          <h3 class="doc-h3">Gotchas</h3>
+          <ul class="doc-list">
+            <li>You need Docker or Podman installed and running. Without a container runtime there is nothing to start.</li>
+            <li>If you hand-roll SearXNG for the API yourself, enable the <span class="chip">json</span> format and usually disable the limiter. The wizard does both for you.</li>
+            <li>Do not point it at a public SearXNG instance. JSON is normally disabled on those, and querying them this way is against their terms.</li>
+          </ul>
+        </section>
+
+        <hr class="doc-divider" />
+
+        <!-- ── 10. CONFIGURATION ── -->
+        <section class="doc-section" id="configuration">
+          <div class="doc-section-num">10</div>
           <h2 class="doc-h2">Configuration</h2>
           <p class="doc-p">The config file lives at:</p>
 
@@ -500,9 +543,9 @@
 
         <hr class="doc-divider" />
 
-        <!-- ── 10. WIZARD REFERENCE ── -->
+        <!-- ── 11. WIZARD REFERENCE ── -->
         <section class="doc-section" id="wizard">
-          <div class="doc-section-num">10</div>
+          <div class="doc-section-num">11</div>
           <h2 class="doc-h2">Wizard reference</h2>
           <p class="doc-p">The wizard is published on npm as <span class="chip">@llamaranch/wizard</span>. Commands:</p>
 
@@ -560,9 +603,9 @@
 
         <hr class="doc-divider" />
 
-        <!-- ── 11. BUILD FROM SOURCE ── -->
+        <!-- ── 12. BUILD FROM SOURCE ── -->
         <section class="doc-section" id="build">
-          <div class="doc-section-num">11</div>
+          <div class="doc-section-num">12</div>
           <h2 class="doc-h2">Build from source</h2>
           <p class="doc-p">You need Rust, Node, and a <span class="chip">llama-server</span> binary on your PATH. The <a href="https://v2.tauri.app/start/prerequisites/" target="_blank" rel="noopener">Tauri prerequisites page</a> lists the current minimums for your OS.</p>
 
@@ -591,9 +634,9 @@ npm run tauri dev">Copy</button>
 
         <hr class="doc-divider" />
 
-        <!-- ── 12. ROADMAP ── -->
+        <!-- ── 13. ROADMAP ── -->
         <section class="doc-section" id="roadmap">
-          <div class="doc-section-num">12</div>
+          <div class="doc-section-num">13</div>
           <h2 class="doc-h2">Roadmap</h2>
           <p class="doc-p">What's next for LlamaRanch:</p>
 

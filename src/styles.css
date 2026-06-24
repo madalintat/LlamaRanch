@@ -832,6 +832,34 @@ html, body {
 /* Pill toggles in the toggle row are clickable via the row itself */
 .s-toggle-row .toggle { flex: none; }
 
+/* Web search status row: same inset as the toggle rows, read-only */
+.s-ws-status {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 8px;
+  padding: 9px 13px;
+  border: 1px solid var(--field-line);
+  border-radius: 9px;
+  min-width: 0;
+  overflow: hidden;
+}
+.s-ws-status .led { width: 11px; height: 11px; }
+.s-ws-status__body { flex: 1; min-width: 0; overflow: hidden; }
+.s-ws-status__name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.s-ws-status__hint {
+  margin-top: 2px;
+  color: var(--soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.s-ws-status__hint:empty { display: none; }
+
 /* Footer: same inset, clear divider */
 .s-foot {
   display: flex;

@@ -374,6 +374,44 @@ document.getElementById("s-allowed-toggle")?.addEventListener("click", () => {
   fit();
 });
 
+// ── Web search status row ─────────────────────────────────────────
+// Read-only indicator driven by the websearch_status command. Non-fatal:
+// if the backend errors we fall back to the URL field as the only signal.
+type WebSearchStatus = { managed: boolean; url: string; running: boolean };
+
+function setWsStatus(led: string, name: string, hint: string) {
+  const ledEl = document.getElementById("s-ws-led")!;
+  ledEl.className = `led ${led}`;
+  document.getElementById("s-ws-name")!.textContent = name;
+  document.getElementById("s-ws-hint")!.textContent = hint;
+}
+
+async function renderWebSearchStatus() {
+  let st: WebSearchStatus | null = null;
+  try {
+    st = await invoke<WebSearchStatus>("websearch_status");
+  } catch {
+    // Fall back to whatever the URL field shows so the row is never blank.
+    const url = ($("s-searxng") as HTMLInputElement).value.trim();
+    if (url) setWsStatus("led--idle", "Web search: custom", url);
+    else setWsStatus("led--cloud", "Web search: not set up",
+      "run npx @llamaranch/wizard websearch to enable");
+    return;
+  }
+
+  if (st.running) {
+    setWsStatus("led--on", "Web search: running", st.url);
+  } else if (st.managed) {
+    setWsStatus("led--idle", "Web search: set up, not running",
+      "start LlamaRanch or check Docker");
+  } else if (st.url) {
+    setWsStatus("led--idle", "Web search: custom", st.url);
+  } else {
+    setWsStatus("led--cloud", "Web search: not set up",
+      "run npx @llamaranch/wizard websearch to enable");
+  }
+}
+
 async function load() {
   const cfg = await invoke<any>("get_config");
   $("s-port").value = String(cfg.port);
@@ -386,6 +424,7 @@ async function load() {
   setExpose(cfg.expose_to_network);
   setOffline(cfg.offline_mode ?? false);
   ($("s-searxng") as HTMLInputElement).value = cfg.searxng_url ?? "";
+  void renderWebSearchStatus();
   allowedDirs = (cfg.allowed_dirs ?? []) as string[];
   renderChips();
   try { setAutostart(await autoIsEnabled()); } catch {}
