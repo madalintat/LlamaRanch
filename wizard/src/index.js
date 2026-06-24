@@ -35,6 +35,7 @@ function printHelp() {
   console.log('');
   console.log('  ' + gold('llamaranch-wizard') + '             ' + muted('run the setup wizard'));
   console.log('  ' + gold('llamaranch-wizard serve') + '       ' + muted('start headless llama-server'));
+  console.log('  ' + gold('llamaranch-wizard websearch') + '   ' + muted('set up local web search (SearXNG)'));
   console.log('  ' + gold('llamaranch-wizard update') + '      ' + muted('update LlamaRanch to the latest release'));
   console.log('  ' + gold('llamaranch-wizard uninstall') + '   ' + muted('remove LlamaRanch and its models'));
   console.log('  ' + gold('llamaranch-wizard --help') + '      ' + muted('show this help'));
@@ -67,6 +68,7 @@ async function runWizard() {
   const { MODEL_CATALOG, suggestModels, downloadModel, getModelsDir } = await import('./models.js');
   const { writeConfig, getConfigPath } = await import('./config.js');
   const { installApp } = await import('./app-install.js');
+  const { setupSearxng } = await import('./searxng.js');
 
   process.on('SIGINT', () => { process.exit(130); });
 
@@ -296,6 +298,10 @@ async function runWizard() {
     const [appLines, setAppLines] = useState([]);
     const [appInstallResult, setAppInstallResult] = useState(null);
 
+    // web search (SearXNG)
+    const [searxngLines, setSearxngLines] = useState([]);
+    const [searxngResult, setSearxngResult] = useState(null);
+
     // error
     const [errorMsg, setErrorMsg] = useState(null);
 
@@ -308,6 +314,20 @@ async function runWizard() {
 
       if (step === 'confirm' && key.return) {
         setStep('detect-running');
+        return;
+      }
+
+      // Web search confirm: y/enter = set up (if runtime), n = skip
+      if (step === 'websearch-confirm') {
+        const hasRuntime = !!detectResult?.container?.runtime;
+        if (input === 'n' || input === 'N') {
+          setStep('outro');
+          return;
+        }
+        if (key.return || input === 'y' || input === 'Y') {
+          setStep(hasRuntime ? 'websearch-running' : 'outro');
+          return;
+        }
         return;
       }
 
@@ -537,9 +557,52 @@ async function runWizard() {
       return () => { cancelled = true; };
     }, [step]);
 
-    // app-install-done auto-advances to outro
+    // app-install-done auto-advances to the optional web search prompt
     useEffect(() => {
       if (step !== 'app-install-done') return;
+      const t = setTimeout(() => setStep('websearch-confirm'), 500);
+      return () => clearTimeout(t);
+    }, [step]);
+
+    // websearch-running: provision + verify SearXNG, then patch config
+    useEffect(() => {
+      if (step !== 'websearch-running') return;
+      const runtime = detectResult?.container?.runtime || null;
+      if (!runtime) { setStep('outro'); return; }
+
+      let cancelled = false;
+      const run = async () => {
+        try {
+          const result = await setupSearxng({
+            runtime,
+            onProgress: (line) => {
+              if (!cancelled) setSearxngLines(prev => [...prev, line]);
+            },
+          });
+          if (cancelled) return;
+          setSearxngResult(result);
+          if (result.ok) {
+            try {
+              await writeConfig({ searxngUrl: result.url, searxngManaged: true });
+            } catch {
+              // config patch failed -- surfaced in outro via searxngResult below
+            }
+          }
+          setStep('websearch-done');
+        } catch (err) {
+          if (!cancelled) {
+            setSearxngResult({ ok: false, error: 'Web search setup failed: ' + err.message });
+            setStep('websearch-done');
+          }
+        }
+      };
+      run();
+      return () => { cancelled = true; };
+    }, [step]);
+
+    // websearch-done auto-advances to outro
+    useEffect(() => {
+      if (step !== 'websearch-done') return;
       const t = setTimeout(() => setStep('outro'), 500);
       return () => clearTimeout(t);
     }, [step]);
@@ -598,7 +661,8 @@ async function runWizard() {
     if (['detect-running', 'detect-done', 'engine-running', 'engine-done',
          'model-select', 'download-running', 'download-done',
          'config-writing', 'config-done', 'app-install-running',
-         'app-install-done', 'outro'].includes(step)) {
+         'app-install-done', 'websearch-confirm', 'websearch-running',
+         'websearch-done', 'outro'].includes(step)) {
 
       const isRunning = step === 'detect-running';
 
@@ -642,7 +706,8 @@ async function runWizard() {
     // engine step
     if (['engine-running', 'engine-done', 'model-select', 'download-running',
          'download-done', 'config-writing', 'config-done',
-         'app-install-running', 'app-install-done', 'outro'].includes(step)) {
+         'app-install-running', 'app-install-done', 'websearch-confirm',
+         'websearch-running', 'websearch-done', 'outro'].includes(step)) {
 
       const isRunning = step === 'engine-running';
 
@@ -702,7 +767,8 @@ async function runWizard() {
 
     // model-select done (collapsed)
     if (['download-running', 'download-done', 'config-writing', 'config-done',
-         'app-install-running', 'app-install-done', 'outro'].includes(step)) {
+         'app-install-running', 'app-install-done', 'websearch-confirm',
+         'websearch-running', 'websearch-done', 'outro'].includes(step)) {
       rows.push(
         React.createElement(
           Box,
@@ -745,7 +811,8 @@ async function runWizard() {
 
     // download-done (collapsed)
     if (['download-done', 'config-writing', 'config-done',
-         'app-install-running', 'app-install-done', 'outro'].includes(step)) {
+         'app-install-running', 'app-install-done', 'websearch-confirm',
+         'websearch-running', 'websearch-done', 'outro'].includes(step)) {
       rows.push(
         React.createElement(
           Box,
@@ -770,7 +837,8 @@ async function runWizard() {
     }
 
     // config-done (collapsed)
-    if (['config-done', 'app-install-running', 'app-install-done', 'outro'].includes(step)) {
+    if (['config-done', 'app-install-running', 'app-install-done',
+         'websearch-confirm', 'websearch-running', 'websearch-done', 'outro'].includes(step)) {
       if (configData && configData.error) {
         rows.push(
           React.createElement(
@@ -810,7 +878,8 @@ async function runWizard() {
     }
 
     // app-install-done (collapsed)
-    if (['app-install-done', 'outro'].includes(step)) {
+    if (['app-install-done', 'websearch-confirm', 'websearch-running',
+         'websearch-done', 'outro'].includes(step)) {
       if (appInstallResult?.manualRequired) {
         rows.push(
           React.createElement(
@@ -832,6 +901,73 @@ async function runWizard() {
             React.createElement(Text, { color: '#cbb78a' }, 'Installing desktop app')
           )
         );
+      }
+    }
+
+    // websearch-confirm: optional prompt
+    if (step === 'websearch-confirm') {
+      const hasRuntime = !!detectResult?.container?.runtime;
+      rows.push(
+        React.createElement(
+          Box,
+          { key: 'ws-confirm', flexDirection: 'row' },
+          React.createElement(Text, { color: '#c7a228' }, '◆ '),
+          React.createElement(Text, { color: '#f5f0e8' }, 'Set up local web search (SearXNG)?  '),
+          React.createElement(Text, { color: '#6b6456' },
+            hasRuntime
+              ? '[Y/n] · ' + detectResult.container.runtime + ' detected'
+              : '[y/N] · no container runtime detected')
+        )
+      );
+      if (!hasRuntime) {
+        rows.push(
+          React.createElement(SubLog, {
+            key: 'ws-confirm-hint',
+            text: 'Install Docker Desktop or Podman, then run: npx @llamaranch/wizard websearch',
+          })
+        );
+      }
+    }
+
+    // websearch-running
+    if (step === 'websearch-running') {
+      rows.push(
+        React.createElement(
+          Box,
+          { key: 'ws-spin', flexDirection: 'row' },
+          React.createElement(Text, { color: '#f5f0e8' }, spinFrame + ' '),
+          React.createElement(Text, { color: '#f5f0e8' }, 'Setting up local web search')
+        )
+      );
+      for (let i = Math.max(0, searxngLines.length - 6); i < searxngLines.length; i++) {
+        rows.push(React.createElement(SubLog, { key: 'wsline-' + i, text: searxngLines[i] }));
+      }
+    }
+
+    // websearch-done (collapsed)
+    if (['websearch-done', 'outro'].includes(step) && searxngResult) {
+      if (searxngResult.ok) {
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'ws-done', flexDirection: 'row' },
+            React.createElement(Text, { color: '#cbb78a' }, '◇ '),
+            React.createElement(Text, { color: '#cbb78a' }, 'Web search ready'),
+            React.createElement(Text, null, '  '),
+            React.createElement(Text, { color: '#6b6456' }, searxngResult.url)
+          )
+        );
+      } else {
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'ws-warn', flexDirection: 'row' },
+            React.createElement(Text, { color: '#c7a228' }, '▲ '),
+            React.createElement(Text, { color: '#f5f0e8' }, 'Web search not set up')
+          )
+        );
+        const firstLine = (searxngResult.error || searxngResult.instructions || '').split('\n')[0];
+        if (firstLine) rows.push(React.createElement(SubLog, { key: 'ws-warn-hint', text: firstLine }));
       }
     }
 
@@ -886,6 +1022,18 @@ async function runWizard() {
           React.createElement(Text, { color: '#f5f0e8' }, appPath)
         )
       );
+      if (searxngResult?.ok) {
+        rows.push(
+          React.createElement(
+            Box,
+            { key: 'outro-search', flexDirection: 'row' },
+            React.createElement(Text, null, '   '),
+            React.createElement(Text, { color: '#f5f0e8', bold: true }, 'search '),
+            React.createElement(Text, { color: '#f5f0e8' }, searxngResult.url),
+            React.createElement(Text, { color: '#6b6456' }, ' · private · managed by the app')
+          )
+        );
+      }
       rows.push(React.createElement(Text, { key: 'outro-gap2', color: '#3f3d34' }, '│'));
       rows.push(
         React.createElement(
@@ -1012,6 +1160,10 @@ if (cmd === '--help' || cmd === '-h') {
   console.log('');
   await runServe();
   process.exit(0);
+} else if (cmd === 'websearch') {
+  const { runWebsearch } = await import('./searxng.js');
+  await runWebsearch();
+  process.exit(process.exitCode || 0);
 } else if (cmd === 'update') {
   const { runUpdate } = await import('./update.js');
   // Branded header

@@ -244,6 +244,45 @@ async function detectBrew(normalizedOs) {
 }
 
 // ---------------------------------------------------------------------------
+// Container runtime detection (docker, then podman)
+// Reports which runtime is on PATH and whether its daemon answers.
+// ---------------------------------------------------------------------------
+
+async function probeRuntime(bin) {
+  // `version --format {{.Server.Version}}` is empty/fails when the daemon is down.
+  try {
+    const { stdout } = await execa(bin, ['version', '--format', '{{.Server.Version}}']);
+    if (stdout.trim()) return { present: true, daemon: true };
+  } catch {
+    // daemon down, or this format flag unsupported -- fall through to a plain probe
+  }
+  try {
+    await execa(bin, ['version']);
+    return { present: true, daemon: false };
+  } catch {
+    // `version` failed entirely -- maybe the binary exists but errored hard
+  }
+  try {
+    const tool = process.platform === 'win32' ? 'where' : 'which';
+    const { stdout } = await execa(tool, [bin]);
+    if (stdout.trim()) return { present: true, daemon: false };
+  } catch {
+    // not on PATH
+  }
+  return { present: false, daemon: false };
+}
+
+async function detectContainer() {
+  for (const bin of ['docker', 'podman']) {
+    const r = await probeRuntime(bin);
+    if (r.present) {
+      return { runtime: bin, daemon: r.daemon };
+    }
+  }
+  return { runtime: null, daemon: false };
+}
+
+// ---------------------------------------------------------------------------
 // Main detect() entry point
 // ---------------------------------------------------------------------------
 
@@ -257,11 +296,12 @@ export async function detect() {
     const totalRamGB = Math.round((os.totalmem() / (1024 ** 3)) * 10) / 10;
     const freeRamGB = Math.round((os.freemem() / (1024 ** 3)) * 10) / 10;
 
-    const [gpu, llamaServer, appInstalled, brew] = await Promise.all([
+    const [gpu, llamaServer, appInstalled, brew, container] = await Promise.all([
       detectGpu(normalizedOs, normalizedArch),
       detectLlamaServer(),
       detectApp(normalizedOs),
       detectBrew(normalizedOs),
+      detectContainer(),
     ]);
 
     return {
@@ -275,6 +315,7 @@ export async function detect() {
       llamaServer,
       appInstalled,
       brew,
+      container,
     };
   } catch (err) {
     // detect() must never throw -- return safe defaults
@@ -289,6 +330,7 @@ export async function detect() {
       llamaServer: { found: false, path: null, version: null },
       appInstalled: { found: false, path: null, version: null },
       brew: false,
+      container: { runtime: null, daemon: false },
     };
   }
 }
