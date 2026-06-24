@@ -74,6 +74,23 @@ pub fn list_tools(cfg: State<AppConfig>) -> Vec<ToolInfo> {
 
 pub struct AppConfig(pub Mutex<Config>);
 
+/// Report whether the app-managed SearXNG web search is configured and live, so
+/// the UI can show whether web search is up. `running` does a quick health probe.
+#[tauri::command]
+pub fn websearch_status(cfg: State<AppConfig>) -> serde_json::Value {
+    let c = cfg.0.lock().unwrap().clone();
+    let running = if c.searxng_url.is_empty() {
+        false
+    } else {
+        crate::searxng::health(&c.searxng_url)
+    };
+    serde_json::json!({
+        "managed": c.searxng_managed,
+        "url": c.searxng_url,
+        "running": running,
+    })
+}
+
 #[derive(Serialize)]
 pub struct ModelView {
     pub id: String,

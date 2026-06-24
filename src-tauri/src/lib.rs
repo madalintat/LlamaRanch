@@ -3,6 +3,7 @@ mod catalog;
 mod config;
 mod scanner;
 mod launch;
+mod searxng;
 mod server;
 mod commands;
 mod gguf;
@@ -74,6 +75,7 @@ pub fn run() {
             commands::model_info,
             commands::set_model_config,
             commands::list_tools,
+            commands::websearch_status,
             brain::chat_new_session,
             brain::chat_send,
             brain::chat_cancel,
@@ -111,6 +113,7 @@ pub fn run() {
                         if let Some(srv) = app.try_state::<SharedServer>() {
                             server::stop(&mut srv.lock());
                         }
+                        searxng::stop();
                         app.exit(0);
                     }
                     _ => {}
@@ -152,6 +155,14 @@ pub fn run() {
                 let _ = crate::server::load(cfg.port, &cfg.general_model);
             });
 
+            // Start the app-managed SearXNG container (if the wizard set it up).
+            // Best-effort: searxng::start spawns its own thread, so a slow or
+            // absent Docker daemon can never delay launch.
+            {
+                let cfg = app.state::<AppConfig>().0.lock().unwrap().clone();
+                searxng::start(&cfg);
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -180,6 +191,7 @@ pub fn run() {
                 if let Some(srv) = app_handle.try_state::<SharedServer>() {
                     server::stop(&mut srv.lock());
                 }
+                searxng::stop();
             }
         });
 }

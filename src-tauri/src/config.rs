@@ -59,6 +59,10 @@ pub struct Config {
     /// SearXNG base URL for web_search. Empty = web search disabled.
     #[serde(default)]
     pub searxng_url: String,
+    /// When true, the app owns the local SearXNG container lifecycle (started on
+    /// launch, stopped on quit). Set by the wizard after it provisions the stack.
+    #[serde(default)]
+    pub searxng_managed: bool,
     /// When true, online tools (web_fetch, web_search) are excluded from the registry.
     #[serde(default)]
     pub offline_mode: bool,
@@ -268,6 +272,7 @@ impl Default for Config {
             embedding_model: default_embedding_model(),
             allowed_dirs: Vec::new(),
             searxng_url: String::new(),
+            searxng_managed: false,
             offline_mode: false,
             shortcut_cmdbar: default_shortcut_cmdbar(),
             shortcut_agent: default_shortcut_agent(),
