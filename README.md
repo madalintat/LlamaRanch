@@ -62,6 +62,10 @@ A sandboxed, local-first tool loop:
 
 A privacy panel spells out which tool is LOCAL and which is ONLINE. One Offline switch cuts every tool off the internet at once.
 
+### Web search
+
+Private web search runs through SearXNG, a self-hosted metasearch engine, so the agent searches the internet from one local endpoint with no API key and nothing routed through a third party. Setup is one command, `npx @llamaranch/wizard websearch`, which needs Docker or Podman installed. It writes a loopback-only SearXNG, enables the JSON format, turns the limiter off, verifies it, and points LlamaRanch at it. The app starts the container when it launches and stops it when you quit. The config lives in `~/.llamaranch/searxng/` and is yours to edit, and if you already run your own SearXNG you can point at it under Settings, Tools, SearXNG URL.
+
 ### ⌘K command bar
 
 Switch models from anywhere in the app, mid-conversation or mid-task.

@@ -241,6 +241,16 @@
   color: var(--ink);
   margin-bottom: 16px;
 }
+.doc-h3 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(17px, 2vw, 21px);
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  margin-top: 28px;
+  margin-bottom: 12px;
+}
 .doc-p {
   font-size: 16px;
   line-height: 1.7;
@@ -249,6 +259,20 @@
   max-width: 66ch;
 }
 .doc-p:last-child { margin-bottom: 0; }
+
+.doc-list {
+  margin: 0 0 18px;
+  padding-left: 20px;
+  max-width: 66ch;
+  list-style: disc;
+}
+.doc-list li {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--soft);
+  margin-bottom: 8px;
+}
+.doc-list li:last-child { margin-bottom: 0; }
 
 .doc-p a {
   color: var(--ink);
