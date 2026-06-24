@@ -382,7 +382,13 @@ document.getElementById("s-allowed-toggle")?.addEventListener("click", () => {
 // errors the block degrades to whatever the URL field shows so settings still
 // load.
 type WebSearchStatus = { managed: boolean; url: string; running: boolean };
-type WebSearchRuntime = { runtime: string | null; os: "macos" | "linux" | "windows" };
+type WebSearchRuntime = {
+  runtime: string | null;
+  installed: boolean;
+  daemon: boolean;
+  os: "macos" | "linux" | "windows";
+};
+type StartRuntimeResult = { installed: boolean; daemon: boolean };
 type ProgressPayload = { stage: string; message: string };
 
 // Runtime install options per OS. macOS leads with OrbStack (light + fast).
@@ -482,8 +488,9 @@ async function runWebSearchSetup() {
     if (token !== wsRunToken) { wsBusy = false; return; }
     wsBusy = false;
     const msg = String(err).replace(/^error:\s*/, "");
-    if (msg === "no-runtime") {
-      // Runtime vanished mid-flight: drop back to the install card.
+    if (msg === "no-runtime" || msg === "daemon-down") {
+      // Runtime vanished or its daemon stopped mid-flight: re-render so the block
+      // lands on the right state (install card, or the "Start it" prompt).
       await renderWebSearch();
       return;
     }
@@ -499,7 +506,64 @@ async function runWebSearchSetup() {
   }
 }
 
-// State 4: no runtime. Show the install card with OS-aware options.
+// Friendly runtime name for messaging. Docker Desktop and OrbStack both expose a
+// `docker` CLI, so we cannot always tell them apart; "Docker or OrbStack" covers
+// the common macOS case without lying.
+function runtimeLabel(rt: WebSearchRuntime): string {
+  if (rt.runtime === "podman") return "Podman";
+  if (rt.runtime === "docker") return rt.os === "macos" ? "Docker or OrbStack" : "Docker";
+  return "Your container runtime";
+}
+
+// State: a CLI is installed but its daemon is down. Offer a one-click start that
+// boots the runtime, waits, then flows straight into the normal setup. If it
+// cannot start, show a hint plus a "Check again" probe.
+function renderInstalledStopped(rt: WebSearchRuntime) {
+  const label = runtimeLabel(rt);
+  setWsHead("led--cloud", "Web search is off", `${label} is installed but not running`);
+  const actions = wsEl("s-ws-actions");
+  actions.innerHTML = "";
+  const extra = wsEl("s-ws-extra");
+  extra.innerHTML = "";
+
+  const note = document.createElement("div");
+  note.className = "meta s-ws-card__note";
+
+  const start = mkBtn("Start it", "s-ws-btn", async () => {
+    start.disabled = true;
+    note.textContent = "";
+    const token = ++wsRunToken;
+    showWsProgress("Starting your container runtime...", token);
+    let res: StartRuntimeResult | null = null;
+    try {
+      res = await invoke<StartRuntimeResult>("websearch_start_runtime");
+    } catch {
+      res = null;
+    }
+    if (token !== wsRunToken) return; // superseded
+    if (res && res.daemon) {
+      // Daemon is up: flow straight into the normal setup with live progress.
+      await runWebSearchSetup();
+      return;
+    }
+    // Could not bring it up: clear the spinner, show a hint + check-again.
+    extra.innerHTML = "";
+    start.disabled = false;
+    note.textContent =
+      rt.os === "macos"
+        ? "Could not start it automatically. Open Docker or OrbStack, then check again."
+        : "Could not start it automatically. Start your runtime, then check again.";
+    extra.appendChild(note);
+    const again = mkBtn("Check again", "s-ws-btn--ghost s-ws-btn", () => void renderWebSearch());
+    actions.appendChild(again);
+    fit();
+  });
+  actions.appendChild(start);
+  extra.appendChild(note);
+  fit();
+}
+
+// State: no runtime installed. Show the install card with OS-aware options.
 function renderRuntimeCard(rt: WebSearchRuntime) {
   setWsHead("led--cloud", "Web search is off", "");
   wsEl("s-ws-actions").innerHTML = "";
@@ -536,10 +600,13 @@ function renderRuntimeCard(rt: WebSearchRuntime) {
     note.textContent = "";
     let fresh: WebSearchRuntime | null = null;
     try { fresh = await invoke<WebSearchRuntime>("websearch_runtime"); } catch {}
-    if (fresh && fresh.runtime) {
+    if (fresh && fresh.daemon) {
       await runWebSearchSetup();
+    } else if (fresh && fresh.installed) {
+      // It is there now but the daemon is not up; route to the "Start it" state.
+      await renderWebSearch();
     } else {
-      note.textContent = "Still not found, make sure it is running.";
+      note.textContent = "Still not found, make sure it is installed.";
       fit();
     }
   });
@@ -606,12 +673,14 @@ async function renderWebSearch() {
     return;
   }
 
-  // States 3 + 4 hinge on whether a runtime is present.
+  // The remaining states hinge on whether a runtime is installed and whether its
+  // daemon is running.
   let rt: WebSearchRuntime | null = null;
   try { rt = await invoke<WebSearchRuntime>("websearch_runtime"); } catch {}
+  const runtime = rt ?? { runtime: null, installed: false, daemon: false, os: "linux" as const };
 
-  if (rt && rt.runtime) {
-    // State 3: not set up, runtime present.
+  if (runtime.daemon) {
+    // State 3: not set up, runtime up and ready.
     setWsHead("led--cloud", "Web search is off",
       "one click sets up a private local search engine");
     const actions = wsEl("s-ws-actions");
@@ -620,8 +689,14 @@ async function renderWebSearch() {
     return;
   }
 
-  // State 4: not set up, no runtime.
-  renderRuntimeCard(rt ?? { runtime: null, os: "linux" });
+  if (runtime.installed) {
+    // State 3b: installed but its daemon is stopped. Offer to start it.
+    renderInstalledStopped(runtime);
+    return;
+  }
+
+  // State 4: nothing installed. Show the OS-aware install card.
+  renderRuntimeCard(runtime);
 }
 
 async function load() {
