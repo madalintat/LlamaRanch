@@ -13,7 +13,7 @@
 use crate::config::Config;
 use std::path::PathBuf;
 use std::process::Command;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 /// The container name the wizard uses; keep both sides in lockstep.
 const CONTAINER_NAME: &str = "llamaranch-searxng";
@@ -59,17 +59,7 @@ fn detect_runtime() -> Option<&'static str> {
 /// even when Docker Desktop / OrbStack / the Podman machine is stopped. Lets the
 /// UI tell "installed but stopped" apart from "not installed at all".
 pub fn cli_present() -> Option<&'static str> {
-    for rt in ["docker", "podman"] {
-        let ok = Command::new(rt)
-            .arg("--version")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false);
-        if ok {
-            return Some(rt);
-        }
-    }
-    None
+    ["docker", "podman"].into_iter().find(|rt| which(rt))
 }
 
 /// True when `rt`'s daemon is reachable. `<rt> info` (and `<rt> version`) round-trip
@@ -247,37 +237,22 @@ fn compose_yml() -> String {
     .join("\n")
 }
 
-/// A 64-char random hex secret_key without pulling in `rand`. We mix the wall
-/// clock (nanos), the process id, and the setup dir into a tiny xorshift PRNG.
-/// This is only a SearXNG session secret on a loopback-only instance, so it does
-/// not need cryptographic strength, only to be unguessable and unique per install.
+/// A 64-char random hex secret_key drawn from the OS CSPRNG, matching the wizard
+/// (which uses Node's crypto.randomBytes(32)). This is a SearXNG session secret on
+/// a loopback-only instance; a real CSPRNG keeps it unguessable to a local observer
+/// rather than derivable from the clock + pid + path. `getrandom::fill` reads from
+/// the platform RNG (getrandom/urandom on unix, BCryptGenRandom on Windows) and is
+/// already compiled into the dependency tree.
 fn random_hex_key() -> String {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos() as u64)
-        .unwrap_or(0);
-    let pid = std::process::id() as u64;
-    // Fold the home path bytes in too, so two installs that happen to share a
-    // clock tick still diverge.
-    let mut path_mix: u64 = 0xcbf2_9ce4_8422_2325; // FNV offset basis
-    for b in searxng_dir().to_string_lossy().bytes() {
-        path_mix = (path_mix ^ b as u64).wrapping_mul(0x0000_0100_0000_01b3);
+    let mut bytes = [0u8; 32];
+    // The OS RNG only fails in pathological setups (no entropy source); fall back
+    // to a fixed buffer so we still produce a 64-hex key rather than panicking.
+    if getrandom::fill(&mut bytes).is_err() {
+        bytes = [0x5au8; 32];
     }
-    let mut state = nanos ^ pid.rotate_left(32) ^ path_mix ^ 0x9e37_79b9_7f4a_7c15;
-    if state == 0 {
-        state = 0x1234_5678_9abc_def0;
-    }
-    let mut next = || {
-        // xorshift64*
-        state ^= state >> 12;
-        state ^= state << 25;
-        state ^= state >> 27;
-        state.wrapping_mul(0x2545_F491_4F6C_DD1D)
-    };
     let mut out = String::with_capacity(64);
-    // 8 u64 -> 64 hex chars (well past the 32-hex minimum).
-    for _ in 0..8 {
-        out.push_str(&format!("{:016x}", next()));
+    for b in bytes {
+        out.push_str(&format!("{b:02x}"));
     }
     out
 }
