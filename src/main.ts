@@ -49,6 +49,8 @@ type ModelFit = {
   needs_smaller_quant: boolean; native_ctx: number; cache_type: string;
   kv_per_token: number; kv_per_token_f16: number;
 };
+type RelCase = { id: string; passed: boolean; detail: string };
+type RelReport = { model: string; passed: number; total: number; score: number; verdict: string; cases: RelCase[] };
 
 const CTX_TIERS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
 const tierLabel = (n: number) => (n % 1024 === 0 ? `${n / 1024}k` : String(n));
@@ -78,6 +80,27 @@ function fitVerdict(f: ModelFit): { word: string; cls: string; detail: string; a
           ? `too big for this machine, try a smaller quant`
           : `too big at this context, try ${tierLabel(f.usable_ctx)} or less` };
   }
+}
+
+// Tool-reliability verdict → status class, and the rendered result block.
+function relCls(verdict: string): string {
+  return verdict === "dependable" ? "ok" : verdict === "flaky" ? "warn" : "error";
+}
+function renderRel(r: RelReport): string {
+  const dots = r.cases
+    .map((c) => {
+      const tip = `${c.id}: ${c.detail}`.replace(/"/g, "'");
+      return `<span class="cfg-rel__dot cfg-rel__dot--${c.passed ? "ok" : "bad"}" title="${tip}"></span>`;
+    })
+    .join("");
+  return (
+    `<div class="cfg-fit__head">` +
+      `<span class="cfg-fit__led cfg-fit__led--${relCls(r.verdict)}"></span>` +
+      `<span class="cfg-fit__word">Tools: ${r.verdict}</span>` +
+      `<span class="cfg-fit__detail">${r.passed}/${r.total} cases</span>` +
+    `</div>` +
+    `<div class="cfg-rel__dots">${dots}</div>`
+  );
 }
 
 // which model's expander is open (survives re-renders so polling won't collapse it)
@@ -412,6 +435,27 @@ async function hydrateCfg(id: string) {
   host.appendChild(pills);
   host.appendChild(fit);
   renderFit(ov.ctx_size ?? null);
+
+  // Tool reliability: measure whether this model can be trusted for agent tools.
+  const rel = document.createElement("div");
+  rel.className = "cfg-rel";
+  const relBtn = document.createElement("button");
+  relBtn.className = "ubtn";
+  relBtn.textContent = "test tool reliability";
+  relBtn.onclick = async () => {
+    relBtn.disabled = true;
+    relBtn.textContent = "testing tools…";
+    try {
+      const r = await invoke<RelReport>("eval_tool_reliability", { modelId: id });
+      if (document.getElementById("cfg-open") !== host) return;
+      rel.innerHTML = renderRel(r);
+    } catch (e) {
+      rel.innerHTML = `<div class="cfg-fit__detail">tool test failed: ${String(e)}</div>`;
+    }
+    fitWindow(360);
+  };
+  rel.appendChild(relBtn);
+  host.appendChild(rel);
 
   // Sampling fields
   const fields: [keyof ModelOverride, string][] = [
