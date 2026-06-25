@@ -41,9 +41,44 @@ type ModelOverride = {
   min_p?: number | null; repeat_penalty?: number | null; presence_penalty?: number | null; frequency_penalty?: number | null;
 };
 type ModelInfo = { native_ctx: number; file_bytes: number; kv_per_token: number; override: ModelOverride };
+type ModelFit = {
+  verdict: string; // fast | tight | slow | wont_fit
+  eval_ctx: number; needed_bytes: number;
+  fast_budget: number; usable_ceiling: number; total_ram: number;
+  gpu_label: string; fast_ctx: number; usable_ctx: number;
+  needs_smaller_quant: boolean; native_ctx: number; cache_type: string;
+  kv_per_token: number; kv_per_token_f16: number;
+};
 
 const CTX_TIERS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
 const tierLabel = (n: number) => (n % 1024 === 0 ? `${n / 1024}k` : String(n));
+
+// Turn a backend fit estimate into a one-line verdict for the model config panel:
+// a state class (ok/warn/error), the headline, the numbers, and what to do next.
+function fitVerdict(f: ModelFit): { word: string; cls: string; detail: string; advice: string } {
+  const have = f.gpu_label === "CPU" ? f.total_ram : f.fast_budget;
+  const detail = `needs ~${gb(f.needed_bytes)} · ${f.gpu_label} ~${gb(have)}`;
+  switch (f.verdict) {
+    case "fast":
+      return { word: "Fits fast", cls: "ok", detail,
+        advice: `full ${tierLabel(f.native_ctx)} context runs fast` };
+    case "tight":
+      return { word: "Tight fit", cls: "warn", detail,
+        advice: f.fast_ctx > 0
+          ? `drop to ${tierLabel(f.fast_ctx)} to run fast`
+          : `fits up to ${tierLabel(f.usable_ctx)}, but close to the limit` };
+    case "slow":
+      return { word: "Runs slow", cls: "warn", detail,
+        advice: f.fast_ctx > 0
+          ? `drop to ${tierLabel(f.fast_ctx)} to run fast`
+          : `no GPU here, runs on CPU at this size` };
+    default: // wont_fit
+      return { word: "Won't fit", cls: "error", detail,
+        advice: f.needs_smaller_quant
+          ? `too big for this machine, try a smaller quant`
+          : `too big at this context, try ${tierLabel(f.usable_ctx)} or less` };
+  }
+}
 
 // which model's expander is open (survives re-renders so polling won't collapse it)
 let openCfg: string | null = null;
@@ -334,6 +369,30 @@ async function hydrateCfg(id: string) {
   ctxLabel.textContent = info.native_ctx ? `Context · max ${tierLabel(info.native_ctx)}` : "Context";
   host.appendChild(ctxLabel);
 
+  // Fit panel: does this model fit, and how to make it fit, at the chosen context.
+  // Re-queried whenever the context changes, so the verdict tracks the choice.
+  const fit = document.createElement("div");
+  fit.className = "cfg-fit";
+  const renderFit = async (ctx: number | null) => {
+    let f: ModelFit;
+    try {
+      f = await invoke<ModelFit>("fit_estimate", { modelId: id, ctxSize: ctx });
+    } catch {
+      fit.innerHTML = "";
+      return;
+    }
+    if (document.getElementById("cfg-open") !== host) return;
+    const v = fitVerdict(f);
+    fit.innerHTML =
+      `<div class="cfg-fit__head">` +
+        `<span class="cfg-fit__led cfg-fit__led--${v.cls}"></span>` +
+        `<span class="cfg-fit__word">${v.word}</span>` +
+        `<span class="cfg-fit__detail">${v.detail}</span>` +
+      `</div>` +
+      `<div class="cfg-fit__advice">${v.advice}</div>`;
+    fitWindow(360);
+  };
+
   const pills = document.createElement("div");
   pills.className = "cfg-expander__pills";
   const mk = (text: string, val: number | null, sub: string) => {
@@ -344,12 +403,15 @@ async function hydrateCfg(id: string) {
       ov.ctx_size = val;
       pills.querySelectorAll(".cfg-expander__pill").forEach((el) => el.classList.remove("cfg-expander__pill--on"));
       b.classList.add("cfg-expander__pill--on");
+      renderFit(val);
     };
     return b;
   };
   pills.appendChild(mk("Auto", null, "fit"));
   for (const t of CTX_TIERS.filter((t) => t <= max)) pills.appendChild(mk(tierLabel(t), t, mem(t)));
   host.appendChild(pills);
+  host.appendChild(fit);
+  renderFit(ov.ctx_size ?? null);
 
   // Sampling fields
   const fields: [keyof ModelOverride, string][] = [

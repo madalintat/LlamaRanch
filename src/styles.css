@@ -348,6 +348,47 @@ html, body {
   opacity: 0.65;
 }
 
+/* Fit verdict: a square status LED + headline, the numbers in mono, and the
+   one-line advice. Square LED (no radius) matches the brand status lights. */
+.cfg-fit {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-4);
+}
+.cfg-fit__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.cfg-fit__led {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  background: var(--muted);
+}
+.cfg-fit__led--ok { background: var(--ink); }
+.cfg-fit__led--warn { background: var(--muted); }
+.cfg-fit__led--error { background: var(--error); }
+.cfg-fit__word {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .04em;
+  color: var(--ink);
+}
+.cfg-fit__detail {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  margin-left: auto;
+}
+.cfg-fit__advice {
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-top: 4px;
+  margin-left: 14px;
+}
+
 .cfg-expander__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
