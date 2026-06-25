@@ -257,7 +257,8 @@ use std::path::Path;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
 /// Classifier using the small general model via a single, non-streamed call.
-struct RouterClassifier { port: u16, model: String }
+/// Public so the HTTP gateway can reuse the exact same routing fallback.
+pub struct RouterClassifier { pub port: u16, pub model: String }
 impl Classifier for RouterClassifier {
     fn classify(&self, text: &str) -> Category {
         let label = classify_once(self.port, &self.model, text).unwrap_or_default();

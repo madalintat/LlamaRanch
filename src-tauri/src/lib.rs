@@ -2,6 +2,7 @@ mod brain;
 mod catalog;
 mod config;
 mod fit;
+mod gateway;
 mod hardware;
 mod scanner;
 mod launch;
@@ -140,6 +141,9 @@ pub fn run() {
                 .build(app)?;
 
             start_router(app.handle());
+            // The smart-routing gateway: one OpenAI-compatible endpoint anything
+            // can point at. Binds once at launch (honors gateway_enabled/port).
+            gateway::start_gateway(app.handle());
 
             // Register all three configurable global shortcuts from the loaded config.
             // Best-effort: failures are logged, not fatal.

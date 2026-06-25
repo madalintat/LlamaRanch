@@ -66,6 +66,14 @@ pub struct Config {
     /// When true, online tools (web_fetch, web_search) are excluded from the registry.
     #[serde(default)]
     pub offline_mode: bool,
+    /// When true, the smart-routing HTTP gateway is served on `gateway_port` so
+    /// any OpenAI client can get LlamaRanch routing. Binds loopback unless
+    /// `expose_to_network` is set. Applied at launch.
+    #[serde(default = "default_gateway_enabled")]
+    pub gateway_enabled: bool,
+    /// Port for the smart-routing gateway. Distinct from the router `port`.
+    #[serde(default = "default_gateway_port")]
+    pub gateway_port: u16,
     /// Global shortcut for the command bar popover (default: CmdOrCtrl+K).
     #[serde(default = "default_shortcut_cmdbar")]
     pub shortcut_cmdbar: String,
@@ -210,6 +218,17 @@ fn default_embedding_model() -> String {
     "nomic-embed-1.5".to_string()
 }
 
+/// The smart-routing gateway is on by default: "use it anywhere" only works if
+/// the endpoint is actually there.
+fn default_gateway_enabled() -> bool {
+    true
+}
+
+/// Gateway port, one above the router's default 2276 so the two never collide.
+fn default_gateway_port() -> u16 {
+    2277
+}
+
 fn default_shortcut_cmdbar() -> String {
     "CmdOrCtrl+K".to_string()
 }
@@ -240,6 +259,8 @@ impl Default for Config {
             searxng_url: String::new(),
             searxng_managed: false,
             offline_mode: false,
+            gateway_enabled: default_gateway_enabled(),
+            gateway_port: default_gateway_port(),
             shortcut_cmdbar: default_shortcut_cmdbar(),
             shortcut_agent: default_shortcut_agent(),
             shortcut_settings: default_shortcut_settings(),
@@ -379,5 +400,26 @@ mod tests {
         let json = r#"{"port":2276,"models_dir":"/m","server_bin":"/b","expose_to_network":false}"#;
         let cfg: Config = serde_json::from_str(json).unwrap();
         assert!(cfg.model_config.is_empty());
+    }
+
+    #[test]
+    fn missing_gateway_fields_use_defaults() {
+        // An older config file without the gateway keys still loads, with the
+        // gateway on and on its own port.
+        let json = r#"{"port":2276,"models_dir":"/m","server_bin":"/b","expose_to_network":false}"#;
+        let cfg: Config = serde_json::from_str(json).unwrap();
+        assert!(cfg.gateway_enabled);
+        assert_eq!(cfg.gateway_port, 2277);
+    }
+
+    #[test]
+    fn gateway_fields_roundtrip() {
+        let mut cfg = Config::default();
+        cfg.gateway_enabled = false;
+        cfg.gateway_port = 9000;
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("config.json");
+        save_to(&p, &cfg).unwrap();
+        assert_eq!(load_from(&p), cfg);
     }
 }
