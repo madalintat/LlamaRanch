@@ -290,6 +290,38 @@ fn classify_once(port: u16, model: &str, text: &str) -> Option<String> {
     Some(v.get("choices")?.get(0)?.get("message")?.get("content")?.as_str()?.to_string())
 }
 
+/// Installed models as routing facts (scanned from the models dir). Shared by the
+/// in-app chat and the gateway so both route over the same view of what is present.
+pub fn installed_models(models_dir: &str) -> Vec<ModelLite> {
+    scanner::scan(Path::new(models_dir))
+        .into_iter()
+        .map(|m| ModelLite { id: m.id, group: m.group })
+        .collect()
+}
+
+/// Ids of models the router currently has resident (loaded or sleeping).
+pub fn loaded_ids(port: u16) -> Vec<String> {
+    server::list_models(port)
+        .into_iter()
+        .filter(|m| m.status == "loaded" || m.status == "sleeping")
+        .map(|m| m.id)
+        .collect()
+}
+
+/// Build the default router (embedding gate + tiny-model classifier). One place
+/// so the in-app chat and the gateway share an identical routing policy.
+pub fn build_router<'a>(
+    port: u16,
+    embedding_model: String,
+    general_model: String,
+    cache: &'a gate::GateCache,
+) -> DefaultRouter<gate::EmbedGate<'a>, RouterClassifier> {
+    DefaultRouter {
+        gate: gate::EmbedGate::new(port, embedding_model, cache),
+        classifier: RouterClassifier { port, model: general_model },
+    }
+}
+
 #[tauri::command]
 pub fn chat_new_session(sessions: State<Sessions>) -> String {
     let n = sessions.next.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
@@ -321,21 +353,10 @@ pub fn chat_send<R: Runtime>(
     };
 
     std::thread::spawn(move || {
-        let installed: Vec<ModelLite> = scanner::scan(Path::new(&models_dir))
-            .into_iter()
-            .map(|m| ModelLite { id: m.id, group: m.group })
-            .collect();
-        let loaded: Vec<String> = server::list_models(port)
-            .into_iter()
-            .filter(|m| m.status == "loaded" || m.status == "sleeping")
-            .map(|m| m.id)
-            .collect();
-
+        let installed = installed_models(&models_dir);
+        let loaded = loaded_ids(port);
         let gate_state = app.state::<gate::GateCache>();
-        let router = DefaultRouter {
-            gate: gate::EmbedGate::new(port, embedding_model, gate_state.inner()),
-            classifier: RouterClassifier { port, model: general.clone() },
-        };
+        let router = build_router(port, embedding_model, general.clone(), gate_state.inner());
         let resolver = DefaultResolver;
         let capacity = (models_max as usize).saturating_sub(1).max(1);
         let pool_state = app.state::<pool::Pool>();

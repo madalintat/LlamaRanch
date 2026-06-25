@@ -47,8 +47,7 @@ type ModelFit = {
   eval_ctx: number; needed_bytes: number;
   fast_budget: number; usable_ceiling: number; total_ram: number;
   gpu_label: string; fast_ctx: number; usable_ctx: number;
-  needs_smaller_quant: boolean; native_ctx: number; cache_type: string;
-  kv_per_token: number; kv_per_token_f16: number;
+  needs_smaller_quant: boolean; native_ctx: number;
 };
 type RelCase = { id: string; passed: boolean; detail: string };
 type RelReport = { model: string; passed: number; total: number; score: number; verdict: string; cases: RelCase[] };

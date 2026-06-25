@@ -966,30 +966,17 @@ pub struct FitView {
     pub eval_ctx: u32,
     pub needed_bytes: u64,
     pub fast_budget: u64,
-    pub usable_ceiling: u64,
     pub total_ram: u64,
     pub gpu_label: String,
     pub fast_ctx: u32,
     pub usable_ctx: u32,
     pub needs_smaller_quant: bool,
     pub native_ctx: u32,
-    pub cache_type: String,
-    /// KV bytes per token at the serving cache type (q8_0) and at f16, so the UI
-    /// can show the cost and what the q8_0 cache saves.
-    pub kv_per_token: u64,
-    pub kv_per_token_f16: u64,
 }
 
 /// Pure assembly of a `FitView` from a model's memory shape and the machine, so
-/// the command stays a thin shell over the unit-tested `fit` logic. `m.kv_per_token`
-/// is the serving (q8_0) cost; `kv_per_token_f16` is the f16 baseline for legibility.
-fn build_fit_view(
-    m: &fit::ModelMem,
-    native_ctx: u32,
-    eval_ctx: u32,
-    kv_per_token_f16: u64,
-    hw: &hardware::Hardware,
-) -> FitView {
+/// the command stays a thin shell over the unit-tested `fit` logic.
+fn build_fit_view(m: &fit::ModelMem, native_ctx: u32, eval_ctx: u32, hw: &hardware::Hardware) -> FitView {
     let needed_bytes = fit::estimate_bytes(m, eval_ctx);
     let verdict = fit::classify(needed_bytes, hw);
     let rec = fit::recommend(m, native_ctx, hw);
@@ -998,16 +985,12 @@ fn build_fit_view(
         eval_ctx,
         needed_bytes,
         fast_budget: hw.fast_budget(),
-        usable_ceiling: hw.usable_ceiling(),
         total_ram: hw.total_ram,
         gpu_label: hw.gpu_label(),
         fast_ctx: rec.fast_ctx,
         usable_ctx: rec.usable_ctx,
         needs_smaller_quant: rec.needs_smaller_quant,
         native_ctx,
-        cache_type: fit::CacheType::Q8_0.label().to_string(),
-        kv_per_token: m.kv_per_token,
-        kv_per_token_f16,
     }
 }
 
@@ -1018,7 +1001,7 @@ fn build_fit_view(
 #[tauri::command]
 pub fn fit_estimate(model_id: String, ctx_size: Option<u32>, cfg: State<AppConfig>) -> FitView {
     let c = cfg_of(&cfg);
-    let (native_ctx, weights, kv_per_token, kv_per_token_f16, mmproj) = match resolve_model(&c, &model_id) {
+    let (native_ctx, weights, kv_per_token, mmproj) = match resolve_model(&c, &model_id) {
         Some(r) => match gguf::read_info(&r.path) {
             Some(info) => {
                 let mmproj = r
@@ -1027,17 +1010,11 @@ pub fn fit_estimate(model_id: String, ctx_size: Option<u32>, cfg: State<AppConfi
                     .and_then(|p| std::fs::metadata(p).ok())
                     .map(|m| m.len())
                     .unwrap_or(0);
-                (
-                    info.n_ctx_train,
-                    r.file_bytes,
-                    fit::kv_bytes_per_token(&info, fit::CacheType::Q8_0),
-                    fit::kv_bytes_per_token(&info, fit::CacheType::F16),
-                    mmproj,
-                )
+                (info.n_ctx_train, r.file_bytes, fit::kv_bytes_per_token_q8(&info), mmproj)
             }
-            None => (0, r.file_bytes, 0, 0, 0),
+            None => (0, r.file_bytes, 0, 0),
         },
-        None => (0, 0, 0, 0, 0),
+        None => (0, 0, 0, 0),
     };
     let m = fit::ModelMem { weights, mmproj, kv_per_token };
     // Evaluate at the asked-for context, else the model's configured override,
@@ -1045,7 +1022,7 @@ pub fn fit_estimate(model_id: String, ctx_size: Option<u32>, cfg: State<AppConfi
     let configured = c.model_config.get(&model_id).and_then(|o| o.ctx_size);
     let eval_ctx = ctx_size.or(configured).unwrap_or_else(|| native_ctx.min(8192));
     let hw = hardware::detect();
-    build_fit_view(&m, native_ctx, eval_ctx, kv_per_token_f16, &hw)
+    build_fit_view(&m, native_ctx, eval_ctx, &hw)
 }
 
 /// Run the tool-calling reliability eval for a model and return its report.
@@ -1429,14 +1406,12 @@ mod tests {
             total_ram: 64 * 1024 * 1024 * 1024,
             gpu: hardware::GpuKind::AppleSilicon,
         };
-        let v = build_fit_view(&m, 8192, 8192, m.kv_per_token * 2, &hw);
+        let v = build_fit_view(&m, 8192, 8192, &hw);
         assert_eq!(v.verdict, "fast");
         assert_eq!(v.eval_ctx, 8192);
         assert_eq!(v.gpu_label, "Apple Silicon");
         assert!(!v.needs_smaller_quant);
         assert!(v.fast_ctx >= 8192); // the whole native context runs fast
-        assert_eq!(v.cache_type, "q8_0");
-        assert_eq!(v.kv_per_token_f16, v.kv_per_token * 2); // f16 baseline is double
     }
 
     #[test]
@@ -1447,7 +1422,7 @@ mod tests {
             total_ram: 16 * 1024 * 1024 * 1024,
             gpu: hardware::GpuKind::AppleSilicon,
         };
-        let v = build_fit_view(&m, 8192, 8192, m.kv_per_token * 2, &hw);
+        let v = build_fit_view(&m, 8192, 8192, &hw);
         assert_eq!(v.verdict, "wont_fit");
         assert_eq!(v.usable_ctx, 0);
         assert!(v.needs_smaller_quant);
@@ -1462,7 +1437,7 @@ mod tests {
             total_ram: 32 * 1024 * 1024 * 1024,
             gpu: hardware::GpuKind::AppleSilicon,
         };
-        let v = build_fit_view(&m, 32768, 32768, m.kv_per_token * 2, &hw);
+        let v = build_fit_view(&m, 32768, 32768, &hw);
         assert!(v.fast_ctx < v.eval_ctx);
         assert!(v.usable_ctx >= v.fast_ctx);
     }

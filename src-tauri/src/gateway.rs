@@ -8,15 +8,12 @@
 //! It reuses the brain's routing (router + resolver) but deliberately does NOT
 //! run the tool loop: clients run their own loop (the standard OpenAI contract),
 //! which keeps LlamaRanch a serving layer, not an agent harness.
-use crate::brain::gate::EmbedGate;
 use crate::brain::resolver::{DefaultResolver, Resolver};
-use crate::brain::router::DefaultRouter;
-use crate::brain::{Category, ModelLite, Router, RouterClassifier, TurnContext};
+use crate::brain::{Category, ModelLite, Router, TurnContext};
 use crate::commands::AppConfig;
-use crate::{scanner, server};
+use crate::server;
 use serde_json::Value;
 use std::io::Read;
-use std::path::Path;
 use std::time::Duration;
 use tauri::{AppHandle, Manager, Runtime};
 use tiny_http::{Header, Method, Response};
@@ -176,16 +173,12 @@ fn handle_models<R: Runtime>(req: tiny_http::Request, app: &AppHandle<R>) {
     let url = format!("http://127.0.0.1:{}/v1/models", router_port(app));
     match ureq::get(&url).timeout(Duration::from_secs(15)).call() {
         Ok(resp) => stream_response(req, resp, None),
-        Err(ureq::Error::Status(_, resp)) => stream_response_from_string(req, resp),
+        // Pass a non-2xx upstream response (an error body) through with its status.
+        Err(ureq::Error::Status(_, resp)) => stream_response(req, resp, None),
         Err(e) => {
             let _ = req.respond(json_error(502, &format!("router unreachable: {e}")));
         }
     }
-}
-
-/// Pass a non-2xx upstream response (an error body) through with its status.
-fn stream_response_from_string(req: tiny_http::Request, resp: ureq::Response) {
-    stream_response(req, resp, None);
 }
 
 /// Largest request body we will read. Generous for long-context chats, but a
@@ -206,38 +199,37 @@ fn handle_chat<R: Runtime>(mut req: tiny_http::Request, app: &AppHandle<R>) {
         }
     };
 
-    let (router_port, models_dir, general, embedding) = {
-        let c = app.state::<AppConfig>();
-        let c = c.0.lock().unwrap();
-        (c.port, c.models_dir.clone(), c.general_model.clone(), c.embedding_model.clone())
-    };
-
-    let installed: Vec<ModelLite> = scanner::scan(Path::new(&models_dir))
-        .into_iter()
-        .map(|m| ModelLite { id: m.id, group: m.group })
-        .collect();
-    let loaded: Vec<String> = server::list_models(router_port)
-        .into_iter()
-        .filter(|m| m.status == "loaded" || m.status == "sleeping")
-        .map(|m| m.id)
-        .collect();
-
-    let gate_state = app.state::<crate::brain::gate::GateCache>();
-    let router = DefaultRouter {
-        gate: EmbedGate::new(router_port, embedding, gate_state.inner()),
-        classifier: RouterClassifier { port: router_port, model: general },
-    };
-    let resolver = DefaultResolver;
-
+    let router_port = app.state::<AppConfig>().0.lock().unwrap().port;
     let requested = body.get("model").and_then(|m| m.as_str()).map(str::to_string);
-    let (target, routed, group) =
+
+    // A concrete model id needs no routing, so skip the disk scan, the models
+    // HTTP call, and the router build entirely; only the routing path pays for them.
+    let is_passthrough = requested
+        .as_deref()
+        .map(|m| !is_auto(Some(m)) && explicit_category(m).is_none())
+        .unwrap_or(false);
+
+    let (target, routed, group) = if is_passthrough {
+        (requested.clone().unwrap(), false, String::new())
+    } else {
+        let (models_dir, general, embedding) = {
+            let c = app.state::<AppConfig>();
+            let c = c.0.lock().unwrap();
+            (c.models_dir.clone(), c.general_model.clone(), c.embedding_model.clone())
+        };
+        let installed = crate::brain::installed_models(&models_dir);
+        let loaded = crate::brain::loaded_ids(router_port);
+        let gate_state = app.state::<crate::brain::gate::GateCache>();
+        let router = crate::brain::build_router(router_port, embedding, general, gate_state.inner());
+        let resolver = DefaultResolver;
         match choose_target(&body, requested.as_deref(), &router, &resolver, &installed, &loaded) {
             Ok(t) => t,
             Err(e) => {
                 let _ = req.respond(json_error(503, &e));
                 return;
             }
-        };
+        }
+    };
 
     // Record routed picks (not passthrough concrete ids) for the Activity view.
     if routed {

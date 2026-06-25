@@ -8,33 +8,11 @@ use crate::hardware::{GpuKind, Hardware};
 
 const MIB: u64 = 1024 * 1024;
 
-/// KV-cache element width. `F16` is llama.cpp's default; `Q8_0` is what the
-/// router actually runs (server.rs), halving KV memory at no measurable quality
-/// cost. We surface both so the saving is legible rather than a black box.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum CacheType {
-    F16,
-    Q8_0,
-}
-
-impl CacheType {
-    pub fn label(&self) -> &'static str {
-        match self {
-            CacheType::F16 => "f16",
-            CacheType::Q8_0 => "q8_0",
-        }
-    }
-}
-
-/// Bytes of KV cache for one token at a given cache type. There are
-/// `2 * n_layers * n_kv_heads * head_dim` cached scalars per token (K and V);
-/// f16 spends 2 bytes each, q8_0 one.
-pub fn kv_bytes_per_token(info: &GgufInfo, cache: CacheType) -> u64 {
-    let scalars = 2 * info.n_layers as u64 * info.n_kv_heads as u64 * info.head_dim as u64;
-    match cache {
-        CacheType::F16 => scalars * 2,
-        CacheType::Q8_0 => scalars,
-    }
+/// Bytes of KV cache per token at the serving cache type (q8_0, what the router
+/// actually runs). Exactly half the f16 size that `gguf` computes, so the KV
+/// formula lives in one place.
+pub fn kv_bytes_per_token_q8(info: &GgufInfo) -> u64 {
+    crate::gguf::kv_bytes_per_token(info) / 2
 }
 
 /// The memory-relevant shape of a model: weight bytes (the on-disk GGUF size is
@@ -170,19 +148,10 @@ mod tests {
     }
 
     #[test]
-    fn kv_f16_matches_legacy() {
-        // The f16 result must equal the original gguf helper (back-compat).
+    fn kv_q8_is_half_of_gguf_f16() {
+        // The serving (q8_0) cost is exactly half the f16 size gguf reports.
         let i = info();
-        assert_eq!(kv_bytes_per_token(&i, CacheType::F16), crate::gguf::kv_bytes_per_token(&i));
-    }
-
-    #[test]
-    fn kv_q8_is_half_of_f16() {
-        let i = info();
-        assert_eq!(
-            kv_bytes_per_token(&i, CacheType::Q8_0) * 2,
-            kv_bytes_per_token(&i, CacheType::F16)
-        );
+        assert_eq!(kv_bytes_per_token_q8(&i) * 2, crate::gguf::kv_bytes_per_token(&i));
     }
 
     fn mem() -> ModelMem {
