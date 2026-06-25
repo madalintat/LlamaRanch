@@ -170,43 +170,9 @@ fn default_server_bin() -> String {
     discover_server_bin()
 }
 
-/// Total physical RAM in bytes, per-OS, std only. None if detection fails.
+/// Total physical RAM in bytes. Single source of truth lives in `hardware`.
 fn total_ram_bytes() -> Option<u64> {
-    #[cfg(target_os = "macos")]
-    {
-        let out = std::process::Command::new("sysctl")
-            .args(["-n", "hw.memsize"])
-            .output()
-            .ok()?;
-        String::from_utf8_lossy(&out.stdout).trim().parse().ok()
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let txt = std::fs::read_to_string("/proc/meminfo").ok()?;
-        for line in txt.lines() {
-            if let Some(rest) = line.strip_prefix("MemTotal:") {
-                let kb: u64 = rest.trim().trim_end_matches("kB").trim().parse().ok()?;
-                return Some(kb * 1024);
-            }
-        }
-        None
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let out = std::process::Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory",
-            ])
-            .output()
-            .ok()?;
-        String::from_utf8_lossy(&out.stdout).trim().parse().ok()
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
-    {
-        None
-    }
+    crate::hardware::total_ram_bytes()
 }
 
 /// How many models to keep resident by default, from total RAM:

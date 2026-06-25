@@ -1,6 +1,8 @@
 mod brain;
 mod catalog;
 mod config;
+mod fit;
+mod hardware;
 mod scanner;
 mod launch;
 mod searxng;
@@ -73,6 +75,7 @@ pub fn run() {
             commands::cancel_download,
             commands::delete_model,
             commands::model_info,
+            commands::fit_estimate,
             commands::set_model_config,
             commands::list_tools,
             commands::websearch_status,
