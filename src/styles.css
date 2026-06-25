@@ -408,6 +408,26 @@ html, body {
 .cfg-rel__dot--ok { background: var(--ink); }
 .cfg-rel__dot--bad { background: var(--error); }
 
+/* Activity view: a routing summary, per-model counts, and the recent feed. */
+.s-act-summary { margin-bottom: 10px; }
+.s-act-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 0;
+}
+.s-act-count { color: var(--muted); }
+.s-act-recent-label { margin-top: 12px; }
+.s-act-recent { margin-top: 4px; }
+.s-act-line {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 1px 0;
+}
+.s-act-cat { font-family: var(--mono); color: var(--ink); }
+.s-act-src { font-family: var(--mono); font-size: 9px; opacity: 0.7; }
+
 .cfg-expander__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

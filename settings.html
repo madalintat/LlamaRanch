@@ -22,6 +22,7 @@
         <button class="tab tab--active" id="s-tab-general">General</button>
         <button class="tab" id="s-tab-tools">Tools</button>
         <button class="tab" id="s-tab-server">Server</button>
+        <button class="tab" id="s-tab-activity">Activity</button>
       </div>
 
       <div class="s-body">
@@ -222,6 +223,12 @@
             <input type="checkbox" id="s-autostart" class="s-hidden-check" />
           </div>
 
+        </section>
+
+        <!-- ── PANEL: Activity ───────────────────────────────────── -->
+        <section class="s-section s-panel s-panel--hidden" id="s-panel-activity">
+          <div class="s-section__label label">Activity</div>
+          <div id="s-activity"></div>
         </section>
 
         <div class="error hidden" id="s-error"></div>

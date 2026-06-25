@@ -23,10 +23,10 @@ const fit = () => fitWindow(440, 640);
 // transparent, acrylic-blurred window on macOS can glitch the compositor.)
 
 // ── Settings tab switching ────────────────────────────────────────
-type SettingsTab = "general" | "tools" | "server";
+type SettingsTab = "general" | "tools" | "server" | "activity";
 
 function switchTab(tab: SettingsTab) {
-  const tabs: SettingsTab[] = ["general", "tools", "server"];
+  const tabs: SettingsTab[] = ["general", "tools", "server", "activity"];
   tabs.forEach((t) => {
     const btn = document.getElementById(`s-tab-${t}`)!;
     const panel = document.getElementById(`s-panel-${t}`)!;
@@ -34,12 +34,53 @@ function switchTab(tab: SettingsTab) {
     btn.classList.toggle("tab--active", active);
     panel.classList.toggle("s-panel--hidden", !active);
   });
+  if (tab === "activity") void renderActivity(); // re-fetch when opened
   fit();
 }
 
 document.getElementById("s-tab-general")?.addEventListener("click", () => switchTab("general"));
 document.getElementById("s-tab-tools")?.addEventListener("click", () => switchTab("tools"));
 document.getElementById("s-tab-server")?.addEventListener("click", () => switchTab("server"));
+document.getElementById("s-tab-activity")?.addEventListener("click", () => switchTab("activity"));
+
+// ── Activity view ─────────────────────────────────────────────────
+type ActModel = { model: string; count: number };
+type ActSummary = { total: number; via_gateway: number; via_chat: number; per_model: ActModel[] };
+type ActEvent = { seq: number; model: string; category: string; via_gateway: boolean };
+type ActivityData = { summary: ActSummary; recent: ActEvent[] };
+
+async function renderActivity() {
+  const host = document.getElementById("s-activity");
+  if (!host) return;
+  let data: ActivityData;
+  try {
+    data = await invoke<ActivityData>("recent_activity");
+  } catch {
+    host.innerHTML = `<div class="meta">Activity is unavailable right now.</div>`;
+    return;
+  }
+  const s = data.summary;
+  if (!s.total) {
+    host.innerHTML = `<div class="meta">No routing yet. Chat or the gateway will fill this in.</div>`;
+    fit();
+    return;
+  }
+  const perModel = s.per_model
+    .map((m) => `<div class="s-act-row"><span>${m.model}</span><span class="s-act-count">${m.count}</span></div>`)
+    .join("");
+  const recent = data.recent
+    .map(
+      (e) =>
+        `<div class="s-act-line"><span class="s-act-cat">${e.category}</span> ${e.model} <span class="s-act-src">${e.via_gateway ? "gateway" : "chat"}</span></div>`,
+    )
+    .join("");
+  host.innerHTML =
+    `<div class="s-act-summary meta">${s.total} routes · ${s.via_gateway} via gateway · ${s.via_chat} in chat</div>` +
+    `<div class="s-act-models">${perModel}</div>` +
+    `<div class="s-section__label label s-act-recent-label">Recent</div>` +
+    `<div class="s-act-recent">${recent}</div>`;
+  fit();
+}
 
 // ── Theme segmented control ───────────────────────────────────────
 
