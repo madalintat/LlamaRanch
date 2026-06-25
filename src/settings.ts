@@ -112,6 +112,14 @@ function bindToggle(toggleId: string, checkId: string, ledId: string) {
 const setExpose    = bindToggle("s-expose-toggle",    "s-expose",    "s-expose-led");
 const setAutostart = bindToggle("s-autostart-toggle", "s-autostart", "s-autostart-led");
 const setOffline   = bindToggle("s-offline-toggle",   "s-offline",   "s-offline-led");
+const setGateway   = bindToggle("s-gw-toggle",        "s-gw",        "s-gw-led");
+
+// Keep the read-only endpoint field showing the address apps should point at.
+function syncGatewayEndpoint() {
+  const port = Number($("s-gw-port").value) || 2277;
+  $("s-gw-endpoint").value = `http://127.0.0.1:${port}/v1`;
+}
+$("s-gw-port").addEventListener("input", syncGatewayEndpoint);
 
 // Full-row click forwarding: let any part of the toggle row trigger the pill
 document.getElementById("s-expose-row")?.addEventListener("click", (e) => {
@@ -122,6 +130,9 @@ document.getElementById("s-autostart-row")?.addEventListener("click", (e) => {
 });
 document.getElementById("s-offline-row")?.addEventListener("click", (e) => {
   if (!(e.target as HTMLElement).closest(".toggle")) document.getElementById("s-offline-toggle")!.click();
+});
+document.getElementById("s-gw-row")?.addEventListener("click", (e) => {
+  if (!(e.target as HTMLElement).closest(".toggle")) document.getElementById("s-gw-toggle")!.click();
 });
 
 function renderTools(tools: ToolInfo[]) {
@@ -716,6 +727,9 @@ async function load() {
   $("s-hf").value = cfg.hf_token ?? "";
   setExpose(cfg.expose_to_network);
   setOffline(cfg.offline_mode ?? false);
+  setGateway(cfg.gateway_enabled ?? true);
+  $("s-gw-port").value = String(cfg.gateway_port ?? 2277);
+  syncGatewayEndpoint();
   ($("s-searxng") as HTMLInputElement).value = cfg.searxng_url ?? "";
   void renderWebSearch();
   allowedDirs = (cfg.allowed_dirs ?? []) as string[];
@@ -792,6 +806,8 @@ async function save() {
         hf_token: $("s-hf").value.trim(),
         expose_to_network: $("s-expose").checked,
         offline_mode: $("s-offline").checked,
+        gateway_enabled: $("s-gw").checked,
+        gateway_port: Number($("s-gw-port").value) || 2277,
         searxng_url,
         allowed_dirs,
       },

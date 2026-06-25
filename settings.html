@@ -176,6 +176,28 @@
             <input id="s-hf" class="field" type="password" placeholder="hf_..." />
           </label>
 
+          <!-- Gateway: one OpenAI endpoint anything can point at -->
+          <div class="s-section__label label">Gateway</div>
+          <div class="s-toggle-row" id="s-gw-row">
+            <span class="led led--idle" id="s-gw-led"></span>
+            <div class="s-toggle-row__body">
+              <div class="s-toggle-row__name">Smart-routing gateway</div>
+              <div class="s-toggle-row__sub meta">One OpenAI-compatible endpoint any app can use. Send model:auto and it picks the best local expert. Applies on restart.</div>
+            </div>
+            <div class="toggle toggle--off" id="s-gw-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
+            <input type="checkbox" id="s-gw" class="s-hidden-check" />
+          </div>
+          <div class="s-field-row s-field-row--2up">
+            <label class="s-field-wrap">
+              <span class="label s-field-wrap__label">Gateway port</span>
+              <input id="s-gw-port" class="field" type="number" min="1" max="65535" step="1" />
+            </label>
+            <label class="s-field-wrap s-field-wrap--grow">
+              <span class="label s-field-wrap__label">Endpoint (point any app here)</span>
+              <input id="s-gw-endpoint" class="field" type="text" readonly />
+            </label>
+          </div>
+
           <!-- Expose to network -->
           <div class="s-toggle-row" id="s-expose-row">
             <span class="led led--idle" id="s-expose-led"></span>
