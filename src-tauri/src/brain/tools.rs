@@ -144,10 +144,16 @@ pub struct ToolRegistry {
 }
 
 impl ToolRegistry {
+    /// A deterministic, offline tool set (clock + calculator). Used by the
+    /// reliability eval so scores are reproducible and need no network or files.
+    pub fn local_only() -> Self {
+        ToolRegistry { tools: vec![Box::new(Clock), Box::new(Calculator)] }
+    }
+
     /// Minimal registry used by existing tests (no I/O tools).
     #[cfg(test)]
     pub fn with_defaults() -> Self {
-        ToolRegistry { tools: vec![Box::new(Clock), Box::new(Calculator)] }
+        Self::local_only()
     }
 
     /// Full registry built from app config.

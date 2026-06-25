@@ -1,6 +1,7 @@
 mod brain;
 mod catalog;
 mod config;
+mod eval;
 mod fit;
 mod gateway;
 mod hardware;
@@ -77,6 +78,7 @@ pub fn run() {
             commands::delete_model,
             commands::model_info,
             commands::fit_estimate,
+            commands::eval_tool_reliability,
             commands::set_model_config,
             commands::list_tools,
             commands::websearch_status,

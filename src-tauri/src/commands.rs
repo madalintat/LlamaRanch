@@ -1048,6 +1048,24 @@ pub fn fit_estimate(model_id: String, ctx_size: Option<u32>, cfg: State<AppConfi
     build_fit_view(&m, native_ctx, eval_ctx, kv_per_token_f16, &hw)
 }
 
+/// Run the tool-calling reliability eval for a model and return its report.
+/// Ensures the model is loaded, then runs the curated cases off the UI thread
+/// (each case is a separate inference call, so this takes a few seconds).
+#[tauri::command]
+pub async fn eval_tool_reliability(
+    model_id: String,
+    cfg: State<'_, AppConfig>,
+) -> Result<crate::eval::ReliabilityReport, String> {
+    let port = cfg.0.lock().unwrap().port;
+    tauri::async_runtime::spawn_blocking(move || {
+        // Best-effort load; a failed load surfaces as failing cases, not a panic.
+        let _ = server::load(port, &model_id);
+        crate::eval::run_eval(port, &model_id)
+    })
+    .await
+    .map_err(|e| format!("eval task failed: {e}"))
+}
+
 #[tauri::command]
 pub fn set_model_config(
     model_id: String,
