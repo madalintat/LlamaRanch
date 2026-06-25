@@ -33,19 +33,24 @@ impl Telemetry {
     /// Record one routing decision. Never fails a turn: the JSONL append is
     /// best-effort and the in-memory ring is trimmed to `CAP`.
     pub fn record(&self, model: &str, category: &str, via_gateway: bool) {
-        let mut g = self.0.lock().unwrap();
-        g.seq += 1;
-        let ev = RouteEvent {
-            seq: g.seq,
-            model: model.to_string(),
-            category: category.to_string(),
-            via_gateway,
+        // Build and store under the lock, then write the log line after releasing
+        // it, so a slow disk never stalls routing or the Activity snapshot.
+        let ev = {
+            let mut g = self.0.lock().unwrap();
+            g.seq += 1;
+            let ev = RouteEvent {
+                seq: g.seq,
+                model: model.to_string(),
+                category: category.to_string(),
+                via_gateway,
+            };
+            g.ring.push_back(ev.clone());
+            while g.ring.len() > CAP {
+                g.ring.pop_front();
+            }
+            ev
         };
         append_jsonl(&ev);
-        g.ring.push_back(ev);
-        while g.ring.len() > CAP {
-            g.ring.pop_front();
-        }
     }
 
     /// All retained events, oldest first.

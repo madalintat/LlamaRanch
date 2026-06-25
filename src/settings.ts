@@ -10,7 +10,7 @@ import {
   isEnabled as autoIsEnabled,
 } from "@tauri-apps/plugin-autostart";
 import { saveTheme, getStoredTheme, type Theme } from "./brand/theme.ts";
-import { basename } from "./paths.ts";
+import { basename, escapeHtml } from "./paths.ts";
 import "./styles.css";
 
 tagOS(); // match the main window: Linux opaque, macOS/Windows frosted
@@ -66,12 +66,12 @@ async function renderActivity() {
     return;
   }
   const perModel = s.per_model
-    .map((m) => `<div class="s-act-row"><span>${m.model}</span><span class="s-act-count">${m.count}</span></div>`)
+    .map((m) => `<div class="s-act-row"><span>${escapeHtml(m.model)}</span><span class="s-act-count">${m.count}</span></div>`)
     .join("");
   const recent = data.recent
     .map(
       (e) =>
-        `<div class="s-act-line"><span class="s-act-cat">${e.category}</span> ${e.model} <span class="s-act-src">${e.via_gateway ? "gateway" : "chat"}</span></div>`,
+        `<div class="s-act-line"><span class="s-act-cat">${escapeHtml(e.category)}</span> ${escapeHtml(e.model)} <span class="s-act-src">${e.via_gateway ? "gateway" : "chat"}</span></div>`,
     )
     .join("");
   host.innerHTML =

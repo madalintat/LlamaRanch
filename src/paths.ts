@@ -2,6 +2,15 @@
 // Settings file-access chips, so a path renders the same everywhere. These are
 // purely lexical (they never touch the filesystem) and handle both `/` and `\`.
 
+/** Escape a string for safe interpolation into innerHTML. Model ids derive from
+ *  on-disk filenames, so they are untrusted and must be escaped before rendering. */
+export function escapeHtml(s: string): string {
+  return s.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
+  );
+}
+
 /** Last path segment (the file or folder name), trailing slashes ignored. */
 export function basename(p: string): string {
   const parts = p.replace(/[/\\]+$/, "").split(/[/\\]/).filter(Boolean);

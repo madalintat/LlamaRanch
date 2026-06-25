@@ -15,6 +15,7 @@ use crate::brain::{Category, ModelLite, Router, RouterClassifier, TurnContext};
 use crate::commands::AppConfig;
 use crate::{scanner, server};
 use serde_json::Value;
+use std::io::Read;
 use std::path::Path;
 use std::time::Duration;
 use tauri::{AppHandle, Manager, Runtime};
@@ -187,9 +188,13 @@ fn stream_response_from_string(req: tiny_http::Request, resp: ureq::Response) {
     stream_response(req, resp, None);
 }
 
+/// Largest request body we will read. Generous for long-context chats, but a
+/// hard ceiling so a runaway or hostile client cannot exhaust memory.
+const MAX_BODY_BYTES: u64 = 32 * 1024 * 1024;
+
 fn handle_chat<R: Runtime>(mut req: tiny_http::Request, app: &AppHandle<R>) {
     let mut body_str = String::new();
-    if req.as_reader().read_to_string(&mut body_str).is_err() {
+    if req.as_reader().take(MAX_BODY_BYTES).read_to_string(&mut body_str).is_err() {
         let _ = req.respond(json_error(400, "could not read request body"));
         return;
     }

@@ -17,6 +17,7 @@ import { mountDither, Dither } from "./dither";
 import llamaMark from "./assets/llama.svg";
 import { tagOS, fitWindow } from "./platform";
 import { prettyName } from "./pretty";
+import { escapeHtml } from "./paths.ts";
 
 tagOS();
 
@@ -89,7 +90,7 @@ function relCls(verdict: string): string {
 function renderRel(r: RelReport): string {
   const dots = r.cases
     .map((c) => {
-      const tip = `${c.id}: ${c.detail}`.replace(/"/g, "'");
+      const tip = escapeHtml(`${c.id}: ${c.detail}`);
       return `<span class="cfg-rel__dot cfg-rel__dot--${c.passed ? "ok" : "bad"}" title="${tip}"></span>`;
     })
     .join("");
