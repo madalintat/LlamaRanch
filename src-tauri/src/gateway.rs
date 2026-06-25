@@ -225,7 +225,7 @@ fn handle_chat<R: Runtime>(mut req: tiny_http::Request, app: &AppHandle<R>) {
     let resolver = DefaultResolver;
 
     let requested = body.get("model").and_then(|m| m.as_str()).map(str::to_string);
-    let (target, routed, _group) =
+    let (target, routed, group) =
         match choose_target(&body, requested.as_deref(), &router, &resolver, &installed, &loaded) {
             Ok(t) => t,
             Err(e) => {
@@ -233,6 +233,11 @@ fn handle_chat<R: Runtime>(mut req: tiny_http::Request, app: &AppHandle<R>) {
                 return;
             }
         };
+
+    // Record routed picks (not passthrough concrete ids) for the Activity view.
+    if routed {
+        app.state::<crate::telemetry::Telemetry>().record(&target, &group, true);
+    }
 
     // Rewrite the model and ensure it is loaded before forwarding (smart load).
     body["model"] = Value::String(target.clone());

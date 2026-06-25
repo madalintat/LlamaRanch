@@ -365,6 +365,11 @@ pub fn chat_send<R: Runtime>(
             explicit_model,
             &registry,
             move |ev| {
+                // Record the one routing decision per turn for the Activity view.
+                if let BrainEvent::Routed { model_id, category, .. } = &ev {
+                    app2.state::<crate::telemetry::Telemetry>()
+                        .record(model_id, category.group(), false);
+                }
                 let _ = app2.emit("chat:event", serde_json::json!({ "session": sid, "event": ev }));
             });
 

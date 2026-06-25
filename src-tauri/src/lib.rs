@@ -9,6 +9,7 @@ mod scanner;
 mod launch;
 mod searxng;
 mod server;
+mod telemetry;
 mod commands;
 mod gguf;
 
@@ -59,6 +60,7 @@ pub fn run() {
         .manage(brain::Sessions::default())
         .manage(brain::pool::Pool::default())
         .manage(brain::gate::GateCache::default())
+        .manage(telemetry::Telemetry::default())
         .manage(LastHide::default())
         .invoke_handler(tauri::generate_handler![
             commands::list_models,
@@ -79,6 +81,7 @@ pub fn run() {
             commands::model_info,
             commands::fit_estimate,
             commands::eval_tool_reliability,
+            commands::recent_activity,
             commands::set_model_config,
             commands::list_tools,
             commands::websearch_status,

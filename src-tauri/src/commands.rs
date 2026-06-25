@@ -1133,6 +1133,16 @@ pub fn set_shortcuts(
     Ok(())
 }
 
+/// Recent routing activity: the rolled-up summary plus the last 20 decisions
+/// (newest first), for the Activity view.
+#[tauri::command]
+pub fn recent_activity(tel: State<crate::telemetry::Telemetry>) -> serde_json::Value {
+    let events = tel.snapshot();
+    let summary = crate::telemetry::summarize(&events);
+    let recent: Vec<_> = events.iter().rev().take(20).cloned().collect();
+    serde_json::json!({ "summary": summary, "recent": recent })
+}
+
 #[tauri::command]
 pub fn llama_cpp_version(cfg: State<AppConfig>) -> String {
     let bin = cfg.0.lock().unwrap().server_bin.clone();
