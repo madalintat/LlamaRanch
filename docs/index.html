@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LlamaRanch · A quiet ranch for your local models</title>
-  <meta name="description" content="Every llama.cpp model on your machine, in one tray, behind a single private endpoint. No cloud. No keys. Nothing leaves the valley." />
+  <meta name="description" content="The calm front for llama.cpp. One private endpoint, the right model saddled and warm, privacy you can watch, and the plain truth about what running local costs you. Nothing leaves the valley." />
   <link rel="icon" href="assets/llama.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -40,7 +40,7 @@
       />
       <div class="hero-content">
         <h1 class="hero-headline">A quiet ranch for your local models.</h1>
-        <p class="hero-body">Every llama.cpp model on your machine, in one tray, behind a single private endpoint. No cloud. No keys. Nothing leaves the valley.</p>
+        <p class="hero-body">The calm front for llama.cpp. The right model saddled and warm, fit to your machine, behind one private endpoint. Privacy you can watch. The plain truth about what running local costs you. Nothing leaves the valley.</p>
         <div class="hero-install">
           <div class="install-cmd">
             <span class="install-prompt">$</span>
@@ -81,14 +81,36 @@
     <!-- ── dither divider ── -->
     <div class="dither-divider" aria-hidden="true"></div>
 
-    <!-- ── THE AGENT ── -->
-    <section class="agent-section" id="agent">
+    <!-- ── THE THREE PILLARS ── -->
+    <section class="features" id="features">
+      <div class="feature" data-reveal>
+        <div class="feature-num">01</div>
+        <div class="feature-title">Power, kept quiet</div>
+        <p class="feature-body">Every model fit to your machine and saddled before you ask. All of <code class="code-chip">llama.cpp</code>'s power, none of the flags.</p>
+      </div>
+      <div class="feature" data-reveal style="--d:.1s">
+        <div class="feature-num">02</div>
+        <div class="feature-title">Privacy you can watch</div>
+        <p class="feature-body"><code class="code-chip">LOCAL</code> / <code class="code-chip">ONLINE</code> / <code class="code-chip">OFF</code> on everything, a square LED that proves home, and one switch that closes every gate.</p>
+      </div>
+      <div class="feature" data-reveal style="--d:.2s">
+        <div class="feature-num">03</div>
+        <div class="feature-title">The truth about your models</div>
+        <p class="feature-body">Quant Truth measures how much sharpness each size really lost, on your machine, and names the sweet spot.</p>
+      </div>
+    </section>
+
+    <!-- ── dither divider ── -->
+    <div class="dither-divider" aria-hidden="true"></div>
+
+    <!-- ── THE SHOWROOM ── -->
+    <section class="agent-section" id="showroom">
       <div class="agent-cols">
         <!-- LEFT col -->
         <div class="agent-left">
-          <div class="section-eyebrow" data-reveal data-reveal-rule>THE AGENT</div>
-          <h2 class="section-headline" data-reveal style="--d:.08s">More than a model server.</h2>
-          <p class="section-body" data-reveal style="--d:.16s">It reads each task, sends it to the local model that suits it, and hot-swaps experts to fit your memory. When it needs the web or a file, it reaches for a tool. Everything stays local-first.</p>
+          <div class="section-eyebrow" data-reveal data-reveal-rule>THE SHOWROOM</div>
+          <h2 class="section-headline" data-reveal style="--d:.08s">See the ranch ride.</h2>
+          <p class="section-body" data-reveal style="--d:.16s">The built-in chat is the proof the ground is good. It reads each task, hands it to the model that suits it, hot-swaps experts to fit your memory, and shows every choice out loud. When it needs the web or a file, it reaches for a tool. Everything stays local-first.</p>
           <div class="agent-led-tags" data-reveal style="--d:.22s">
             <span class="agent-tag agent-tag-local">
               <span class="agent-led agent-led-filled" aria-hidden="true"></span>
@@ -105,31 +127,12 @@
           <div class="agent-shot-frame">
             <img
               src="assets/shot-chat.png"
-              alt="LlamaRanch chat agent UI with rail, conversation, and privacy panel"
+              alt="LlamaRanch chat showroom with rail, conversation, and privacy panel"
               class="agent-shot"
               loading="lazy"
             />
           </div>
         </div>
-      </div>
-    </section>
-
-    <!-- ── FEATURES ── -->
-    <section class="features" id="features">
-      <div class="feature" data-reveal>
-        <div class="feature-num">01</div>
-        <div class="feature-title">Hardware aware</div>
-        <p class="feature-body">llama.cpp's <code class="code-chip">--fit</code> sizes layers and context to the memory you actually have.</p>
-      </div>
-      <div class="feature" data-reveal style="--d:.1s">
-        <div class="feature-num">02</div>
-        <div class="feature-title">One-click serving</div>
-        <p class="feature-body">Models load on demand and unload when idle. One server, switched in a click.</p>
-      </div>
-      <div class="feature" data-reveal style="--d:.2s">
-        <div class="feature-num">03</div>
-        <div class="feature-title">OpenAI compatible</div>
-        <p class="feature-body">Point any client at the local endpoint. A genuine drop-in, no rewrites.</p>
       </div>
     </section>
 
@@ -143,8 +146,8 @@
         <div class="models-left">
           <div class="section-inner">
             <div class="section-eyebrow" data-reveal data-reveal-rule>Models</div>
-            <h2 class="section-headline" data-reveal style="--d:.08s">25+ curated models, hardware-fit.</h2>
-            <p class="section-body" data-reveal style="--d:.16s">One click to download, or drop in any <code class="code-chip">.gguf</code> of your own. LlamaRanch fits layers and context to the memory you have. No config required.</p>
+            <h2 class="section-headline" data-reveal style="--d:.08s">25+ curated models, fit to your machine.</h2>
+            <p class="section-body" data-reveal style="--d:.16s">One click to bring one home, or drop in any <code class="code-chip">.gguf</code> of your own. The ranch sizes layers and context to the memory you have, so you always know what fits before you load it. No config required.</p>
           </div>
           <div class="model-list-header" data-reveal style="--d:.22s">
             <span class="model-tab model-tab-active">INSTALLED</span>
@@ -207,6 +210,70 @@
       </div>
     </section>
 
+    <!-- ── dither divider ── -->
+    <div class="dither-divider" aria-hidden="true"></div>
+
+    <!-- ── QUANT TRUTH ── -->
+    <section class="models-section" id="truth">
+      <div class="models-cols">
+        <!-- LEFT col -->
+        <div class="models-left">
+          <div class="section-inner">
+            <div class="section-eyebrow" data-reveal data-reveal-rule>Quant Truth</div>
+            <h2 class="section-headline" data-reveal style="--d:.08s">Know what you're really riding.</h2>
+            <p class="section-body" data-reveal style="--d:.16s">A local model is a shrunk model, and almost nothing tells you how much sharpness it lost. The ranch measures it, on your own machine, and shows it as a plain grade. It names the sweet spot for your hardware, and when two sizes are too close to call, it says so. Measured once on the night shift, remembered forever.</p>
+          </div>
+          <div class="model-list-header" data-reveal style="--d:.22s">
+            <span class="model-tab model-tab-active">GRADED</span>
+            <span class="model-tab">MEASURE</span>
+            <span class="model-count-chip">&#9645; on your machine</span>
+          </div>
+          <div class="model-list" data-reveal style="--d:.28s">
+            <div class="model-row model-row-serving">
+              <span class="model-num">01</span>
+              <span class="model-name">Qwen3 8B · Q6_K</span>
+              <span class="model-meta">99% sharp</span>
+              <div class="model-tags">
+                <span class="model-tag">SWEET SPOT</span>
+              </div>
+              <span class="model-led model-led-filled" aria-hidden="true"></span>
+            </div>
+            <div class="model-row">
+              <span class="model-num">02</span>
+              <span class="model-name">Qwen3 8B · Q4_K_M</span>
+              <span class="model-meta">96% sharp</span>
+              <div class="model-tags">
+                <span class="model-tag">SOLID</span>
+              </div>
+              <span class="model-led model-led-outline" aria-hidden="true"></span>
+            </div>
+            <div class="model-row">
+              <span class="model-num">03</span>
+              <span class="model-name">Qwen3 8B · Q3_K_S</span>
+              <span class="model-meta">88% sharp</span>
+              <div class="model-tags">
+                <span class="model-tag">DULLS ON CODE</span>
+              </div>
+              <span class="model-led model-led-outline" aria-hidden="true"></span>
+            </div>
+            <div class="model-more">
+              Measured with perplexity, KL-divergence, and top-token agreement against a near-lossless reference.
+            </div>
+          </div>
+        </div>
+        <!-- RIGHT col -->
+        <div class="models-right" data-reveal style="--d:.12s">
+          <div class="models-dot-field" aria-hidden="true"></div>
+          <img
+            src="assets/shot-popover.png"
+            alt="LlamaRanch model detail showing the Quant Truth grade"
+            class="models-shot"
+            loading="lazy"
+          />
+        </div>
+      </div>
+    </section>
+
     <!-- ── ENDPOINT terminal ── -->
     <div class="endpoint" id="install">
       <div class="endpoint-cols">
@@ -214,7 +281,7 @@
         <div class="endpoint-left" data-reveal>
           <div class="section-eyebrow" data-reveal-rule>Endpoint</div>
           <h2 class="endpoint-headline" data-reveal style="--d:.08s">One endpoint. Every client.</h2>
-          <p class="endpoint-tagline" data-reveal style="--d:.14s">Drop the URL into any OpenAI-compatible tool and go.</p>
+          <p class="endpoint-tagline" data-reveal style="--d:.14s">Drop the URL into any OpenAI-compatible tool and ride.</p>
           <ul class="endpoint-clients" data-reveal style="--d:.2s">
             <li>→ Open WebUI</li>
             <li>→ Continue</li>
@@ -256,7 +323,7 @@
       <div class="mission-inner">
         <div class="section-eyebrow" data-reveal>Mission</div>
         <blockquote class="mission-quote" data-reveal style="--d:.1s">Nothing leaves the valley.</blockquote>
-        <p class="mission-body" data-reveal style="--d:.18s">Local-first, private by default, open source (MIT). Your hardware. Your models. No cloud dependency, no telemetry, no account required. LlamaRanch is a quiet place where your data stays yours.</p>
+        <p class="mission-body" data-reveal style="--d:.18s">Local-first, private by default, open source (MIT). Your hardware. Your models. No cloud dependency, no telemetry, no account required. You run the ranch, and the ranch keeps your data yours.</p>
       </div>
     </section>
 
@@ -328,7 +395,7 @@
             <img src="assets/llama.svg" alt="" width="26" height="26" />
             <span class="wordmark">Llama<span>Ranch</span></span>
           </a>
-          <p class="footer-tagline">A quiet ranch for your local models. Load one, chat, and nothing ever leaves the valley.</p>
+          <p class="footer-tagline">A quiet ranch for your local models. The right one saddled and warm, and nothing ever leaves the valley.</p>
         </div>
         <nav class="footer-nav" aria-label="Footer navigation">
           <div>

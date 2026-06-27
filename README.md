@@ -6,7 +6,7 @@
 
 **A quiet ranch for your local models.**
 
-Run AI on your own hardware. One private endpoint. Nothing leaves the valley.
+Power, kept quiet. Privacy you can watch. The truth about your models, on your own machine.
 
 [**Website**](https://madalintat.github.io/LlamaRanch/) &nbsp;·&nbsp; [**Documentation**](https://madalintat.github.io/LlamaRanch/docs/) &nbsp;·&nbsp; [**Download**](https://github.com/madalintat/LlamaRanch/releases/latest) &nbsp;·&nbsp; [**Models on Hugging Face**](https://huggingface.co/models?apps=llama.cpp&sort=trending)
 
@@ -22,61 +22,66 @@ Run AI on your own hardware. One private endpoint. Nothing leaves the valley.
 
 ---
 
-LlamaRanch keeps your [llama.cpp](https://github.com/ggml-org/llama.cpp) models running behind one private, OpenAI-compatible endpoint at `http://127.0.0.1:2276/v1`. Point any app, IDE, or SDK that speaks OpenAI at it and it just works. There's also a built-in chat that picks the right local model for each turn, swaps experts in and out to fit your memory, and reaches for tools when it needs them. None of it leaves your machine.
+LlamaRanch is the calm front for [llama.cpp](https://github.com/ggml-org/llama.cpp). It keeps your local models behind one private endpoint at `http://127.0.0.1:2276/v1`, picks the right model for each job and keeps it warm, sizes every model to the memory you actually have, and tells you the plain truth about what running local costs you. Point any app, IDE, or SDK that speaks OpenAI at the endpoint and it just works. Nothing you say leaves the valley.
 
-## Documentation
-
-Full documentation lives at [**madalintat.github.io/LlamaRanch/docs/**](https://madalintat.github.io/LlamaRanch/docs/). It covers the quick start wizard, manual install, the endpoint API, model management, the chat agent, tools, configuration reference, and roadmap.
+You run the ranch. It does the dirty work.
 
 ## What it is
 
-Two things behind one tray icon. A model server that runs many GGUF models on a single endpoint, and an agent on top of it that routes, loads, and calls tools for you. Local by default, online only when you say so.
+A quiet valley where your models graze as a herd, each one a different animal with its own gait. You walk up, say what you need, and the right one is already saddled and warm. The hard work, fitting models to your machine, sizing context, picking the job's best fit, swapping experts in and out, happens underneath. The surface stays calm. Local by default, online only when you say so.
 
-## Features
+It comes down to three things.
 
-### One private endpoint
+### 1. Power, kept quiet
 
-`http://127.0.0.1:2276/v1` speaks chat completions, embeddings, and model listing. Drop it into Open WebUI, Continue, Zed, Cline, a curl script, or any OpenAI SDK. No keys, no rewrites.
+llama.cpp is a deep, fast engine with a lot of power most tools never surface. LlamaRanch surfaces it and makes the expert calls for you, so you get the good behavior without the flag-wrangling.
 
-### Many models, sized to your machine
+- **One private endpoint.** `http://127.0.0.1:2276/v1` speaks chat completions, embeddings, and model listing. Drop it into Open WebUI, Continue, Zed, Cline, a curl script, or any OpenAI SDK. No keys, no rewrites.
+- **The right model for the job, saddled and warm.** The ranch reads each task and hands it to the model that suits it, keeping a small general model warm so the first token comes fast, and hot-swapping experts so a modest machine carries more than it should.
+- **Fit to your machine.** Every model is sized to the memory you actually have, with a running estimate so you always know what fits before you load it. No layers to guess, no context to tune by hand.
+- **Many models, one server.** Run more than one at a time. Models load when asked and unload when idle.
 
-Run more than one model at a time. LlamaRanch uses llama.cpp's `--fit` to size GPU layers and context to the memory you actually have, so there's nothing to tune by hand. Models load when asked and unload when idle.
+### 2. Privacy you can watch
 
-### Routing and hot-swap
+Local-first is only worth something if you can trust it. So the ranch shows you.
 
-The chat reads each task and hands it to the model that suits it (general, code, reasoning, or vision), swapping experts in and out so even a modest machine keeps up. A small general model stays warm, so the first token comes fast. Want to drive? Pin any model yourself with ⌘K.
+- Every model, tool, and connector wears a **LOCAL / ONLINE / OFF** tag. No guessing where your words go.
+- A square status LED tells you, at a glance, that a model is saddled and home.
+- One **Offline** switch closes every gate to the outside at once.
+- No account, no telemetry, no cloud dependency. Nothing leaves the valley.
 
-### Per-model config
+### 3. The truth about your models
 
-Context length and sampling live per model, with a running memory estimate as you change them. You always know what fits before you load it.
+When you run a local model you run a shrunk version of it (a quantization). Smaller fits your machine, but it loses a little sharpness, and almost nothing tells you how much. The ranch measures it.
 
-### A chat agent with tools
+- **Quant Truth.** On your own machine, the ranch measures how much sharpness a given size actually lost, and shows it as a plain grade.
+- **The sweet spot for your hardware:** the lightest size that still rides true.
+- **Honest about its own limits.** When two sizes are genuinely too close to call, it says so instead of pretending.
+- Measured once, on the night shift, remembered forever, never in your way. New animals you bring yourself get measured in the background, or you can ask for it with one button.
 
-A sandboxed, local-first tool loop:
+## The endpoint
 
-| Tool | What it does | Privacy |
-|------|--------------|---------|
-| `read_file` | Reads files from folders you've allowed | LOCAL |
-| `web_fetch` | Fetches a URL, with private-network access blocked | ONLINE |
-| `web_search` | Searches through your own SearXNG instance | ONLINE (opt-in, off by default) |
+One quiet address any client can ride.
 
-A privacy panel spells out which tool is LOCAL and which is ONLINE. One Offline switch cuts every tool off the internet at once.
+```sh
+# list the models on the ranch
+curl http://127.0.0.1:2276/v1/models
 
-### Web search
+# chat
+curl http://127.0.0.1:2276/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Qwen3-4B-Q4_K_M","messages":[{"role":"user","content":"Hello"}]}'
+```
 
-Private web search runs through SearXNG, a self-hosted metasearch engine, so the agent searches the internet from one local endpoint with no API key and nothing routed through a third party. Setup is one command, `npx @llamaranch/wizard websearch`, which needs Docker or Podman installed. It writes a loopback-only SearXNG, enables the JSON format, turns the limiter off, verifies it, and points LlamaRanch at it. The app starts the container when it launches and stops it when you quit. The config lives in `~/.llamaranch/searxng/` and is yours to edit, and if you already run your own SearXNG you can point at it under Settings, Tools, SearXNG URL.
+Full API reference: [llama-server docs](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md).
 
-### ⌘K command bar
+## A real catalog
 
-Switch models from anywhere in the app, mid-conversation or mid-task.
+25+ curated GGUF models, picked to fit common hardware, one click to bring one home (add a Hugging Face token for gated repos). Drop your own `.gguf` into the models folder and it wanders in on its own.
 
-### A real catalog
+## A design of its own
 
-25+ curated GGUF models, picked to fit common hardware, one click to download (add a Hugging Face token for gated repos). Drop your own `.gguf` into the models folder and it shows up on its own.
-
-### A design of its own
-
-Warm paper and ink, a live "dither" texture, light and dark that follow your system, and three bundled typefaces (Newsreader, Instrument Sans, JetBrains Mono). All offline. No web fonts, nothing phones home.
+Warm paper and ink, a live dither texture, square status LEDs, light and dark that follow your system, and three bundled typefaces (Newsreader, Instrument Sans, JetBrains Mono). All offline. No web fonts, nothing phones home.
 
 ## Platforms
 
@@ -96,7 +101,7 @@ Every platform is first class and updates itself in place (see [Updating](#updat
 npx @llamaranch/wizard
 ```
 
-Runs on macOS, Linux, and Windows. The wizard detects your hardware, installs llama.cpp with the right backend, suggests and downloads models that fit your memory, writes your config, and installs the LlamaRanch app. When it finishes, open the app and everything is ready. If a step can't run on its own (no Homebrew, an odd distro), it tells you exactly what to do by hand. Want it headless on a server? `npx @llamaranch/wizard serve` starts the endpoint straight from the terminal.
+Runs on macOS, Linux, and Windows. The wizard reads your hardware, installs llama.cpp with the right backend, suggests and downloads models that fit your memory, writes your config, and installs the LlamaRanch app. When it finishes, open the app and everything is ready. If a step can't run on its own (no Homebrew, an odd distro), it tells you exactly what to do by hand. Want it headless on a server? `npx @llamaranch/wizard serve` starts the endpoint straight from the terminal.
 
 ### By hand
 
@@ -105,7 +110,7 @@ Grab your build from [**Releases**](https://github.com/madalintat/LlamaRanch/rel
 - **macOS:** `brew install llama.cpp`
 - **Linux / Windows:** a prebuilt from [llama.cpp Releases](https://github.com/ggml-org/llama.cpp/releases/latest) (CPU, CUDA, Vulkan, Metal)
 
-First run finds `llama-server` on your PATH. Open the tray popover, pick a model from the catalog (or drop in a `.gguf`), load it, and start chatting.
+First run finds `llama-server` on your PATH. Open the tray popover, bring a model home from the catalog (or drop in a `.gguf`), saddle it, and start riding.
 
 ## Updating
 
@@ -125,43 +130,36 @@ Every update is checked against the signing key, so a tampered build won't insta
 
 ## How it works
 
-One `llama-server` does the inference; LlamaRanch drives it. The chat (the "brain") owns the model lifecycle (load, unload, hot-swap) and runs the tool loop locally, trimming old tool output before it reaches the model so long sessions stay sharp. Nothing is relayed to an outside service.
-
-```sh
-# list loaded models
-curl http://127.0.0.1:2276/v1/models
-
-# chat
-curl http://127.0.0.1:2276/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"Qwen3-4B-Q4_K_M","messages":[{"role":"user","content":"Hello"}]}'
-```
-
-Full API reference: [llama-server docs](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md).
+One `llama-server` does the inference; LlamaRanch drives it. The ranch owns the model lifecycle (load, unload, hot-swap), sizes each model to your memory, and keeps the right one warm so the first token comes fast. The built-in chat is the showroom: it proves the endpoint is good by routing the right model, reaching for tools when it needs them, and showing every choice out loud. Nothing is relayed to an outside service.
 
 ## Privacy
 
-Local by default, full stop. Every tool wears a LOCAL or ONLINE tag in the privacy panel. Flip Offline mode and no tool can touch the internet. The switch is always one click away.
+Local by default, full stop. Every tool wears a LOCAL or ONLINE tag. Flip Offline mode and no tool can touch the internet. The switch is always one click away. No account, no telemetry, nothing leaves the valley.
 
 ## Roadmap
 
 **Shipped**
 
 - macOS, Linux, and Windows apps, all first class
-- Multiple models loaded at once
+- One private OpenAI-compatible endpoint for every local model
+- Multiple models loaded at once, fit to your machine
+- Job-to-model routing, a warm pool, and hot-swap
 - Per-model context and sampling
-- Unified model management and a 25+ model catalog
-- ARM64 builds (Linux and Windows on Arm)
-- A whole-app brand redesign
-- A chat agent: expert routing, hot-swap, a sandboxed tool loop, and observation masking
+- A 25+ model catalog and drop-in `.gguf` support
+- Legible privacy: LOCAL / ONLINE / OFF tags and one Offline switch
+- A built-in chat showroom: routing, hot-swap, a sandboxed tool loop
 
-**Next**
+**Now**
 
-- **MCP:** connect external tool servers to the local agent
-- **Knowledge base (RAG):** local embeddings and retrieval
-- **Skills and persistent memory**
-- More web-search providers
-- A local **API gateway**
+- **Quant Truth:** measure on your machine how much sharpness each model size loses, and name the sweet spot
+- **Power surfaced:** guaranteed-valid structured output and auto speculative decoding, set up for you
+- **The Ledger:** a live, honest record that nothing left the valley
+
+**Soon**
+
+- A local RAG stack (embeddings and reranking), wired for you
+- Fill-in-the-middle for code, routed to a fast model
+- More dialects so any agent plugs in
 
 ## Build from source
 
@@ -177,7 +175,7 @@ npm run tauri build    # production build
 
 ## Credits
 
-Built on [llama.cpp](https://github.com/ggml-org/llama.cpp) by ggml-org, the project that makes local inference fast. Kin to their macOS app, [Llama](https://github.com/ggml-org/Llama-macOS).
+Built on [llama.cpp](https://github.com/ggml-org/llama.cpp) by ggml-org, the project that makes local inference fast. Kin to their macOS app, [Llama](https://github.com/ggml-org/Llama-macOS). The ranch stands on their shoulders, with thanks.
 
 Fonts: [Newsreader](https://fonts.google.com/specimen/Newsreader), [Instrument Sans](https://fonts.google.com/specimen/Instrument+Sans), [JetBrains Mono](https://www.jetbrains.com/legalnotices/jetbrains_mono/), all bundled and offline.
 

@@ -60,34 +60,41 @@ why the brand is already right.
 
 You are the owner, not the laborer. Every llama is fit and ready.
 
-## How we build it
+## The three pillars
 
 We do not reinvent the engine. llama.cpp is the engine and it is excellent. We
-build the **judgment layer** on top of it:
+build the **judgment layer** on top of it, and it comes down to three things.
 
-1. **Read the model, read the machine, decide fit.** Set it up to fit and run
-   fast. No flags, no guessing.
-2. **One open address anything can use.** A single local, OpenAI-compatible
-   endpoint, so our own chat plus Cursor, Zed, scripts, and other agents all plug
-   in and get the smart behavior for free.
-3. **Tool calls that do not break.** Measure which models are dependable for
-   agent work, so you can trust them.
-4. **Smart loading and swapping.** A modest machine feels bigger than it is.
-5. **Measure everything.** Decisions get smarter with real data instead of
-   guesses.
+1. **Power, kept quiet.** All of llama.cpp's depth surfaced and the expert calls
+   made for you: the right model fit to your machine and saddled before you ask,
+   warm pools and hot-swap, one open OpenAI-compatible address anything can ride,
+   and the hard things (guaranteed-valid structured output, speculative decoding)
+   set up so they just work.
+2. **Privacy you can watch.** Local-first is only worth something if you can
+   trust it, so we show it: a LOCAL / ONLINE / OFF tag on every model, tool, and
+   connector, a square LED that proves home, a live Ledger, and one switch that
+   closes every gate. Nothing leaves the valley, and you can see it.
+3. **The truth about your models.** A local model is a shrunk model, and almost
+   nothing tells you how much sharpness it lost. Quant Truth measures it on your
+   own machine, names the sweet spot for your hardware, and is honest about its
+   own limits.
 
-Build on llama.cpp, add judgment, stay open, stay local. That is the how.
+Build on llama.cpp, add judgment, stay open, stay local, show the work. That is
+the how.
 
 ## What we are NOT
 
-- **Not a Hermes competitor.** Hermes (Nous) is the assistant that grows with
-  you. We are the ground it stands on. Hermes should run better pointed at
-  LlamaRanch than at anything else. We make the endpoint, not the companion.
-- **Not a throughput engine.** vLLM-style multi-tenant serving solves a problem
-  single-user local use does not have. Our edge is latency and "it just works,"
-  not requests per second.
-- **Not a pretty wrapper.** Ollama and LM Studio own convenience. We win on
-  control and correctness for people who want the herd managed well. The
+- **Not an agent harness.** Cursor, Cline, Zed, and the rest already ride well.
+  We are the ranch they come to, not another rider. Our own chat is the showroom
+  that proves the ground is good, not the product.
+- **Not a companion.** An assistant that grows with you is someone else's job. We
+  are the ground it stands on, and it should run better pointed at LlamaRanch
+  than at anything else. We make the endpoint, not the companion.
+- **Not a throughput engine.** Multi-tenant serving solves a problem single-user
+  local use does not have. Our edge is latency and "it just works," not requests
+  per second.
+- **Not a pretty wrapper.** Convenience is table stakes. We win on control,
+  correctness, and honesty for people who want the herd managed well. The
   interface is calm; the engineering underneath is the point.
 
 ## The vibe and the brand
@@ -121,10 +128,11 @@ anywhere.** The valley stays quiet. The llamas just got a real ranch hand.
 
 Same purpose getting deeper over time, not a pile of unrelated features.
 
-- **Now:** fit (does it fit, make it fit) and the open endpoint (use it
-  anywhere).
-- **Soon:** reliability scores per model, smart swapping, knowing your specific
-  herd.
+- **Now:** the three pillars made real. Power surfaced (structured output,
+  speculative decoding, warm swap), privacy you can watch (the live Ledger), and
+  Quant Truth measured on your own machine.
+- **Soon:** a local RAG stack (embeddings and reranking) wired for you,
+  fill-in-the-middle for code, and more dialects so any agent plugs in.
 - **Later:** become the substrate every local-AI app rides into (expose the ranch
   over MCP too), auto-pick the fast engine on Mac, and the shared ranch (one
   machine in a home or studio, everyone's apps plug in).
