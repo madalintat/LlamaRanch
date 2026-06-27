@@ -452,7 +452,23 @@ html, body {
   margin-left: auto;
 }
 
-/* Activity view: a routing summary, per-model counts, and the recent feed. */
+/* Activity view: the proof-of-local ledger, a routing summary, per-model counts,
+   and the recent feed. */
+.s-act-ledger {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 0 9px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line-4);
+}
+.s-act-ledger__text { font-size: 11px; color: var(--ink); }
+.s-act-ledger__count {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  margin-left: auto;
+}
 .s-act-summary { margin-bottom: 10px; }
 .s-act-row {
   display: flex;

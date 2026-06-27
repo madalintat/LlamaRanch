@@ -1117,7 +1117,9 @@ pub fn recent_activity(tel: State<crate::telemetry::Telemetry>) -> serde_json::V
     let events = tel.snapshot();
     let summary = crate::telemetry::summarize(&events);
     let recent: Vec<_> = events.iter().rev().take(20).cloned().collect();
-    serde_json::json!({ "summary": summary, "recent": recent })
+    let tools = tel.tool_snapshot();
+    let ledger = crate::telemetry::ledger(&events, &tools);
+    serde_json::json!({ "summary": summary, "recent": recent, "ledger": ledger })
 }
 
 #[tauri::command]

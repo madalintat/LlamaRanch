@@ -47,7 +47,26 @@ document.getElementById("s-tab-activity")?.addEventListener("click", () => switc
 type ActModel = { model: string; count: number };
 type ActSummary = { total: number; via_gateway: number; via_chat: number; per_model: ActModel[] };
 type ActEvent = { seq: number; model: string; category: string; via_gateway: boolean };
-type ActivityData = { summary: ActSummary; recent: ActEvent[] };
+type ActOnline = { seq: number; name: string; scope: string; ok: boolean };
+type LedgerData = { local_actions: number; online_actions: number; stayed_local: boolean; recent_online: ActOnline[] };
+type ActivityData = { summary: ActSummary; recent: ActEvent[]; ledger: LedgerData };
+
+// The proof-of-local banner: a green light and "nothing left the valley" when no
+// online tool ran, otherwise an honest count of what reached the internet.
+function renderLedger(lg: LedgerData | undefined): string {
+  if (!lg) return "";
+  const ledCls = lg.stayed_local ? "led--on" : "led--idle";
+  const text = lg.stayed_local
+    ? "Nothing left the valley"
+    : `${lg.online_actions} action${lg.online_actions === 1 ? "" : "s"} reached the internet`;
+  return (
+    `<div class="s-act-ledger">` +
+      `<span class="led ${ledCls}"></span>` +
+      `<span class="s-act-ledger__text">${text}</span>` +
+      `<span class="s-act-ledger__count">${lg.local_actions} local</span>` +
+    `</div>`
+  );
+}
 
 async function renderActivity() {
   const host = document.getElementById("s-activity");
@@ -59,9 +78,10 @@ async function renderActivity() {
     host.innerHTML = `<div class="meta">Activity is unavailable right now.</div>`;
     return;
   }
+  const ledgerHtml = renderLedger(data.ledger);
   const s = data.summary;
   if (!s.total) {
-    host.innerHTML = `<div class="meta">No routing yet. Chat or the gateway will fill this in.</div>`;
+    host.innerHTML = ledgerHtml + `<div class="meta">No routing yet. Chat or the gateway will fill this in.</div>`;
     fit();
     return;
   }
@@ -75,6 +95,7 @@ async function renderActivity() {
     )
     .join("");
   host.innerHTML =
+    ledgerHtml +
     `<div class="s-act-summary meta">${s.total} routes · ${s.via_gateway} via gateway · ${s.via_chat} in chat</div>` +
     `<div class="s-act-models">${perModel}</div>` +
     `<div class="s-section__label label s-act-recent-label">Recent</div>` +

@@ -336,6 +336,16 @@ pub fn chat_cancel(_session_id: String) {
     // (the UI hides the stop button). Real cancellation is a Phase-2 concern.
 }
 
+/// Privacy scope of a tool by name for the Ledger: the two web tools reach the
+/// internet; everything else stays on the machine. Mirrors the LOCAL / ONLINE
+/// tags in the privacy panel.
+fn tool_scope(name: &str) -> &'static str {
+    match name {
+        "web_fetch" | "web_search" => "online",
+        _ => "local",
+    }
+}
+
 #[tauri::command]
 pub fn chat_send<R: Runtime>(
     session_id: String,
@@ -386,10 +396,14 @@ pub fn chat_send<R: Runtime>(
             explicit_model,
             &registry,
             move |ev| {
+                let tel = app2.state::<crate::telemetry::Telemetry>();
                 // Record the one routing decision per turn for the Activity view.
                 if let BrainEvent::Routed { model_id, category, .. } = &ev {
-                    app2.state::<crate::telemetry::Telemetry>()
-                        .record(model_id, category.group(), false);
+                    tel.record(model_id, category.group(), false);
+                }
+                // Record each tool run with its privacy scope for the Ledger.
+                if let BrainEvent::ToolResult { name, ok, .. } = &ev {
+                    tel.record_tool(name, tool_scope(name), *ok);
                 }
                 let _ = app2.emit("chat:event", serde_json::json!({ "session": sid, "event": ev }));
             });

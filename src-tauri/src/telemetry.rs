@@ -16,10 +16,21 @@ pub struct RouteEvent {
     pub via_gateway: bool,
 }
 
+/// One tool run, with its privacy scope. The only actions that can leave the
+/// machine are online tools, so these are what the Ledger watches.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ToolEvent {
+    pub seq: u64,
+    pub name: String,
+    pub scope: String, // "local" | "online"
+    pub ok: bool,
+}
+
 #[derive(Default)]
 struct Inner {
     seq: u64,
     ring: VecDeque<RouteEvent>,
+    tool_ring: VecDeque<ToolEvent>,
 }
 
 /// Managed telemetry state. Recording holds the lock only briefly.
@@ -57,6 +68,26 @@ impl Telemetry {
     pub fn snapshot(&self) -> Vec<RouteEvent> {
         self.0.lock().unwrap().ring.iter().cloned().collect()
     }
+
+    /// Record one tool run with its privacy scope. Best-effort, like `record`.
+    pub fn record_tool(&self, name: &str, scope: &str, ok: bool) {
+        let ev = {
+            let mut g = self.0.lock().unwrap();
+            g.seq += 1;
+            let ev = ToolEvent { seq: g.seq, name: name.to_string(), scope: scope.to_string(), ok };
+            g.tool_ring.push_back(ev.clone());
+            while g.tool_ring.len() > CAP {
+                g.tool_ring.pop_front();
+            }
+            ev
+        };
+        append_tool_jsonl(&ev);
+    }
+
+    /// All retained tool runs, oldest first.
+    pub fn tool_snapshot(&self) -> Vec<ToolEvent> {
+        self.0.lock().unwrap().tool_ring.iter().cloned().collect()
+    }
 }
 
 /// Append one event as a JSON line to `activity.jsonl` beside the config. Best
@@ -64,6 +95,20 @@ impl Telemetry {
 fn append_jsonl(ev: &RouteEvent) {
     let path = match crate::config::config_path().parent() {
         Some(dir) => dir.join("activity.jsonl"),
+        None => return,
+    };
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        if let Ok(line) = serde_json::to_string(ev) {
+            let _ = writeln!(f, "{line}");
+        }
+    }
+}
+
+/// Append one tool event as a JSON line to `valley.jsonl` beside the config.
+/// Best effort: any IO error is swallowed so telemetry never disrupts a turn.
+fn append_tool_jsonl(ev: &ToolEvent) {
+    let path = match crate::config::config_path().parent() {
+        Some(dir) => dir.join("valley.jsonl"),
         None => return,
     };
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
@@ -109,6 +154,32 @@ pub fn summarize(events: &[RouteEvent]) -> Summary {
     Summary { total, via_gateway, via_chat: total - via_gateway, per_model }
 }
 
+/// The proof-of-local ledger: how many actions stayed home, how many reached the
+/// internet (only online tools can), and whether nothing left the valley at all.
+#[derive(Debug, Clone, PartialEq, Serialize, Default)]
+pub struct Ledger {
+    pub local_actions: u32,
+    pub online_actions: u32,
+    pub stayed_local: bool,
+    pub recent_online: Vec<ToolEvent>,
+}
+
+/// Build the ledger from routing and tool history. Every inference is local (the
+/// router is loopback); only online tools can leave the valley. Newest online
+/// actions first, for transparency. Pure.
+pub fn ledger(routes: &[RouteEvent], tools: &[ToolEvent]) -> Ledger {
+    let local_tools = tools.iter().filter(|t| t.scope == "local").count() as u32;
+    let online: Vec<&ToolEvent> = tools.iter().filter(|t| t.scope == "online").collect();
+    let online_actions = online.len() as u32;
+    let recent_online: Vec<ToolEvent> = online.into_iter().rev().take(10).cloned().collect();
+    Ledger {
+        local_actions: routes.len() as u32 + local_tools,
+        online_actions,
+        stayed_local: online_actions == 0,
+        recent_online,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,5 +216,55 @@ mod tests {
     fn summarize_empty_is_zeroed() {
         let s = summarize(&[]);
         assert_eq!(s, Summary::default());
+    }
+
+    fn route(seq: u64) -> RouteEvent {
+        RouteEvent { seq, model: "g".into(), category: "chat".into(), via_gateway: false }
+    }
+    fn tool(seq: u64, name: &str, scope: &str) -> ToolEvent {
+        ToolEvent { seq, name: name.into(), scope: scope.into(), ok: true }
+    }
+
+    #[test]
+    fn ledger_stays_local_with_no_online_tools() {
+        let l = ledger(&[route(1)], &[tool(2, "read_file", "local")]);
+        assert_eq!(l.local_actions, 2); // one inference + one local tool
+        assert_eq!(l.online_actions, 0);
+        assert!(l.stayed_local);
+        assert!(l.recent_online.is_empty());
+    }
+
+    #[test]
+    fn ledger_flags_online_actions_newest_first() {
+        let tools = vec![
+            tool(1, "web_fetch", "online"),
+            tool(2, "read_file", "local"),
+            tool(3, "web_search", "online"),
+        ];
+        let l = ledger(&[], &tools);
+        assert_eq!(l.online_actions, 2);
+        assert!(!l.stayed_local);
+        assert_eq!(l.local_actions, 1); // the one local tool
+        assert_eq!(l.recent_online[0].name, "web_search"); // newest first
+        assert_eq!(l.recent_online[1].name, "web_fetch");
+    }
+
+    #[test]
+    fn ledger_empty_is_local() {
+        let l = ledger(&[], &[]);
+        assert!(l.stayed_local);
+        assert_eq!(l.local_actions, 0);
+    }
+
+    #[test]
+    fn record_tool_trims_and_snapshots() {
+        let t = Telemetry::default();
+        t.record_tool("read_file", "local", true);
+        t.record_tool("web_fetch", "online", false);
+        let snap = t.tool_snapshot();
+        assert_eq!(snap.len(), 2);
+        assert_eq!(snap[1].name, "web_fetch");
+        assert_eq!(snap[1].scope, "online");
+        assert!(!snap[1].ok);
     }
 }
