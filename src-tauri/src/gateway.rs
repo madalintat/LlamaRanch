@@ -44,6 +44,29 @@ pub fn explicit_category(model: &str) -> Option<Category> {
     }
 }
 
+/// Detect whether a chat request asks for constrained/structured output, and of
+/// what kind ("grammar" | "json_schema" | "json_object"). llama.cpp enforces
+/// these by masking invalid tokens during sampling, so a request carrying one
+/// gets guaranteed-valid output; the gateway forwards it untouched and reports
+/// the kind back in a header. Pure.
+pub fn wants_structured(body: &Value) -> Option<&'static str> {
+    if body.get("grammar").map(|g| !g.is_null()).unwrap_or(false) {
+        return Some("grammar");
+    }
+    if body.get("json_schema").map(|g| !g.is_null()).unwrap_or(false) {
+        return Some("json_schema");
+    }
+    match body
+        .get("response_format")
+        .and_then(|r| r.get("type"))
+        .and_then(|t| t.as_str())
+    {
+        Some("json_schema") => Some("json_schema"),
+        Some("json_object") => Some("json_object"),
+        _ => None,
+    }
+}
+
 /// Pull the routing context from an OpenAI request body: the last user message's
 /// text, and whether it carries an image (a multimodal content array). Mirrors
 /// the signals the in-app chat passes to the router.
@@ -147,7 +170,12 @@ fn router_port<R: Runtime>(app: &AppHandle<R>) -> u16 {
 /// Stream an upstream `ureq` response back to the client verbatim (chunked, so
 /// SSE streams flow through token by token), copying the content type and adding
 /// CORS plus, when routing chose the model, the `X-LlamaRanch-Model` header.
-fn stream_response(req: tiny_http::Request, resp: ureq::Response, chosen_model: Option<&str>) {
+fn stream_response(
+    req: tiny_http::Request,
+    resp: ureq::Response,
+    chosen_model: Option<&str>,
+    structured: Option<&str>,
+) {
     let status = resp.status();
     let ctype = resp
         .header("Content-Type")
@@ -157,6 +185,9 @@ fn stream_response(req: tiny_http::Request, resp: ureq::Response, chosen_model: 
     headers.extend(cors_headers());
     if let Some(m) = chosen_model {
         headers.push(header("X-LlamaRanch-Model", m));
+    }
+    if let Some(s) = structured {
+        headers.push(header("X-LlamaRanch-Structured", s));
     }
     let reader = resp.into_reader();
     let response = Response::new(
@@ -172,9 +203,9 @@ fn stream_response(req: tiny_http::Request, resp: ureq::Response, chosen_model: 
 fn handle_models<R: Runtime>(req: tiny_http::Request, app: &AppHandle<R>) {
     let url = format!("http://127.0.0.1:{}/v1/models", router_port(app));
     match ureq::get(&url).timeout(Duration::from_secs(15)).call() {
-        Ok(resp) => stream_response(req, resp, None),
+        Ok(resp) => stream_response(req, resp, None, None),
         // Pass a non-2xx upstream response (an error body) through with its status.
-        Err(ureq::Error::Status(_, resp)) => stream_response(req, resp, None),
+        Err(ureq::Error::Status(_, resp)) => stream_response(req, resp, None, None),
         Err(e) => {
             let _ = req.respond(json_error(502, &format!("router unreachable: {e}")));
         }
@@ -244,11 +275,15 @@ fn handle_chat<R: Runtime>(mut req: tiny_http::Request, app: &AppHandle<R>) {
     }
 
     let model_header = if routed { Some(target.as_str()) } else { None };
+    // If the client asked for constrained output (a JSON schema, json_object, or
+    // a raw grammar), llama.cpp enforces it by masking invalid tokens. We forward
+    // the request untouched and confirm the kind back in a header (show the work).
+    let structured = wants_structured(&body);
     let url = format!("http://127.0.0.1:{router_port}/v1/chat/completions");
     match ureq::post(&url).timeout(Duration::from_secs(3600)).send_json(body) {
-        Ok(resp) => stream_response(req, resp, model_header),
+        Ok(resp) => stream_response(req, resp, model_header, structured),
         // Pass the router's own error response (status + body) straight through.
-        Err(ureq::Error::Status(_, resp)) => stream_response(req, resp, model_header),
+        Err(ureq::Error::Status(_, resp)) => stream_response(req, resp, model_header, structured),
         Err(e) => {
             let _ = req.respond(json_error(502, &format!("router error: {e}")));
         }
@@ -407,5 +442,25 @@ mod tests {
         assert!(choose_target(
             &body, Some("auto"), &StubRouter(Category::Code), &DefaultResolver, &[], &[],
         ).is_err());
+    }
+
+    #[test]
+    fn wants_structured_detects_response_format() {
+        let schema = json!({"response_format": {"type": "json_schema", "json_schema": {"name": "x"}}});
+        assert_eq!(wants_structured(&schema), Some("json_schema"));
+        let object = json!({"response_format": {"type": "json_object"}});
+        assert_eq!(wants_structured(&object), Some("json_object"));
+    }
+
+    #[test]
+    fn wants_structured_detects_grammar_and_bare_schema() {
+        assert_eq!(wants_structured(&json!({"grammar": "root ::= \"x\""})), Some("grammar"));
+        assert_eq!(wants_structured(&json!({"json_schema": {"type": "object"}})), Some("json_schema"));
+    }
+
+    #[test]
+    fn wants_structured_none_for_plain_request() {
+        assert_eq!(wants_structured(&json!({"messages": [], "temperature": 0.7})), None);
+        assert_eq!(wants_structured(&json!({"response_format": {"type": "text"}})), None);
     }
 }

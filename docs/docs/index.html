@@ -306,6 +306,9 @@
           </div>
 
           <p class="doc-p">Works with Open WebUI, Continue, Zed, Cline, curl, and any OpenAI SDK. Set the base URL to <span class="chip">http://127.0.0.1:2276/v1</span> and leave the API key blank (or any string).</p>
+
+          <h3 class="doc-h3">Guaranteed-valid structured output</h3>
+          <p class="doc-p">Ask for JSON and you get JSON. Send an OpenAI <span class="chip">response_format</span> (a <span class="chip">json_schema</span> or <span class="chip">json_object</span>), or a raw GBNF <span class="chip">grammar</span>, and llama.cpp enforces it during sampling by masking any token that would break the shape. The request passes through untouched, and the response carries an <span class="chip">X-LlamaRanch-Structured</span> header naming the kind, so your agent never crashes on half-formed JSON.</p>
           <p class="doc-p">By default the server binds <span class="chip">127.0.0.1</span> only. To expose the endpoint to other devices on your network, set <span class="chip">expose_to_network: true</span> in your config. That binds <span class="chip">0.0.0.0</span>. Off by default because the endpoint carries no authentication.</p>
         </section>
 
