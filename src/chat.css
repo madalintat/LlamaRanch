@@ -971,3 +971,83 @@ html[data-theme="light"] .empty-state__dither {
   mix-blend-mode: multiply;
   opacity: .5;
 }
+
+/* ══ CHAT WINDOW — new design reskin ═══════════════════════════════════════
+   CSS-only; chat.html markup + chat.ts wiring untouched. Brings the chat
+   window onto the new system (Bricolage / Hanken / JetBrains, white/black/
+   cool-grey). Matches Full Design §03. */
+body { font-family: 'Hanken Grotesk', system-ui, sans-serif; color: #0d0d0f; background: #fafafb; }
+.serif { font-family: 'Bricolage Grotesque', sans-serif; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+/* titlebar */
+.titlebar { background: #fff; border-bottom: 1px solid #ededf1; }
+.titlebar__model { color: #6b6b73; font-size: 12.5px; }
+.titlebar__led-pill { color: #6b6b73; background: #f4f4f6; border-radius: 999px; padding: 5px 10px; font-size: 11.5px; }
+
+/* layout columns */
+.chat-layout { background: #fafafb; }
+.rail { background: #efeff2; border-right: 1px solid #ededf1; }
+.chat-main { background: #fafafb; }
+.privacy { background: #fff; border-left: 1px solid #ededf1; }
+
+/* serving LCD card */
+.rail__lcd, .lcd { background: #0c0c0e; border-radius: 12px; overflow: hidden; }
+.rail__lcd-name { color: #f4f4f5; font-family: 'Hanken Grotesk', sans-serif; font-weight: 600; font-size: 14px; }
+.rail__lcd-kbd { color: #8a8a92; }
+.rail__lcd-status { color: #b8b8c0; }
+
+/* new chat + section labels + recent + tools */
+.rail__new-chat { background: #fff; border: none; border-radius: 12px; box-shadow: 0 1px 3px rgba(13,13,15,.07); font-family: 'Hanken Grotesk', sans-serif; font-weight: 600; font-size: 13.5px; color: #0d0d0f; cursor: pointer; }
+.rail__new-chat:hover { background: #fafafb; }
+.label, .rail__section-label { font-family: 'Hanken Grotesk', sans-serif; font-size: 12px; color: #a0a0a8; letter-spacing: 0; text-transform: none; }
+.rail__recent-item { font-size: 13.5px; color: #6b6b73; border-radius: 10px; }
+.rail__recent-item--muted { color: #a0a0a8; }
+.rail__tool-name { font-size: 13px; color: #0d0d0f; }
+.rail__tool-tag { color: #a0a0a8; }
+
+/* empty state */
+.empty-state__title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 28px; font-weight: 600; letter-spacing: -.01em; color: #0d0d0f; }
+.empty-state__sub { font-size: 14px; color: #6b6b73; }
+.empty-state__chip { font-family: 'Hanken Grotesk', sans-serif; font-size: 14px; color: #6b6b73; }
+
+/* composer */
+.composer-wrap { background: #fafafb; }
+.composer { background: #fff; border: 1px solid #e6e6eb; border-radius: 14px; box-shadow: 0 1px 3px rgba(13,13,15,.05); }
+.composer__input { font-family: 'Hanken Grotesk', sans-serif; font-size: 14px; color: #0d0d0f; background: transparent; }
+.composer__input::placeholder { color: #a0a0a8; }
+.chip { font-family: 'Hanken Grotesk', sans-serif; font-size: 12px; font-weight: 600; color: #6b6b73; background: #f4f4f6; border-radius: 999px; padding: 6px 12px; }
+.chip--active, .chip.is-active { background: #0d0d0f; color: #fff; }
+.composer__model-pick { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #6b6b73; background: transparent; border: none; }
+.composer__send { background: #0d0d0f; color: #fff; border: none; border-radius: 10px; cursor: pointer; }
+.composer__send:hover { background: #232327; }
+
+/* privacy panel */
+.privacy__title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 17px; font-weight: 600; color: #0d0d0f; }
+.privacy__sub { color: #a0a0a8; }
+.privacy__row { display: flex; align-items: center; gap: 11px; padding: 12px 0; border-top: 1px solid #f0f0f3; }
+.privacy__info { flex: 1; min-width: 0; }
+.privacy__info-name { font-size: 14px; font-weight: 600; color: #0d0d0f; }
+.privacy__info-desc { font-size: 12px; color: #6b6b73; margin-top: 2px; }
+.privacy__row--off { opacity: .55; }
+.privacy__led { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.privacy__led--on { background: #0d0d0f; box-shadow: 0 0 0 4px rgba(13,13,15,.08); }
+.privacy__led--off { border: 1.5px solid #a0a0a8; }
+.privacy__badge { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-weight: 500; color: #6b6b73; background: #f0f0f3; border-radius: 999px; padding: 3px 9px; }
+.privacy__badge--off { color: #a0a0a8; }
+.privacy__offline { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; background: #0c0c0e; color: #f4f4f5; }
+.privacy__offline-name { font-size: 14px; font-weight: 600; }
+.privacy__offline-desc { font-size: 12px; color: #93939b; margin-top: 2px; }
+
+/* shared dots + toggles */
+.led { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #0d0d0f; }
+.led--idle { background: transparent; border: 1.5px solid #c6c6ce; }
+.led--sm { width: 7px; height: 7px; }
+.toggle { width: 42px; height: 24px; border-radius: 999px; background: #0d0d0f; position: relative; border: none; flex: none; cursor: pointer; }
+.toggle::after { content: ""; position: absolute; right: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: all .15s; }
+.toggle--off { background: transparent; border: 1.5px solid #44444c; }
+.toggle--off::after { right: auto; left: 3px; top: 2.5px; width: 17px; height: 17px; background: #5e5e66; }
+
+/* model picker popup */
+.model-popup { background: #fff; border: 1px solid #ededf1; border-radius: 16px; box-shadow: 0 24px 56px rgba(13,13,15,.18); }
+.model-popup__header, .model-popup__footer { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #a0a0a8; }
