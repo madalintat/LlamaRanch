@@ -6,7 +6,9 @@
   <title>LlamaRanch Docs · A quiet ranch for your local models</title>
   <meta name="description" content="Documentation for LlamaRanch: quick start, the private endpoint, model management, model quality, the showroom chat, tools and privacy, configuration, and roadmap." />
   <link rel="icon" href="../assets/llama.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="../style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="docs.css" />
 </head>
 <body>
@@ -322,13 +324,20 @@
           <p class="doc-p">Hardware fit via <span class="chip">--fit</span>: LlamaRanch sizes GPU layers and context to the memory you actually have. No manual tuning. Per-model context length and sampling are adjustable in the model detail view, with a live memory estimate so you know what fits before you load it.</p>
           <p class="doc-p">Run several models at once. Load, unload, and hot-swap from the tray popover or with the in-chat command bar (&#8984;K on macOS).</p>
 
-          <div class="doc-shot-wrap">
-            <img
-              src="../assets/shot-popover.png"
-              alt="LlamaRanch model-selector popover showing installed models with sizes and status LEDs"
-              class="doc-shot"
-              loading="lazy"
-            />
+          <div class="doc-mock">
+            <div class="doc-mock-card">
+              <div class="doc-mock-strip">
+                <img src="../assets/llama.svg" alt="" width="24" height="24" />
+                <span class="doc-mock-name">LlamaRanch</span>
+                <span class="doc-mock-pill"><span class="doc-mock-dot"></span>running</span>
+              </div>
+              <div class="doc-mock-body">
+                <div class="doc-mock-row"><span class="doc-mock-rowdot on"></span><div style="flex:1;"><div class="doc-mock-rowname">Gemma 3 4B</div><div class="doc-mock-rowsub">Serving · 41 tok/s · vision</div></div><span class="doc-mock-act get">Stop</span></div>
+                <div class="doc-mock-row"><span class="doc-mock-rowdot idle"></span><div style="flex:1;"><div class="doc-mock-rowname">Qwen3 8B</div><div class="doc-mock-rowsub">5.0 GB · fits</div></div><span class="doc-mock-act load">Load</span></div>
+                <div class="doc-mock-row"><span class="doc-mock-rowdot cloud"></span><div style="flex:1;"><div class="doc-mock-rowname cloud">Llama 3.2 3B</div><div class="doc-mock-rowsub">cloud · 1.9 GB</div></div><span class="doc-mock-act get">Get</span></div>
+              </div>
+            </div>
+            <div class="doc-mock-caption">The tray popover — load, switch, and discover models.</div>
           </div>
         </section>
 
@@ -352,13 +361,27 @@
           <p class="doc-p">The built-in chat is the showroom: it proves the endpoint is good. It reads each task and routes it to the local model that fits: general, code, reasoning, or vision. It hot-swaps experts to fit available memory, keeping a small general model warm so the first token stays fast, and shows every choice out loud.</p>
           <p class="doc-p">Pin any model yourself mid-conversation with &#8984;K (macOS) or the command bar on other platforms. Long sessions stay sharp via observation masking: old tool output is trimmed before it reaches the model, so context stays useful rather than bloated.</p>
 
-          <div class="doc-shot-wrap">
-            <img
-              src="../assets/shot-chat.png"
-              alt="LlamaRanch chat agent UI with conversation rail and privacy panel"
-              class="doc-shot"
-              loading="lazy"
-            />
+          <div class="doc-mock">
+            <div class="doc-mock-card">
+              <div class="doc-mock-strip">
+                <img src="../assets/llama.svg" alt="" width="24" height="24" />
+                <span class="doc-mock-name" style="font-size:15px;">LlamaRanch</span>
+                <span style="font-family:var(--mono);font-size:12px;color:var(--muted);">· Gemma 3 4B</span>
+                <span class="doc-mock-pill" style="margin-left:auto;"><span class="doc-mock-dot"></span>local · 2 tools</span>
+              </div>
+              <div class="doc-mock-body">
+                <div class="doc-mock-msg"><span>What changed in the llama.cpp server API this month?</span></div>
+                <div class="doc-mock-reply">
+                  <img src="../assets/llama.svg" alt="" width="26" height="26" />
+                  <div style="flex:1;min-width:0;">
+                    <div class="doc-mock-trace"><div>› searching web · "llama.cpp changelog"</div><div class="done">› done — reasoning locally</div></div>
+                    <div class="doc-mock-h">Three notable changes landed this month.</div>
+                    <p style="font-size:13.5px;line-height:1.6;color:#3a3a42;margin:6px 0 0;">The server now exposes <span class="chip">/v1/responses</span> and the KV-cache reuse rewrite is the big throughput win.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="doc-mock-caption">The showroom chat — every choice shown out loud, local-first.</div>
           </div>
         </section>
 
@@ -388,12 +411,12 @@
                 <tr>
                   <td>web_fetch</td>
                   <td>Fetches a URL, private-network access blocked</td>
-                  <td><span class="doc-tag" style="border-color:#c8b98a;color:#7a6840;background:#fdf8ec;">ONLINE</span></td>
+                  <td><span class="doc-tag">ONLINE</span></td>
                 </tr>
                 <tr>
                   <td>web_search</td>
                   <td>Searches via your own SearXNG instance (off until you set a URL)</td>
-                  <td><span class="doc-tag" style="border-color:#c8b98a;color:#7a6840;background:#fdf8ec;">ONLINE</span></td>
+                  <td><span class="doc-tag">ONLINE</span></td>
                 </tr>
               </tbody>
             </table>
@@ -763,8 +786,19 @@ npm run tauri dev">Copy</button>
 
     sections.forEach(function (s) { observer.observe(s); });
   })();
-</script>
 
-<script defer src="../anim.js"></script>
+  // Copy-to-clipboard for code blocks
+  (function () {
+    document.querySelectorAll('.doc-copy-btn[data-copy]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function () {
+          var prev = btn.textContent;
+          btn.textContent = 'Copied';
+          setTimeout(function () { btn.textContent = prev; }, 1200);
+        }).catch(function () {});
+      });
+    });
+  })();
+</script>
 </body>
 </html>
