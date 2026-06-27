@@ -9,6 +9,16 @@ pub trait Tool: Send + Sync {
     fn run(&self, args: &Value) -> Result<String, String>;
 }
 
+/// The privacy scope of a tool by name: the two web tools reach the internet;
+/// everything else stays on the machine. The single source of truth for the
+/// LOCAL / ONLINE tags in the privacy panel and the proof-of-local ledger.
+pub fn scope_of(name: &str) -> &'static str {
+    match name {
+        "web_fetch" | "web_search" => "online",
+        _ => "local",
+    }
+}
+
 // ── SSRF guard ────────────────────────────────────────────────────────────────
 
 /// Returns true for hosts that must never be fetched (SSRF-unsafe).

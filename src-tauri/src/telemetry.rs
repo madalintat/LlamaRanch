@@ -66,7 +66,7 @@ impl Telemetry {
             }
             ev
         };
-        append_jsonl(&ev);
+        append_jsonl("activity.jsonl", &ev);
     }
 
     /// All retained events, oldest first.
@@ -91,7 +91,7 @@ impl Telemetry {
             }
             ev
         };
-        append_tool_jsonl(&ev);
+        append_jsonl("valley.jsonl", &ev);
     }
 
     /// The proof-of-local ledger: monotonic action totals plus the most recent
@@ -110,25 +110,11 @@ impl Telemetry {
     }
 }
 
-/// Append one event as a JSON line to `activity.jsonl` beside the config. Best
-/// effort: any IO error is swallowed so telemetry never disrupts a turn.
-fn append_jsonl(ev: &RouteEvent) {
+/// Append one event as a JSON line to `file` beside the config. Best effort: any
+/// IO error is swallowed so telemetry never disrupts a turn.
+fn append_jsonl<T: Serialize>(file: &str, ev: &T) {
     let path = match crate::config::config_path().parent() {
-        Some(dir) => dir.join("activity.jsonl"),
-        None => return,
-    };
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-        if let Ok(line) = serde_json::to_string(ev) {
-            let _ = writeln!(f, "{line}");
-        }
-    }
-}
-
-/// Append one tool event as a JSON line to `valley.jsonl` beside the config.
-/// Best effort: any IO error is swallowed so telemetry never disrupts a turn.
-fn append_tool_jsonl(ev: &ToolEvent) {
-    let path = match crate::config::config_path().parent() {
-        Some(dir) => dir.join("valley.jsonl"),
+        Some(dir) => dir.join(file),
         None => return,
     };
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {

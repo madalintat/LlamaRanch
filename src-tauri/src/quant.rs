@@ -82,16 +82,13 @@ pub fn base_name(name: &str) -> String {
         s = stripped.to_string();
     }
     if let Some(q) = parse_quant(&s) {
-        // Remove the quant token (and a trailing/leading separator) wherever it sits.
+        // Remove the quant token wherever it sits.
         let up = s.to_ascii_uppercase();
         if let Some(pos) = up.find(&q.label) {
-            let mut out = String::new();
-            out.push_str(&s[..pos]);
-            out.push_str(&s[pos + q.label.len()..]);
-            s = out;
+            s = format!("{}{}", &s[..pos], &s[pos + q.label.len()..]);
         }
     }
-    s.trim_matches(|c: char| c == '-' || c == '_' || c == '.' || c == ' ').to_string()
+    s.trim_matches(['-', '_', '.', ' ']).to_string()
 }
 
 // ── Raw measured metrics ────────────────────────────────────────────────────
@@ -515,28 +512,31 @@ pub fn parse_logprobs(lp: &serde_json::Value) -> Option<Vec<PositionScore>> {
     Some(out)
 }
 
-/// Measure one candidate against the reference across all domains, returning its
-/// per-domain metrics. Returns None if either model fails to score on any domain.
+/// Measure one candidate against pre-scored reference distributions across all
+/// domains, returning its per-domain metrics. The reference is scored once by the
+/// caller and shared, so a model is loaded at most once per measurement instead
+/// of swapped in on every candidate. Returns None if the candidate fails to
+/// score on any domain.
 pub fn measure_candidate(
     port: u16,
     candidate_id: &str,
     reference_id: &str,
+    reference_scores: &BTreeMap<Domain, Vec<PositionScore>>,
 ) -> Option<BTreeMap<Domain, QuantMetrics>> {
     let mut out = BTreeMap::new();
     for d in Domain::all() {
-        let corpus = d.corpus();
-        let cand = score_text(port, candidate_id, corpus)?;
-        // The reference scores itself too; identical id short-circuits to parity.
+        // The reference graded against itself is parity by definition; no rescore.
         let metrics = if candidate_id == reference_id {
             QuantMetrics { kld: 0.0, top1_agreement: 1.0, ppl_ratio: 1.0 }
         } else {
-            let reference = score_text(port, reference_id, corpus)?;
+            let cand = score_text(port, candidate_id, d.corpus())?;
+            let reference = reference_scores.get(d)?;
             let cand_ppl = perplexity(&cand.iter().map(|p| p.logprob_actual).collect::<Vec<_>>());
             let ref_ppl =
                 perplexity(&reference.iter().map(|p| p.logprob_actual).collect::<Vec<_>>());
             QuantMetrics {
-                kld: mean_kld(&cand, &reference),
-                top1_agreement: top1_agreement(&cand, &reference),
+                kld: mean_kld(&cand, reference),
+                top1_agreement: top1_agreement(&cand, reference),
                 ppl_ratio: if ref_ppl > 0.0 { cand_ppl / ref_ppl } else { 1.0 },
             }
         };
@@ -586,9 +586,18 @@ pub fn measure_base(port: u16, models_dir: &str, base: &str) -> Result<QuantRepo
     let reference_id = reference.1.clone();
     let reference_label = reference.0.label.clone();
 
+    // Score the reference once per domain (one model load), then reuse those
+    // distributions for every candidate instead of re-scoring it each time.
+    let mut reference_scores: BTreeMap<Domain, Vec<PositionScore>> = BTreeMap::new();
+    for d in Domain::all() {
+        let s = score_text(port, &reference_id, d.corpus())
+            .ok_or_else(|| format!("could not score reference {reference_id}"))?;
+        reference_scores.insert(*d, s);
+    }
+
     let mut measured = Vec::with_capacity(list.len());
     for (q, id) in list {
-        let by_domain = measure_candidate(port, id, &reference_id)
+        let by_domain = measure_candidate(port, id, &reference_id, &reference_scores)
             .ok_or_else(|| format!("could not score {id} against {reference_id}"))?;
         measured.push((q.clone(), id.clone(), by_domain));
     }

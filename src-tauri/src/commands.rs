@@ -29,21 +29,21 @@ pub fn list_tools(cfg: State<AppConfig>) -> Vec<ToolInfo> {
         ToolInfo {
             name: "get_time".into(),
             label: "Clock".into(),
-            scope: "local".into(),
+            scope: crate::brain::tools::scope_of("get_time").into(),
             enabled: true,
             note: String::new(),
         },
         ToolInfo {
             name: "calculate".into(),
             label: "Calculator".into(),
-            scope: "local".into(),
+            scope: crate::brain::tools::scope_of("calculate").into(),
             enabled: true,
             note: String::new(),
         },
         ToolInfo {
             name: "read_file".into(),
             label: "Filesystem".into(),
-            scope: "local".into(),
+            scope: crate::brain::tools::scope_of("read_file").into(),
             enabled: !c.allowed_dirs.is_empty(),
             note: if c.allowed_dirs.is_empty() {
                 "grant a folder in Settings to enable".into()
@@ -54,14 +54,14 @@ pub fn list_tools(cfg: State<AppConfig>) -> Vec<ToolInfo> {
         ToolInfo {
             name: "web_fetch".into(),
             label: "Web fetch".into(),
-            scope: "online".into(),
+            scope: crate::brain::tools::scope_of("web_fetch").into(),
             enabled: !c.offline_mode,
             note: if c.offline_mode { "offline".into() } else { String::new() },
         },
         ToolInfo {
             name: "web_search".into(),
             label: "Web search".into(),
-            scope: "online".into(),
+            scope: crate::brain::tools::scope_of("web_search").into(),
             enabled: !c.offline_mode && !c.searxng_url.is_empty(),
             note: if c.offline_mode {
                 "offline".into()

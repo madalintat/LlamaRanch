@@ -90,6 +90,14 @@ pub fn preset_for(
 
 // ── Speculative-decoding draft pairing ──────────────────────────────────────
 
+/// A draft must be at most this fraction of the target's parameters. A speculator
+/// only wins if it is several times faster to decode than the model it drafts
+/// for, so anything larger is not worth pairing.
+const DRAFT_MAX_PARAM_RATIO: f32 = 0.4;
+
+/// Characters that separate the tokens of a model name.
+const NAME_SEPARATORS: [char; 3] = ['-', '_', ' '];
+
 /// True for a parameter-size token like "8b", "1.7b", or the MoE form "8x7b".
 fn is_size_token(tok: &str) -> bool {
     let t = tok.trim_end_matches('b');
@@ -106,7 +114,7 @@ fn is_size_token(tok: &str) -> bool {
 pub fn family_key(name: &str) -> String {
     crate::quant::base_name(name)
         .to_lowercase()
-        .split(|c| c == '-' || c == '_' || c == ' ')
+        .split(NAME_SEPARATORS)
         .filter(|tok| !tok.is_empty())
         .filter(|tok| !is_size_token(tok))
         .filter(|tok| !matches!(*tok, "it" | "instruct" | "chat" | "base"))
@@ -117,7 +125,7 @@ pub fn family_key(name: &str) -> String {
 /// Approximate parameter count in billions parsed from a name ("8B" → 8.0,
 /// "1.7B" → 1.7), or None when absent. An MoE "AxB" form returns the product.
 pub fn param_b(name: &str) -> Option<f32> {
-    for tok in name.to_lowercase().split(|c| c == '-' || c == '_' || c == ' ') {
+    for tok in name.to_lowercase().split(NAME_SEPARATORS) {
         if is_size_token(tok) {
             let t = tok.trim_end_matches('b');
             if let Some((a, b)) = t.split_once('x') {
@@ -157,10 +165,10 @@ pub fn pick_draft(target_idx: usize, models: &[Model]) -> Option<usize> {
             continue;
         }
         let Some(b) = param_b(&m.id) else { continue };
-        if b > target_b * 0.4 {
+        if b > target_b * DRAFT_MAX_PARAM_RATIO {
             continue; // not clearly smaller; a draft must be much faster
         }
-        if best.map(|(_, bb)| b < bb).unwrap_or(true) {
+        if best.is_none_or(|(_, bb)| b < bb) {
             best = Some((i, b));
         }
     }
