@@ -119,29 +119,14 @@ function bandCls(band: string): string {
   return band === "rough" ? "error" : band === "soft" ? "warn" : "ok";
 }
 function renderQuality(r: QuantReport): string {
-  if (!r.entries.length) {
-    return `<div class="cfg-fit__detail">no sizes to measure</div>`;
-  }
+  if (!r.entries.length) return `<div class="cfg-note">No sizes to measure.</div>`;
   // A single installed size is its own reference: nothing to measure loss against.
   if (r.entries.length === 1) {
-    return (
-      `<div class="cfg-fit__head">` +
-        `<span class="cfg-fit__led cfg-fit__led--ok"></span>` +
-        `<span class="cfg-fit__word">Quality</span>` +
-        `<span class="cfg-fit__detail">only ${escapeHtml(r.entries[0].quant.label)} installed</span>` +
-      `</div>` +
-      `<div class="cfg-fit__advice">install a higher size to measure the loss</div>`
-    );
+    return `<div class="cfg-note">Only ${escapeHtml(r.entries[0].quant.label)} installed. Add a higher size to measure what you'd lose.</div>`;
   }
-  const head =
-    `<div class="cfg-fit__head">` +
-      `<span class="cfg-fit__led cfg-fit__led--ok"></span>` +
-      `<span class="cfg-fit__word">Quality</span>` +
-      `<span class="cfg-fit__detail">measured vs ${escapeHtml(r.reference)}</span>` +
-    `</div>`;
   const rows = r.entries
     .map((e) => {
-      const notes: string[] = [e.is_reference ? "reference" : escapeHtml(e.band)];
+      const note = e.is_reference ? "reference" : escapeHtml(e.band);
       const sweet =
         r.sweet_spot && e.quant.label === r.sweet_spot
           ? `<span class="cfg-qual__star">sweet spot</span>`
@@ -151,13 +136,16 @@ function renderQuality(r: QuantReport): string {
           `<span class="cfg-fit__led cfg-fit__led--${bandCls(e.band)}"></span>` +
           `<span class="cfg-qual__label">${escapeHtml(e.quant.label)}</span>` +
           `<span class="cfg-qual__pct">${e.is_reference ? "ref" : e.sharpness + "%"}</span>` +
-          `<span class="cfg-qual__note">${notes.join(" · ")}</span>` +
+          `<span class="cfg-qual__note">${note}</span>` +
           sweet +
         `</div>`
       );
     })
     .join("");
-  return head + `<div class="cfg-qual__rows">${rows}</div>`;
+  return (
+    `<div class="cfg-qual__ref">vs ${escapeHtml(r.reference)}, the heaviest you have</div>` +
+    `<div class="cfg-qual__rows">${rows}</div>`
+  );
 }
 
 // which model's expander is open (survives re-renders so polling won't collapse it)
@@ -327,7 +315,7 @@ function renderInstalled() {
       const ph = document.createElement("div");
       ph.className = "cfg-expander";
       ph.id = "cfg-open";
-      ph.innerHTML = `<div class="cfg-expander__label">Loading…</div>`;
+      ph.innerHTML = `<div class="cfg-note">Loading…</div>`;
       host.appendChild(ph);
     }
   });
@@ -438,21 +426,34 @@ async function hydrateCfg(id: string) {
   const ov: ModelOverride = { ...info.override };
   const m = models.find((x) => x.id === id);
   const name = m ? prettyName(m.name || m.id) : id;
+  const grow = () => fitWindow(380);
   host.innerHTML = "";
 
-  // Context tier picker
-  const max = info.native_ctx || 262144;
-  const mem = (ctx: number) =>
-    info.kv_per_token > 0 ? gb(info.file_bytes + ctx * info.kv_per_token) : "n/a";
-  const ctxLabel = document.createElement("div");
-  ctxLabel.className = "cfg-expander__label";
-  ctxLabel.textContent = info.native_ctx ? `Context · max ${tierLabel(info.native_ctx)}` : "Context";
-  host.appendChild(ctxLabel);
+  // Small helper: a titled section with breathing room.
+  const section = (label?: string): HTMLDivElement => {
+    const s = document.createElement("div");
+    s.className = "cfg-sec";
+    if (label) {
+      const l = document.createElement("div");
+      l.className = "cfg-sec__label";
+      l.textContent = label;
+      s.appendChild(l);
+    }
+    host.appendChild(s);
+    return s;
+  };
+  const stillOpen = () => document.getElementById("cfg-open") === host;
 
-  // Fit panel: does this model fit, and how to make it fit, at the chosen context.
-  // Re-queried whenever the context changes, so the verdict tracks the choice.
+  // ── Header: the model's name ──
+  const header = document.createElement("div");
+  header.className = "cfg-head";
+  header.innerHTML = `<span class="cfg-head__name">${escapeHtml(name)}</span>`;
+  host.appendChild(header);
+
+  // ── Fit: does it fit, and how fast, at the chosen context (re-checked on change) ──
   const fit = document.createElement("div");
   fit.className = "cfg-fit";
+  host.appendChild(fit);
   const renderFit = async (ctx: number | null) => {
     let f: ModelFit;
     try {
@@ -461,119 +462,128 @@ async function hydrateCfg(id: string) {
       fit.innerHTML = "";
       return;
     }
-    if (document.getElementById("cfg-open") !== host) return;
+    if (!stillOpen()) return;
     const v = fitVerdict(f);
     fit.innerHTML =
       `<div class="cfg-fit__head">` +
         `<span class="cfg-fit__led cfg-fit__led--${v.cls}"></span>` +
         `<span class="cfg-fit__word">${v.word}</span>` +
-        `<span class="cfg-fit__detail">${v.detail}</span>` +
+        `<span class="cfg-fit__detail">${escapeHtml(v.detail)}</span>` +
       `</div>` +
-      `<div class="cfg-fit__advice">${v.advice}</div>`;
-    fitWindow(360);
+      `<div class="cfg-fit__advice">${escapeHtml(v.advice)}</div>`;
+    grow();
   };
+  renderFit(ov.ctx_size ?? null);
 
+  // ── Quality: the grade for this size against the heaviest you have installed ──
+  const qSec = section("Quality");
+  const qual = document.createElement("div");
+  qual.className = "cfg-qual";
+  qSec.appendChild(qual);
+  const qualBtn = document.createElement("button");
+  qualBtn.className = "ubtn ubtn--bordered cfg-action";
+  qualBtn.textContent = "Measure quality";
+  qSec.appendChild(qualBtn);
+  const showQual = (r: QuantReport) => {
+    if (!stillOpen()) return;
+    qual.innerHTML = renderQuality(r);
+    qualBtn.textContent = "Re-measure";
+    grow();
+  };
+  qualBtn.onclick = async () => {
+    qualBtn.disabled = true;
+    const prev = qualBtn.textContent;
+    qualBtn.textContent = "Measuring…";
+    try {
+      showQual(await invoke<QuantReport>("measure_quality", { modelId: id }));
+    } catch (e) {
+      if (stillOpen()) qual.innerHTML = `<div class="cfg-note">Couldn't measure: ${escapeHtml(String(e))}</div>`;
+    } finally {
+      qualBtn.disabled = false;
+      if (qualBtn.textContent === "Measuring…") qualBtn.textContent = prev || "Measure quality";
+    }
+    grow();
+  };
+  // Show a cached grade instantly if the night shift already measured this family.
+  invoke<QuantReport | null>("quality_report", { modelId: id })
+    .then((r) => { if (r) showQual(r); })
+    .catch(() => {});
+
+  // ── Context: the one prominent control ──
+  const max = info.native_ctx || 262144;
+  const mem = (ctx: number) =>
+    info.kv_per_token > 0 ? gb(info.file_bytes + ctx * info.kv_per_token) : "n/a";
+  const cSec = section(info.native_ctx ? `Context length · up to ${tierLabel(info.native_ctx)}` : "Context length");
   const pills = document.createElement("div");
-  pills.className = "cfg-expander__pills";
+  pills.className = "cfg-pills";
   const mk = (text: string, val: number | null, sub: string) => {
     const b = document.createElement("button");
-    b.className = "cfg-expander__pill" + ((ov.ctx_size ?? null) === val ? " cfg-expander__pill--on" : "");
-    b.innerHTML = `${text}<span class="cfg-expander__sub">${sub}</span>`;
+    b.className = "cfg-pill" + ((ov.ctx_size ?? null) === val ? " cfg-pill--on" : "");
+    b.innerHTML = `${text}<span class="cfg-pill__sub">${sub}</span>`;
     b.onclick = () => {
       ov.ctx_size = val;
-      pills.querySelectorAll(".cfg-expander__pill").forEach((el) => el.classList.remove("cfg-expander__pill--on"));
-      b.classList.add("cfg-expander__pill--on");
+      pills.querySelectorAll(".cfg-pill").forEach((el) => el.classList.remove("cfg-pill--on"));
+      b.classList.add("cfg-pill--on");
       renderFit(val);
     };
     return b;
   };
   pills.appendChild(mk("Auto", null, "fit"));
   for (const t of CTX_TIERS.filter((t) => t <= max)) pills.appendChild(mk(tierLabel(t), t, mem(t)));
-  host.appendChild(pills);
-  host.appendChild(fit);
-  renderFit(ov.ctx_size ?? null);
+  cSec.appendChild(pills);
 
-  // Tool reliability: measure whether this model can be trusted for agent tools.
-  const rel = document.createElement("div");
-  rel.className = "cfg-rel";
-  const relBtn = document.createElement("button");
-  relBtn.className = "ubtn";
-  relBtn.textContent = "test tool reliability";
-  relBtn.onclick = async () => {
-    relBtn.disabled = true;
-    relBtn.textContent = "testing tools…";
-    try {
-      const r = await invoke<RelReport>("eval_tool_reliability", { modelId: id });
-      if (document.getElementById("cfg-open") !== host) return;
-      rel.innerHTML = renderRel(r);
-    } catch (e) {
-      rel.innerHTML = `<div class="cfg-fit__detail">tool test failed: ${String(e)}</div>`;
-    }
-    fitWindow(360);
-  };
-  rel.appendChild(relBtn);
-  host.appendChild(rel);
+  // ── Advanced (folded): sampling + a tool-call check most people never touch ──
+  const adv = document.createElement("details");
+  adv.className = "cfg-adv";
+  adv.innerHTML = `<summary class="cfg-adv__summary">Advanced</summary>`;
+  adv.addEventListener("toggle", grow);
 
-  // Model quality: how much sharpness each installed size keeps, measured here.
-  // A cached grade (from the night shift) shows instantly; the button measures now.
-  const qual = document.createElement("div");
-  qual.className = "cfg-qual";
-  const qualBtn = document.createElement("button");
-  qualBtn.className = "ubtn";
-  qualBtn.textContent = "measure quality";
-  const showQual = (r: QuantReport) => {
-    if (document.getElementById("cfg-open") !== host) return;
-    qual.innerHTML = renderQuality(r);
-    qualBtn.textContent = "re-measure quality";
-    fitWindow(360);
-  };
-  qualBtn.onclick = async () => {
-    qualBtn.disabled = true;
-    qualBtn.textContent = "measuring…";
-    try {
-      const r = await invoke<QuantReport>("measure_quality", { modelId: id });
-      showQual(r);
-    } catch (e) {
-      if (document.getElementById("cfg-open") === host)
-        qual.innerHTML = `<div class="cfg-fit__detail">quality test failed: ${escapeHtml(String(e))}</div>`;
-    } finally {
-      qualBtn.disabled = false;
-      if (qualBtn.textContent === "measuring…") qualBtn.textContent = "measure quality";
-    }
-    fitWindow(360);
-  };
-  host.appendChild(qualBtn);
-  host.appendChild(qual);
-  // Show a cached grade on open, if the night shift already measured this family.
-  invoke<QuantReport | null>("quality_report", { modelId: id })
-    .then((r) => { if (r) showQual(r); })
-    .catch(() => {});
-
-  // Sampling fields
   const fields: [keyof ModelOverride, string][] = [
-    ["temp", "temp"], ["top_p", "top-p"], ["top_k", "top-k"], ["min_p", "min-p"],
-    ["repeat_penalty", "repeat"], ["presence_penalty", "presence"], ["frequency_penalty", "freq"],
+    ["temp", "Temperature"], ["top_p", "Top-p"], ["top_k", "Top-k"], ["min_p", "Min-p"],
+    ["repeat_penalty", "Repeat"], ["presence_penalty", "Presence"], ["frequency_penalty", "Frequency"],
   ];
   const grid = document.createElement("div");
-  grid.className = "cfg-expander__grid";
+  grid.className = "cfg-grid";
   for (const [k, lbl] of fields) {
     const f = document.createElement("label");
-    f.className = "cfg-expander__field";
-    f.innerHTML = `<span>${lbl}</span><input type="number" step="0.05" value="${ov[k] ?? ""}" />`;
+    f.className = "cfg-field";
+    f.innerHTML = `<span>${lbl}</span><input type="number" step="0.05" value="${ov[k] ?? ""}" placeholder="auto" />`;
     const inp = f.querySelector("input") as HTMLInputElement;
     inp.oninput = () => { (ov[k] as number | null) = inp.value === "" ? null : Number(inp.value); };
     grid.appendChild(f);
   }
-  host.appendChild(grid);
+  adv.appendChild(grid);
 
-  // Actions: delete (ghost left) + reset + save (right)
+  const rel = document.createElement("div");
+  rel.className = "cfg-rel";
+  const relBtn = document.createElement("button");
+  relBtn.className = "ubtn cfg-action";
+  relBtn.textContent = "Test tool calls";
+  relBtn.onclick = async () => {
+    relBtn.disabled = true;
+    relBtn.textContent = "Testing…";
+    try {
+      const r = await invoke<RelReport>("eval_tool_reliability", { modelId: id });
+      if (stillOpen()) rel.innerHTML = renderRel(r);
+    } catch (e) {
+      rel.innerHTML = `<div class="cfg-note">Test failed: ${escapeHtml(String(e))}</div>`;
+    } finally {
+      relBtn.disabled = false;
+      if (relBtn.textContent === "Testing…") relBtn.textContent = "Test tool calls";
+    }
+    grow();
+  };
+  rel.appendChild(relBtn);
+  adv.appendChild(rel);
+  host.appendChild(adv);
+
+  // ── Actions: Save / Reset, with Delete a quiet ghost ──
   const actions = document.createElement("div");
-  actions.className = "cfg-expander__actions";
+  actions.className = "cfg-actions";
 
-  // Delete - ghost left
   const delBtn = document.createElement("button");
-  delBtn.className = "ubtn";
-  delBtn.textContent = "delete";
+  delBtn.className = "ubtn cfg-actions__del";
+  delBtn.textContent = "Delete";
   delBtn.onclick = async () => {
     const msg = m?.local
       ? `Delete ${name} from disk?`
@@ -586,12 +596,11 @@ async function hydrateCfg(id: string) {
   };
 
   const right = document.createElement("div");
-  right.style.display = "flex";
-  right.style.gap = "8px";
+  right.className = "cfg-actions__right";
 
   const reset = document.createElement("button");
   reset.className = "ubtn";
-  reset.textContent = "reset";
+  reset.textContent = "Reset";
   reset.onclick = async () => {
     await invoke("set_model_config", { modelId: id, override: {} });
     openCfg = null; await refresh(); startPolling();
@@ -599,7 +608,7 @@ async function hydrateCfg(id: string) {
 
   const save = document.createElement("button");
   save.className = "ubtn ubtn--bordered";
-  save.textContent = "save";
+  save.textContent = "Save";
   save.onclick = async () => {
     await invoke("set_model_config", { modelId: id, override: ov });
     openCfg = null; await refresh(); startPolling();
@@ -609,7 +618,7 @@ async function hydrateCfg(id: string) {
   actions.append(delBtn, right);
   host.appendChild(actions);
 
-  fitWindow(360);
+  grow();
   dither?.refresh();
 }
 
