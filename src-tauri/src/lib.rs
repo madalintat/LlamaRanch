@@ -192,12 +192,15 @@ pub fn run() {
                 std::thread::spawn(move || {
                     std::thread::sleep(Duration::from_secs(90));
                     loop {
-                        let (port, models_dir) = {
+                        let (server_bin, models_dir) = {
                             let state = h.state::<AppConfig>();
                             let c = state.0.lock().unwrap();
-                            (c.port, c.models_dir.clone())
+                            (c.server_bin.clone(), c.models_dir.clone())
                         };
-                        let n = crate::quant::measure_pending(port, &models_dir);
+                        let n = crate::quant::measure_pending(
+                            &crate::quant::perplexity_bin(&server_bin),
+                            &models_dir,
+                        );
                         if n > 0 {
                             eprintln!("llamaranch: measured quality for {n} model(s) on the night shift");
                         }

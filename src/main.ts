@@ -55,7 +55,7 @@ type Quant = { label: string; bpw: number };
 type QuantMetrics = { kld: number; top1_agreement: number; ppl_ratio: number };
 type QuantEntry = {
   quant: Quant; model_id: string; metrics: QuantMetrics;
-  sharpness: number; band: string; dulls_on: string; is_reference: boolean;
+  sharpness: number; band: string; is_reference: boolean;
 };
 type QuantReport = {
   base: string; reference: string; entries: QuantEntry[];
@@ -142,7 +142,6 @@ function renderQuality(r: QuantReport): string {
   const rows = r.entries
     .map((e) => {
       const notes: string[] = [e.is_reference ? "reference" : escapeHtml(e.band)];
-      if (e.dulls_on) notes.push(`dulls on ${escapeHtml(e.dulls_on)}`);
       const sweet =
         r.sweet_spot && e.quant.label === r.sweet_spot
           ? `<span class="cfg-qual__star">sweet spot</span>`

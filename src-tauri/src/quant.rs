@@ -2,22 +2,28 @@
 //! actually lost against a near-lossless reference, and name the sweet spot.
 //!
 //! A local model is a shrunk model. Almost nothing tells you how much it lost,
-//! so people run on forum lore. Here we measure it. The metric math and the
-//! grading are pure and unit-tested; only the calibration pass touches the
-//! router. The honest part: KL-divergence cleanly separates aggressive quants
-//! but goes blind near the reference, so we carry a confidence and say so when
-//! two sizes are genuinely too close to call.
+//! so people run on forum lore. Here we measure it with llama.cpp's own
+//! `llama-perplexity --kl-divergence`, which reports perplexity, KL-divergence,
+//! and top-token agreement against a saved reference. The grading and the
+//! output parser are pure and unit-tested; only the measurement spawns the
+//! binary. The honest part: KL-divergence cleanly separates aggressive quants
+//! but goes blind near the reference, so below a noise floor we call two sizes
+//! the reference's equal rather than inventing a gap.
 use crate::commands::AppConfig;
 use crate::scanner;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::time::Duration;
+use std::process::Command;
 use tauri::State;
 
-/// Bump when the calibration corpora or metric definitions change, so stale
-/// cached reports are recomputed rather than trusted.
-pub const CALIBRATION_VERSION: u32 = 1;
+/// Bump when the calibration corpus, the metric definitions, or the grade
+/// thresholds change, so stale cached reports are recomputed rather than trusted.
+pub const CALIBRATION_VERSION: u32 = 2;
+
+/// Context length for the perplexity pass. One 512-token chunk is enough to
+/// surface drift on the calibration corpus, and keeps the run quick.
+const QUANT_CTX: u32 = 512;
 
 // ── Quant identity ──────────────────────────────────────────────────────────
 
@@ -91,106 +97,43 @@ pub fn base_name(name: &str) -> String {
     s.trim_matches(['-', '_', '.', ' ']).to_string()
 }
 
-// ── Raw measured metrics ────────────────────────────────────────────────────
+// ── Measured metrics ────────────────────────────────────────────────────────
 
-/// What one calibration pass yields for a candidate quant against the reference,
-/// per domain. All three signals point the same way: lower divergence and higher
-/// agreement mean the candidate behaves more like the reference.
+/// The three quality signals `llama-perplexity --kl-divergence` reports for a
+/// candidate against the reference. All point the same way: lower divergence and
+/// higher agreement mean the candidate behaves more like the reference.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct QuantMetrics {
     /// Mean KL-divergence of the candidate from the reference, in nats. ~0 means
     /// indistinguishable; large means the distributions parted ways.
     pub kld: f64,
     /// Fraction of positions where the candidate's top token matched the
-    /// reference's top token. 1.0 is perfect agreement.
+    /// reference's (llama.cpp's "Same top p", as a 0..=1 fraction).
     pub top1_agreement: f64,
-    /// Candidate perplexity divided by reference perplexity. >= ~1.0; higher
-    /// means the candidate is more surprised by the same text.
+    /// Candidate perplexity divided by reference perplexity (llama.cpp's
+    /// "Mean PPL(Q)/PPL(base)"). ~1.0 at parity; higher means more surprised.
     pub ppl_ratio: f64,
 }
 
-/// Below this mean KLD (nats) a candidate is statistically too close to the
-/// reference to call apart. This is the honesty threshold: we refuse to invent a
-/// difference the measurement cannot actually see.
-pub const KLD_INDISTINGUISHABLE: f64 = 0.012;
+// ── Grade thresholds (calibrated to published per-quant KLD/PPL numbers) ─────
+//
+// KLD bands in nats, after smcleod.net's "Measuring Model Quantisation Quality
+// with KL Divergence" and the per-quant perplexity deltas in the community
+// "Q4 vs Q5 vs Q6 vs Q8" quality-loss tables: <1e-3 is indistinguishable from
+// the reference (Q8/Q6 land here), 1e-2 is well-made 5-6 bit, the 4-bit sweet
+// spot (Q4_K_M) sits around 1e-2..3e-2, 3-bit drifts into 3e-2..1e-1, and 2-bit
+// and below exceeds 1e-1 with outputs that obviously differ.
 
-// ── Pure metric math (unit-tested without a model) ──────────────────────────
-
-/// Per-position scoring of a calibration text by one model: for each predicted
-/// position, the token the model actually scored, the log-probability it gave
-/// that token, and its top-k `(token, probability)` distribution.
-#[derive(Clone, Debug, PartialEq)]
-pub struct PositionScore {
-    pub top1: String,
-    pub logprob_actual: f64,
-    pub dist: Vec<(String, f64)>,
-}
-
-/// Perplexity from per-token log-probabilities (natural log): `exp(-mean)`.
-/// Empty input is a perplexity of 1.0 (no surprise to account for).
-pub fn perplexity(logprobs: &[f64]) -> f64 {
-    if logprobs.is_empty() {
-        return 1.0;
-    }
-    let mean = logprobs.iter().sum::<f64>() / logprobs.len() as f64;
-    (-mean).exp()
-}
-
-/// Fraction of positions where the candidate's top token equals the reference's.
-/// Compares up to the shorter length; returns 1.0 when there is nothing to
-/// compare (no evidence of disagreement).
-pub fn top1_agreement(candidate: &[PositionScore], reference: &[PositionScore]) -> f64 {
-    let n = candidate.len().min(reference.len());
-    if n == 0 {
-        return 1.0;
-    }
-    let matches = (0..n).filter(|&i| candidate[i].top1 == reference[i].top1).count();
-    matches as f64 / n as f64
-}
-
-/// Mean KL-divergence D(reference || candidate) over the reference's top-k
-/// support, in nats. The reference distribution is the "truth" we measure drift
-/// from; candidate mass missing under a reference token is floored to `EPS` so a
-/// dropped token registers as large (not infinite) divergence. Renormalizes each
-/// position's reference support so the comparison is a proper distribution.
-pub fn mean_kld(candidate: &[PositionScore], reference: &[PositionScore]) -> f64 {
-    const EPS: f64 = 1e-6;
-    let n = candidate.len().min(reference.len());
-    if n == 0 {
-        return 0.0;
-    }
-    let mut acc = 0.0;
-    for i in 0..n {
-        let cand: BTreeMap<&str, f64> =
-            candidate[i].dist.iter().map(|(t, p)| (t.as_str(), *p)).collect();
-        // Compare both distributions over the reference's top-k support,
-        // renormalizing each by its own mass on that support. Without this the
-        // candidate's truncated top-k (which sums to < 1) would inject a constant
-        // positive divergence floor, so two identical sizes would never read as
-        // "too close to call".
-        let ref_mass: f64 = reference[i].dist.iter().map(|(_, p)| *p).sum();
-        let cand_mass: f64 = reference[i]
-            .dist
-            .iter()
-            .map(|(tok, _)| cand.get(tok.as_str()).copied().unwrap_or(0.0))
-            .sum();
-        if ref_mass <= 0.0 {
-            continue;
-        }
-        let mut kld = 0.0;
-        for (tok, p_raw) in &reference[i].dist {
-            let p = p_raw / ref_mass;
-            if p <= 0.0 {
-                continue;
-            }
-            let q_raw = cand.get(tok.as_str()).copied().unwrap_or(0.0);
-            let q = if cand_mass > 0.0 { (q_raw / cand_mass).max(EPS) } else { EPS };
-            kld += p * (p / q).ln();
-        }
-        acc += kld.max(0.0);
-    }
-    acc / n as f64
-}
+/// Below this mean KLD a candidate is statistically too close to the reference
+/// to call apart. This is the honesty floor: we refuse to invent a difference
+/// the measurement cannot actually see.
+pub const KLD_LOSSLESS: f64 = 1e-3;
+/// Up to here the loss is very small (well-made 5-6 bit).
+pub const KLD_CRISP: f64 = 1e-2;
+/// Up to here the loss is small but real: the 4-bit sweet-spot band.
+pub const KLD_SOLID: f64 = 3e-2;
+/// Up to here the loss is noticeable (3-bit). Beyond it, rough (2-bit and below).
+pub const KLD_SOFT: f64 = 1e-1;
 
 // ── Grading (pure, unit-tested) ─────────────────────────────────────────────
 
@@ -202,7 +145,7 @@ pub enum Band {
     Reference,
     /// Crisp: keeps almost all of the sharpness.
     Crisp,
-    /// Solid: a small, safe loss.
+    /// Solid: a small, safe loss (the 4-bit sweet spot).
     Solid,
     /// Soft: a real loss you can feel.
     Soft,
@@ -210,27 +153,25 @@ pub enum Band {
     Rough,
 }
 
-/// A 0..=100 "sharpness" score from the measured metrics. A heuristic blend of
-/// top-token agreement (interpretable: how often it picks the reference's next
-/// token) and perplexity inflation (how much more surprised it is). Pure.
+/// A 0..=100 "sharpness" score: how often the quant picks the reference's next
+/// token. Directly interpretable and read straight from the measurement. Pure.
 pub fn sharpness_pct(m: &QuantMetrics) -> u32 {
-    let ppl_term = (2.0 - m.ppl_ratio).clamp(0.0, 1.0); // 1.0 at parity, 0 at 2x ppl
-    let blended = 0.75 * m.top1_agreement + 0.25 * ppl_term;
-    (blended.clamp(0.0, 1.0) * 100.0).round() as u32
+    (m.top1_agreement.clamp(0.0, 1.0) * 100.0).round() as u32
 }
 
-/// Band a quant from its sharpness and whether it is distinguishable from the
-/// reference at all. When the divergence is below the noise floor we call it the
-/// reference's equal rather than inventing a gap.
-pub fn band_for(sharpness: u32, kld: f64) -> Band {
-    if kld < KLD_INDISTINGUISHABLE {
-        return Band::Reference;
-    }
-    match sharpness {
-        97..=100 => Band::Crisp,
-        93..=96 => Band::Solid,
-        85..=92 => Band::Soft,
-        _ => Band::Rough,
+/// Band a quant from its mean KL-divergence against the reference. KLD is the
+/// robust, published metric, so the grade rides on it. Pure.
+pub fn band_for(kld: f64) -> Band {
+    if kld < KLD_LOSSLESS {
+        Band::Reference
+    } else if kld < KLD_CRISP {
+        Band::Crisp
+    } else if kld < KLD_SOLID {
+        Band::Solid
+    } else if kld < KLD_SOFT {
+        Band::Soft
+    } else {
+        Band::Rough
     }
 }
 
@@ -244,13 +185,11 @@ pub struct QuantEntry {
     pub metrics: QuantMetrics,
     pub sharpness: u32,
     pub band: Band,
-    /// Where it dulls worst (e.g. "code"), or empty when it holds up evenly.
-    pub dulls_on: String,
     /// True when this quant is the measurement reference (graded against itself).
     pub is_reference: bool,
 }
 
-/// A model's Quant Truth, ready to serialize to the UI and cache to disk.
+/// A model's quality report, ready to serialize to the UI and cache to disk.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct QuantReport {
     pub base: String,
@@ -262,45 +201,36 @@ pub struct QuantReport {
     pub calibration_version: u32,
 }
 
-/// Sharpness at or above which a quant is considered to still "ride true", so the
-/// lightest one clearing it is the sweet spot.
-pub const SWEET_SPOT_BAR: u32 = 95;
-
-/// Pick the sweet spot: the lightest (lowest bpw) entry whose sharpness clears
-/// the bar, or that is statistically the reference's equal. Pure over entries.
+/// Pick the sweet spot: the lightest (lowest bpw) entry that still grades Solid
+/// or better, i.e. the smallest size whose quality loss is at most "small but
+/// real". Pure over entries.
 pub fn pick_sweet_spot(entries: &[QuantEntry]) -> Option<String> {
     entries
         .iter()
-        .filter(|e| e.band == Band::Reference || e.sharpness >= SWEET_SPOT_BAR)
+        .filter(|e| matches!(e.band, Band::Reference | Band::Crisp | Band::Solid))
         .min_by(|a, b| a.quant.bpw.partial_cmp(&b.quant.bpw).unwrap_or(std::cmp::Ordering::Equal))
         .map(|e| e.quant.label.clone())
 }
 
-/// Assemble a report from per-(quant, domain) metrics. `measured` maps a quant's
-/// model id to its per-domain metrics; `reference_id` is the model id graded as
-/// truth. Entries are sorted heaviest-first (reference at the top). Pure.
+/// Assemble a report from per-quant metrics. `reference_id` is the model id
+/// graded as truth. Entries are sorted heaviest-first (reference at the top).
+/// Pure.
 pub fn build_report(
     base: &str,
     reference_label: &str,
     reference_id: &str,
-    measured: &[(Quant, String, BTreeMap<Domain, QuantMetrics>)],
+    measured: &[(Quant, String, QuantMetrics)],
     measured_unix: u64,
 ) -> QuantReport {
     let mut entries: Vec<QuantEntry> = measured
         .iter()
-        .map(|(quant, model_id, by_domain)| {
-            let agg = aggregate_domains(by_domain);
-            let sharpness = sharpness_pct(&agg);
-            let band = band_for(sharpness, agg.kld);
-            QuantEntry {
-                quant: quant.clone(),
-                model_id: model_id.clone(),
-                metrics: agg,
-                sharpness,
-                band,
-                dulls_on: worst_domain(by_domain),
-                is_reference: model_id == reference_id,
-            }
+        .map(|(quant, model_id, metrics)| QuantEntry {
+            quant: quant.clone(),
+            model_id: model_id.clone(),
+            metrics: *metrics,
+            sharpness: sharpness_pct(metrics),
+            band: band_for(metrics.kld),
+            is_reference: model_id == reference_id,
         })
         .collect();
     entries.sort_by(|a, b| {
@@ -317,117 +247,67 @@ pub fn build_report(
     }
 }
 
-/// Average a quant's per-domain metrics into one figure. Pure.
-pub fn aggregate_domains(by_domain: &BTreeMap<Domain, QuantMetrics>) -> QuantMetrics {
-    if by_domain.is_empty() {
-        return QuantMetrics { kld: 0.0, top1_agreement: 1.0, ppl_ratio: 1.0 };
-    }
-    let n = by_domain.len() as f64;
-    let mut kld = 0.0;
-    let mut top1 = 0.0;
-    let mut ppl = 0.0;
-    for m in by_domain.values() {
-        kld += m.kld;
-        top1 += m.top1_agreement;
-        ppl += m.ppl_ratio;
-    }
-    QuantMetrics { kld: kld / n, top1_agreement: top1 / n, ppl_ratio: ppl / n }
+// ── Calibration corpus ──────────────────────────────────────────────────────
+
+/// The fixed text every quant is scored on. Absolute perplexity does not matter,
+/// only the candidate-vs-reference comparison on the same tokens, so a
+/// representative passage (prose, reasoning, and a little code) is enough to
+/// surface drift. Verified on-device to tokenize past the >=2x-ctx minimum that
+/// `llama-perplexity` requires at `QUANT_CTX` (about 1.2k tokens, two chunks at
+/// 512). Changing it must bump `CALIBRATION_VERSION`.
+const CALIBRATION_CORPUS: &str = include_str!("quant_corpus.txt");
+
+// ── llama-perplexity output parsing (pure, unit-tested) ──────────────────────
+
+/// First parseable float in a fragment, skipping whitespace, the `±` uncertainty
+/// marker, and a trailing `%`. Returns the mean (the first number), not the
+/// uncertainty after it. Pure.
+fn parse_first_float(s: &str) -> Option<f64> {
+    s.split(|c: char| c.is_whitespace() || c == '\u{00b1}' || c == '%')
+        .find_map(|t| t.parse::<f64>().ok())
 }
 
-/// Name the domain a quant dulls on worst, when one stands out (its sharpness is
-/// meaningfully below the others). Empty when it holds up evenly. Pure.
-pub fn worst_domain(by_domain: &BTreeMap<Domain, QuantMetrics>) -> String {
-    if by_domain.len() < 2 {
-        return String::new();
-    }
-    let scored: Vec<(Domain, u32)> =
-        by_domain.iter().map(|(d, m)| (*d, sharpness_pct(m))).collect();
-    let best = scored.iter().map(|(_, s)| *s).max().unwrap_or(100);
-    let (worst_d, worst_s) = scored.iter().min_by_key(|(_, s)| *s).copied().unwrap();
-    // Only call it out when the gap is real (>= 4 points).
-    if best.saturating_sub(worst_s) >= 4 {
-        worst_d.as_str().to_string()
-    } else {
-        String::new()
-    }
-}
-
-// ── Calibration domains ─────────────────────────────────────────────────────
-
-/// The kinds of text a quant is graded on, so we can say where it dulls.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Domain {
-    General,
-    Code,
-    LongContext,
-}
-
-impl Domain {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Domain::General => "general",
-            Domain::Code => "code",
-            Domain::LongContext => "long context",
+/// Parse the three quality figures out of `llama-perplexity --kl-divergence`
+/// output: `Mean PPL(Q)/PPL(base)`, `Mean KLD`, and `Same top p` (a percentage,
+/// returned as a 0..=1 fraction). Returns None if any of the three is missing.
+/// Pure given the captured stdout/stderr text.
+pub fn parse_perplexity_output(text: &str) -> Option<QuantMetrics> {
+    let mut ppl_ratio = None;
+    let mut kld = None;
+    let mut top1 = None;
+    for raw in text.lines() {
+        let l = raw.trim();
+        if l.starts_with("Mean PPL(Q)/PPL(base)") {
+            ppl_ratio = l.split(':').nth(1).and_then(parse_first_float);
+        } else if l.starts_with("Mean") && l.contains("KLD:") {
+            kld = l.split("KLD:").nth(1).and_then(parse_first_float);
+        } else if l.starts_with("Same top p:") {
+            top1 = l.split(':').nth(1).and_then(parse_first_float).map(|p| p / 100.0);
         }
     }
-    pub fn all() -> &'static [Domain] {
-        &[Domain::General, Domain::Code, Domain::LongContext]
-    }
-    /// The calibration text for this domain. Kept short and fixed: the absolute
-    /// perplexity does not matter, only the candidate-vs-reference ratio on the
-    /// same bytes, so a representative passage is enough to surface drift.
-    pub fn corpus(&self) -> &'static str {
-        match self {
-            Domain::General => GENERAL_CORPUS,
-            Domain::Code => CODE_CORPUS,
-            Domain::LongContext => LONG_CORPUS,
-        }
-    }
+    Some(QuantMetrics { kld: kld?, top1_agreement: top1?, ppl_ratio: ppl_ratio? })
 }
-
-const GENERAL_CORPUS: &str = "The quiet valley held its breath as the morning fog lifted off the river. \
-A rancher counted the herd by the fence line, noting which animals had wandered and which had stayed. \
-Reasoning carefully about cause and effect, she traced the broken gate back to a loose hinge, \
-then explained to the hands why the simplest fix was usually the right one. \
-By noon the work was done, the ledger balanced, and nothing of theirs had left the land.";
-
-const CODE_CORPUS: &str = "fn merge_sorted(a: &[i32], b: &[i32]) -> Vec<i32> {\n\
-    let mut out = Vec::with_capacity(a.len() + b.len());\n\
-    let (mut i, mut j) = (0, 0);\n\
-    while i < a.len() && j < b.len() {\n\
-        if a[i] <= b[j] { out.push(a[i]); i += 1; } else { out.push(b[j]); j += 1; }\n\
-    }\n\
-    out.extend_from_slice(&a[i..]);\n\
-    out.extend_from_slice(&b[j..]);\n\
-    out\n\
-}";
-
-const LONG_CORPUS: &str = "In a longer passage the model must hold earlier facts in mind while reading on. \
-The rancher named three horses at the start: Ash, Birch, and Cedar. Ash was the fastest over short \
-distances, Birch the steadiest on rough trails, and Cedar the calmest around strangers. Later, when a \
-visitor arrived after dark and the trail was washed out, the right choice followed directly from those \
-facts stated paragraphs earlier: the steady one for the rough, washed-out trail. A model that has lost \
-the thread will reach for the wrong horse, and the divergence shows up exactly here, far from the start.";
 
 // ── On-disk cache ───────────────────────────────────────────────────────────
 
-/// Directory holding cached Quant Truth reports (one JSON per base model).
+/// A filesystem-safe slug for a base model name.
+fn slug(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .collect()
+}
+
+/// Directory holding cached quality reports (one JSON per base model).
 fn cache_dir() -> std::path::PathBuf {
     crate::config::config_path()
         .parent()
-        .map(|p| p.join("quant-truth"))
-        .unwrap_or_else(|| std::path::PathBuf::from("quant-truth"))
+        .map(|p| p.join("quality"))
+        .unwrap_or_else(|| std::path::PathBuf::from("quality"))
 }
 
-/// Cache file path for a base model. The base name is slugified so it is always
-/// a safe single filename.
+/// Cache file path for a base model.
 fn cache_path(base: &str) -> std::path::PathBuf {
-    let slug: String = base
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
-        .collect();
-    cache_dir().join(format!("{slug}.json"))
+    cache_dir().join(format!("{}.json", slug(base)))
 }
 
 /// Load a cached report for a base model, if one exists and matches the current
@@ -449,111 +329,74 @@ pub fn save_cached(report: &QuantReport) {
     }
     if let Ok(txt) = serde_json::to_string_pretty(report) {
         if let Err(e) = std::fs::write(cache_path(&report.base), txt) {
-            eprintln!("llamaranch: quant-truth cache write failed: {e}");
+            eprintln!("llamaranch: quality cache write failed: {e}");
         }
     }
 }
 
-// ── Router scoring (network; correctness validated on-device) ───────────────
+// ── Measurement (spawns llama-perplexity) ────────────────────────────────────
 
-/// Score a calibration text under one model via the router's OpenAI-compatible
-/// completions endpoint, returning the per-position distribution we need for the
-/// metrics. Uses `echo` + `logprobs` to recover prompt-token probabilities;
-/// `n_predict`/`max_tokens` is zero because we score the given text, not a
-/// continuation. Returns None on any transport or shape failure (the caller then
-/// records the model as unmeasurable rather than guessing).
-pub fn score_text(port: u16, model_id: &str, text: &str) -> Option<Vec<PositionScore>> {
-    let url = format!("http://127.0.0.1:{port}/v1/completions");
-    let body = serde_json::json!({
-        "model": model_id,
-        "prompt": text,
-        "max_tokens": 0,
-        "temperature": 0.0,
-        "echo": true,
-        "logprobs": 8,
-    });
-    let resp = ureq::post(&url)
-        .timeout(Duration::from_secs(300))
-        .send_json(body)
+/// Derive the `llama-perplexity` binary path from the `llama-server` path: they
+/// ship side by side, so the perplexity tool is the server path with the binary
+/// name swapped.
+pub fn perplexity_bin(server_bin: &str) -> String {
+    server_bin.replace("llama-server", "llama-perplexity")
+}
+
+/// Save the reference model's logits over the calibration corpus to `out_logits`
+/// (one pass). Returns true on success and a written file.
+fn save_reference_logits(bin: &str, model_path: &str, corpus: &Path, out_logits: &Path) -> bool {
+    let ran = Command::new(bin)
+        .args([
+            "-m",
+            model_path,
+            "-f",
+            &corpus.to_string_lossy(),
+            "--kl-divergence-base",
+            &out_logits.to_string_lossy(),
+            "-c",
+            &QUANT_CTX.to_string(),
+            "--no-warmup",
+        ])
+        .output();
+    matches!(ran, Ok(ref o) if o.status.success()) && out_logits.exists()
+}
+
+/// Score one candidate against the saved reference logits, parsing its metrics
+/// from the tool output. Returns None on a spawn/parse failure.
+fn run_kld(bin: &str, model_path: &str, corpus: &Path, ref_logits: &Path) -> Option<QuantMetrics> {
+    let out = Command::new(bin)
+        .args([
+            "-m",
+            model_path,
+            "-f",
+            &corpus.to_string_lossy(),
+            "--kl-divergence",
+            "--kl-divergence-base",
+            &ref_logits.to_string_lossy(),
+            "-c",
+            &QUANT_CTX.to_string(),
+            "--no-warmup",
+        ])
+        .output()
         .ok()?;
-    let v: serde_json::Value = resp.into_json().ok()?;
-    let lp = v.get("choices")?.get(0)?.get("logprobs")?;
-    let scores = parse_logprobs(lp)?;
-    // An all-null / empty logprobs payload means the server did not actually
-    // score the prompt (some builds do not return prompt-token logprobs under
-    // echo). Treat that as a failure so the caller records the model as
-    // unmeasurable rather than grading it a flawless reference-equal.
-    if scores.is_empty() {
-        return None;
-    }
-    Some(scores)
+    // The stats table and the log lines split across stdout/stderr depending on
+    // the build, so parse both.
+    let combined = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    parse_perplexity_output(&combined)
 }
 
-/// Turn an OpenAI-style `logprobs` object (`tokens`, `token_logprobs`,
-/// `top_logprobs`) into our per-position scores. The first prompt token has a
-/// null logprob (nothing precedes it) and is skipped. Pure given the JSON.
-pub fn parse_logprobs(lp: &serde_json::Value) -> Option<Vec<PositionScore>> {
-    let token_logprobs = lp.get("token_logprobs")?.as_array()?;
-    let top = lp.get("top_logprobs")?.as_array()?;
-    let mut out = Vec::new();
-    for (i, lpv) in token_logprobs.iter().enumerate() {
-        let Some(logprob_actual) = lpv.as_f64() else { continue }; // skip null (first token)
-        let Some(map) = top.get(i).and_then(|m| m.as_object()) else { continue };
-        // top_logprobs[i] is { token: logprob }; convert to (token, prob), find argmax.
-        let mut dist: Vec<(String, f64)> =
-            map.iter().filter_map(|(k, v)| v.as_f64().map(|lp| (k.clone(), lp.exp()))).collect();
-        if dist.is_empty() {
-            continue;
-        }
-        dist.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        let top1 = dist[0].0.clone();
-        out.push(PositionScore { top1, logprob_actual, dist });
-    }
-    Some(out)
-}
-
-/// Measure one candidate against pre-scored reference distributions across all
-/// domains, returning its per-domain metrics. The reference is scored once by the
-/// caller and shared, so a model is loaded at most once per measurement instead
-/// of swapped in on every candidate. Returns None if the candidate fails to
-/// score on any domain.
-pub fn measure_candidate(
-    port: u16,
-    candidate_id: &str,
-    reference_id: &str,
-    reference_scores: &BTreeMap<Domain, Vec<PositionScore>>,
-) -> Option<BTreeMap<Domain, QuantMetrics>> {
-    let mut out = BTreeMap::new();
-    for d in Domain::all() {
-        // The reference graded against itself is parity by definition; no rescore.
-        let metrics = if candidate_id == reference_id {
-            QuantMetrics { kld: 0.0, top1_agreement: 1.0, ppl_ratio: 1.0 }
-        } else {
-            let cand = score_text(port, candidate_id, d.corpus())?;
-            let reference = reference_scores.get(d)?;
-            let cand_ppl = perplexity(&cand.iter().map(|p| p.logprob_actual).collect::<Vec<_>>());
-            let ref_ppl =
-                perplexity(&reference.iter().map(|p| p.logprob_actual).collect::<Vec<_>>());
-            QuantMetrics {
-                kld: mean_kld(&cand, reference),
-                top1_agreement: top1_agreement(&cand, reference),
-                ppl_ratio: if ref_ppl > 0.0 { cand_ppl / ref_ppl } else { 1.0 },
-            }
-        };
-        out.insert(*d, metrics);
-    }
-    Some(out)
-}
-
-// ── Installed-model grouping and orchestration ──────────────────────────────
-
-/// Group installed models into quant variants per base model. Only models whose
-/// id carries a recognizable quant token participate; others have no size to grade.
-pub fn group_variants(models_dir: &str) -> BTreeMap<String, Vec<(Quant, String)>> {
-    let mut map: BTreeMap<String, Vec<(Quant, String)>> = BTreeMap::new();
+/// Installed quant variants per base model: only models whose id carries a
+/// recognizable quant token participate. Each entry is (quant, model id, path).
+pub fn group_variants(models_dir: &str) -> BTreeMap<String, Vec<(Quant, String, String)>> {
+    let mut map: BTreeMap<String, Vec<(Quant, String, String)>> = BTreeMap::new();
     for m in scanner::scan(Path::new(models_dir)) {
         if let Some(q) = parse_quant(&m.id) {
-            map.entry(base_name(&m.id)).or_default().push((q, m.id));
+            map.entry(base_name(&m.id)).or_default().push((q, m.id, m.path));
         }
     }
     map
@@ -568,39 +411,58 @@ fn now_unix() -> u64 {
 }
 
 /// Measure every quant variant of one base model against the highest-precision
-/// variant present (the reference), build the report, cache it, and return it.
-/// Errs when the base has no installed variants, or when a model fails to score.
-pub fn measure_base(port: u16, models_dir: &str, base: &str) -> Result<QuantReport, String> {
+/// variant present (the reference) using `llama-perplexity`, build the report,
+/// cache it, and return it. Errs when the perplexity binary is missing, the base
+/// has no installed variants, or a model fails to score.
+pub fn measure_base(perplexity_bin: &str, models_dir: &str, base: &str) -> Result<QuantReport, String> {
+    if !Path::new(perplexity_bin).exists() {
+        return Err(format!("llama-perplexity not found at {perplexity_bin}"));
+    }
     let variants = group_variants(models_dir);
     let list = variants
         .get(base)
         .filter(|l| !l.is_empty())
         .ok_or_else(|| format!("no installed quants for {base}"))?;
 
-    // Reference = highest bits-per-weight present locally (fits where the lighter
-    // ones fit, so it can run on the same machine).
+    // Reference = highest bits-per-weight present locally.
     let reference = list
         .iter()
         .max_by(|a, b| a.0.bpw.partial_cmp(&b.0.bpw).unwrap_or(std::cmp::Ordering::Equal))
         .unwrap();
     let reference_id = reference.1.clone();
     let reference_label = reference.0.label.clone();
+    let reference_path = reference.2.clone();
 
-    // Score the reference once per domain (one model load), then reuse those
-    // distributions for every candidate instead of re-scoring it each time.
-    let mut reference_scores: BTreeMap<Domain, Vec<PositionScore>> = BTreeMap::new();
-    for d in Domain::all() {
-        let s = score_text(port, &reference_id, d.corpus())
-            .ok_or_else(|| format!("could not score reference {reference_id}"))?;
-        reference_scores.insert(*d, s);
+    // Workspace for the calibration corpus and the saved reference logits.
+    let work = std::env::temp_dir().join(format!("llamaranch-quality-{}", slug(base)));
+    std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
+    let corpus_file = work.join("calibration.txt");
+    std::fs::write(&corpus_file, CALIBRATION_CORPUS).map_err(|e| e.to_string())?;
+    let ref_logits = work.join("reference.logits");
+
+    // Score the reference once; reuse its logits for every candidate.
+    if !save_reference_logits(perplexity_bin, &reference_path, &corpus_file, &ref_logits) {
+        let _ = std::fs::remove_dir_all(&work);
+        return Err(format!("could not score reference {reference_id}"));
     }
 
     let mut measured = Vec::with_capacity(list.len());
-    for (q, id) in list {
-        let by_domain = measure_candidate(port, id, &reference_id, &reference_scores)
-            .ok_or_else(|| format!("could not score {id} against {reference_id}"))?;
-        measured.push((q.clone(), id.clone(), by_domain));
+    for (q, id, path) in list {
+        let metrics = if *id == reference_id {
+            // The reference graded against itself is parity by definition.
+            QuantMetrics { kld: 0.0, top1_agreement: 1.0, ppl_ratio: 1.0 }
+        } else {
+            match run_kld(perplexity_bin, path, &corpus_file, &ref_logits) {
+                Some(m) => m,
+                None => {
+                    let _ = std::fs::remove_dir_all(&work);
+                    return Err(format!("could not score {id} against {reference_id}"));
+                }
+            }
+        };
+        measured.push((q.clone(), id.clone(), metrics));
     }
+    let _ = std::fs::remove_dir_all(&work);
 
     let report = build_report(base, &reference_label, &reference_id, &measured, now_unix());
     save_cached(&report);
@@ -610,7 +472,7 @@ pub fn measure_base(port: u16, models_dir: &str, base: &str) -> Result<QuantRepo
 /// Background sweep: measure every base model that has more than one quant
 /// variant and no fresh cached report. Returns how many were measured. A model
 /// that fails to score is skipped rather than aborting the sweep.
-pub fn measure_pending(port: u16, models_dir: &str) -> usize {
+pub fn measure_pending(perplexity_bin: &str, models_dir: &str) -> usize {
     let mut done = 0;
     for (base, list) in group_variants(models_dir) {
         if list.len() < 2 {
@@ -619,7 +481,7 @@ pub fn measure_pending(port: u16, models_dir: &str) -> usize {
         if load_cached(&base).is_some() {
             continue; // already measured at the current calibration version
         }
-        if measure_base(port, models_dir, &base).is_ok() {
+        if measure_base(perplexity_bin, models_dir, &base).is_ok() {
             done += 1;
         }
     }
@@ -637,11 +499,11 @@ pub fn quality_report(model_id: String) -> Option<QuantReport> {
 /// the report. Takes any model id; the base family is derived from it.
 #[tauri::command]
 pub fn measure_quality(model_id: String, cfg: State<AppConfig>) -> Result<QuantReport, String> {
-    let (port, models_dir) = {
+    let (server_bin, models_dir) = {
         let c = cfg.0.lock().unwrap();
-        (c.port, c.models_dir.clone())
+        (c.server_bin.clone(), c.models_dir.clone())
     };
-    measure_base(port, &models_dir, &base_name(&model_id))
+    measure_base(&perplexity_bin(&server_bin), &models_dir, &base_name(&model_id))
 }
 
 #[cfg(test)]
@@ -660,9 +522,7 @@ mod tests {
 
     #[test]
     fn q4_k_m_beats_q4_before_more_specific() {
-        // Must not match the bare "Q4" inside "Q4_K_M".
-        let q = parse_quant("foo-Q4_K_M.gguf").unwrap();
-        assert_eq!(q.label, "Q4_K_M");
+        assert_eq!(parse_quant("foo-Q4_K_M.gguf").unwrap().label, "Q4_K_M");
     }
 
     #[test]
@@ -678,144 +538,65 @@ mod tests {
         assert!(parse_quant("a-Q6_K").unwrap().bpw > parse_quant("a-Q3_K_S").unwrap().bpw);
     }
 
-    // ── perplexity ──
-    #[test]
-    fn perplexity_of_certainty_is_one() {
-        // logprob 0 == probability 1 for every token → no surprise.
-        assert!((perplexity(&[0.0, 0.0, 0.0]) - 1.0).abs() < 1e-9);
-    }
-    #[test]
-    fn perplexity_empty_is_one() {
-        assert_eq!(perplexity(&[]), 1.0);
-    }
-    #[test]
-    fn perplexity_grows_with_surprise() {
-        let low = perplexity(&[-0.1, -0.1]);
-        let high = perplexity(&[-2.0, -2.0]);
-        assert!(high > low);
-        assert!((perplexity(&[-1.0, -1.0]) - std::f64::consts::E).abs() < 1e-9);
-    }
-
-    fn ps(top1: &str, lp: f64, dist: &[(&str, f64)]) -> PositionScore {
-        PositionScore {
-            top1: top1.to_string(),
-            logprob_actual: lp,
-            dist: dist.iter().map(|(t, p)| (t.to_string(), *p)).collect(),
-        }
-    }
-
-    // ── top1 agreement ──
-    #[test]
-    fn top1_agreement_counts_matches() {
-        let cand = vec![ps("a", -0.1, &[("a", 0.9)]), ps("x", -0.1, &[("x", 0.9)])];
-        let reference = vec![ps("a", -0.1, &[("a", 0.9)]), ps("b", -0.1, &[("b", 0.9)])];
-        assert!((top1_agreement(&cand, &reference) - 0.5).abs() < 1e-9);
-    }
-    #[test]
-    fn top1_agreement_empty_is_one() {
-        assert_eq!(top1_agreement(&[], &[]), 1.0);
-    }
-
-    // ── KLD ──
-    #[test]
-    fn kld_identical_distributions_is_zero() {
-        let a = vec![ps("a", -0.1, &[("a", 0.7), ("b", 0.3)])];
-        assert!(mean_kld(&a, &a) < 1e-9);
-    }
-    #[test]
-    fn kld_grows_as_distributions_diverge() {
-        let reference = vec![ps("a", -0.1, &[("a", 0.9), ("b", 0.1)])];
-        let near = vec![ps("a", -0.1, &[("a", 0.85), ("b", 0.15)])];
-        let far = vec![ps("b", -0.1, &[("b", 0.9), ("a", 0.1)])];
-        assert!(mean_kld(&near, &reference) < mean_kld(&far, &reference));
-    }
-    #[test]
-    fn kld_penalizes_dropped_reference_token() {
-        // Reference puts mass on "b"; candidate never lists it → large divergence.
-        let reference = vec![ps("a", -0.1, &[("a", 0.5), ("b", 0.5)])];
-        let candidate = vec![ps("a", -0.1, &[("a", 1.0)])];
-        assert!(mean_kld(&candidate, &reference) > 1.0);
-    }
-
     // ── grading ──
     #[test]
-    fn sharpness_full_at_parity() {
+    fn sharpness_is_top_token_agreement() {
         let m = QuantMetrics { kld: 0.0, top1_agreement: 1.0, ppl_ratio: 1.0 };
         assert_eq!(sharpness_pct(&m), 100);
+        let m = QuantMetrics { kld: 0.013, top1_agreement: 0.967, ppl_ratio: 1.009 };
+        assert_eq!(sharpness_pct(&m), 97); // 96.7 rounds to 97
     }
+
     #[test]
-    fn sharpness_drops_with_disagreement_and_ppl() {
-        let m = QuantMetrics { kld: 0.3, top1_agreement: 0.6, ppl_ratio: 1.5 };
-        let s = sharpness_pct(&m);
-        assert!(s < 80, "expected a clear drop, got {s}");
-    }
-    #[test]
-    fn band_reference_when_indistinguishable() {
-        assert_eq!(band_for(94, 0.001), Band::Reference);
-    }
-    #[test]
-    fn band_tracks_sharpness_when_distinguishable() {
-        assert_eq!(band_for(99, 0.2), Band::Crisp);
-        assert_eq!(band_for(94, 0.2), Band::Solid);
-        assert_eq!(band_for(88, 0.2), Band::Soft);
-        assert_eq!(band_for(70, 0.2), Band::Rough);
+    fn band_tracks_published_kld_cutoffs() {
+        assert_eq!(band_for(0.0), Band::Reference); // self vs self
+        assert_eq!(band_for(5e-4), Band::Reference); // below the noise floor
+        assert_eq!(band_for(5e-3), Band::Crisp); // well-made 5-6 bit
+        assert_eq!(band_for(2e-2), Band::Solid); // 4-bit sweet spot
+        assert_eq!(band_for(6e-2), Band::Soft); // 3-bit, noticeable
+        assert_eq!(band_for(0.2), Band::Rough); // 2-bit, obviously different
     }
 
     // ── sweet spot ──
-    fn entry(label: &str, bpw: f32, sharpness: u32, band: Band) -> QuantEntry {
+    fn entry(label: &str, bpw: f32, kld: f64) -> QuantEntry {
+        let metrics = QuantMetrics { kld, top1_agreement: 0.97, ppl_ratio: 1.01 };
         QuantEntry {
             quant: Quant { label: label.to_string(), bpw },
             model_id: label.to_string(),
-            metrics: QuantMetrics { kld: 0.2, top1_agreement: 0.9, ppl_ratio: 1.1 },
-            sharpness,
-            band,
-            dulls_on: String::new(),
+            metrics,
+            sharpness: sharpness_pct(&metrics),
+            band: band_for(kld),
             is_reference: false,
         }
     }
 
     #[test]
-    fn sweet_spot_is_lightest_that_clears_the_bar() {
+    fn sweet_spot_is_lightest_solid_or_better() {
         let entries = vec![
-            entry("Q8_0", 8.5, 100, Band::Reference),
-            entry("Q6_K", 6.56, 99, Band::Crisp),
-            entry("Q4_K_M", 4.85, 96, Band::Solid),
-            entry("Q3_K_S", 3.5, 84, Band::Rough),
+            entry("Q8_0", 8.5, 0.0),     // reference
+            entry("Q6_K", 6.56, 5e-3),   // crisp
+            entry("Q4_K_M", 4.85, 2e-2), // solid
+            entry("Q3_K_S", 3.5, 8e-2),  // soft
         ];
         assert_eq!(pick_sweet_spot(&entries).as_deref(), Some("Q4_K_M"));
     }
+
     #[test]
-    fn sweet_spot_none_when_all_rough() {
-        let entries = vec![entry("Q3_K_S", 3.5, 80, Band::Rough), entry("Q2_K", 3.35, 70, Band::Rough)];
+    fn sweet_spot_none_when_all_soft_or_rough() {
+        let entries = vec![entry("Q3_K_S", 3.5, 7e-2), entry("Q2_K", 3.35, 0.3)];
         assert_eq!(pick_sweet_spot(&entries), None);
-    }
-
-    // ── domains ──
-    #[test]
-    fn worst_domain_called_out_only_on_real_gap() {
-        let mut even = BTreeMap::new();
-        even.insert(Domain::General, QuantMetrics { kld: 0.1, top1_agreement: 0.97, ppl_ratio: 1.05 });
-        even.insert(Domain::Code, QuantMetrics { kld: 0.1, top1_agreement: 0.96, ppl_ratio: 1.05 });
-        assert_eq!(worst_domain(&even), ""); // within 4 points
-
-        let mut skewed = BTreeMap::new();
-        skewed.insert(Domain::General, QuantMetrics { kld: 0.1, top1_agreement: 0.98, ppl_ratio: 1.02 });
-        skewed.insert(Domain::Code, QuantMetrics { kld: 0.4, top1_agreement: 0.70, ppl_ratio: 1.4 });
-        assert_eq!(worst_domain(&skewed), "code");
     }
 
     // ── report assembly ──
     #[test]
     fn build_report_sorts_and_picks_sweet_spot() {
-        let mk = |t: f64, p: f64, k: f64| {
-            let mut m = BTreeMap::new();
-            m.insert(Domain::General, QuantMetrics { kld: k, top1_agreement: t, ppl_ratio: p });
-            m
-        };
         let measured = vec![
-            (Quant { label: "Q8_0".into(), bpw: 8.5 }, "ref".to_string(), mk(1.0, 1.0, 0.0)),
-            (Quant { label: "Q4_K_M".into(), bpw: 4.85 }, "q4".to_string(), mk(0.965, 1.05, 0.2)),
-            (Quant { label: "Q3_K_S".into(), bpw: 3.5 }, "q3".to_string(), mk(0.80, 1.4, 0.5)),
+            (Quant { label: "Q8_0".into(), bpw: 8.5 }, "ref".to_string(),
+             QuantMetrics { kld: 0.0, top1_agreement: 1.0, ppl_ratio: 1.0 }),
+            (Quant { label: "Q4_K_M".into(), bpw: 4.85 }, "q4".to_string(),
+             QuantMetrics { kld: 2e-2, top1_agreement: 0.967, ppl_ratio: 1.009 }),
+            (Quant { label: "Q3_K_S".into(), bpw: 3.5 }, "q3".to_string(),
+             QuantMetrics { kld: 8e-2, top1_agreement: 0.91, ppl_ratio: 1.05 }),
         ];
         let r = build_report("Qwen3-8B", "Q8_0", "ref", &measured, 1234);
         assert_eq!(r.entries[0].quant.label, "Q8_0"); // heaviest first
@@ -825,18 +606,52 @@ mod tests {
         assert_eq!(r.sweet_spot.as_deref(), Some("Q4_K_M"));
     }
 
-    // ── logprobs parsing ──
+    // ── perplexity-output parsing (against real llama-perplexity output) ──
     #[test]
-    fn parse_logprobs_skips_null_first_token() {
-        let lp = serde_json::json!({
-            "tokens": ["The", " valley"],
-            "token_logprobs": [null, -0.5],
-            "top_logprobs": [null, { " valley": -0.5, " river": -1.2 }],
-        });
-        let scores = parse_logprobs(&lp).unwrap();
-        assert_eq!(scores.len(), 1); // first (null) skipped
-        assert_eq!(scores[0].top1, " valley");
-        assert!((scores[0].logprob_actual + 0.5).abs() < 1e-9);
-        assert_eq!(scores[0].dist.len(), 2);
+    fn parse_real_self_vs_self_output() {
+        // Captured from `llama-perplexity --kl-divergence` of a model against its
+        // own logits: parity (KLD ~0, top p 100%, ppl ratio 1.0).
+        let text = "\
+Mean PPL(Q)/PPL(base)         :   1.000000 ±   0.000002
+====== KL divergence statistics ======
+Mean    KLD:  -0.000000 ±   0.000000
+Maximum KLD:   0.000035
+99.9%   KLD:   0.000032
+====== Token probability statistics ======
+Same top p: 100.000 ± 0.000 %";
+        let m = parse_perplexity_output(text).unwrap();
+        assert!(m.kld.abs() < 1e-6);
+        assert!((m.top1_agreement - 1.0).abs() < 1e-9);
+        assert!((m.ppl_ratio - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn parse_degraded_quant_output() {
+        let text = "\
+Mean PPL(Q)/PPL(base)         :   1.008900 ±   0.001000
+Mean ln(PPL(Q)/PPL(base))     :   0.008860 ±   0.001000
+====== KL divergence statistics ======
+Mean    KLD:   0.013500 ±   0.000400
+Maximum KLD:   0.250000
+Same top p: 96.700 ± 0.050 %";
+        let m = parse_perplexity_output(text).unwrap();
+        assert!((m.kld - 0.0135).abs() < 1e-9);
+        assert!((m.top1_agreement - 0.967).abs() < 1e-9);
+        assert!((m.ppl_ratio - 1.0089).abs() < 1e-9);
+        assert_eq!(sharpness_pct(&m), 97);
+        assert_eq!(band_for(m.kld), Band::Solid);
+    }
+
+    #[test]
+    fn parse_returns_none_when_incomplete() {
+        assert!(parse_perplexity_output("Mean    KLD:   0.01").is_none()); // no ppl/top-p
+        assert!(parse_perplexity_output("nothing useful here").is_none());
+    }
+
+    // ── binary path derivation ──
+    #[test]
+    fn perplexity_bin_swaps_the_binary_name() {
+        assert_eq!(perplexity_bin("/opt/homebrew/bin/llama-server"), "/opt/homebrew/bin/llama-perplexity");
+        assert_eq!(perplexity_bin("C:\\llama\\llama-server.exe"), "C:\\llama\\llama-perplexity.exe");
     }
 }
