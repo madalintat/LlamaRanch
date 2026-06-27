@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { listen } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -185,22 +184,22 @@ function setHeader() {
 
 // ── Model selector (the design's hero + list) ──────────────────────────────
 
-/** A short sub-line for the hero: size, vision, placement. */
+/** A short sub-line for the hero: size, vision, placement. (gb() carries the unit.) */
 function heroSub(m: ModelView): string {
   const parts: string[] = [];
-  if (m.size_bytes > 0) parts.push(gb(m.size_bytes) + " GB");
+  if (m.size_bytes > 0) parts.push(gb(m.size_bytes));
   if (m.vision) parts.push("vision");
   if (m.placement) parts.push("on your " + m.placement.toUpperCase());
   return parts.join(" · ") || "ready to ride";
 }
 
-/** A short sub-line for a list row. */
+/** A short sub-line for a list row. (gb() already includes " GB".) */
 function rowSub(m: ModelView): string {
   if (m.need_download) {
-    return "Cloud · " + (m.size_bytes > 0 ? gb(m.size_bytes) + " GB to fetch" : "fetch to run");
+    return "Cloud · " + (m.size_bytes > 0 ? gb(m.size_bytes) + " to fetch" : "fetch to run");
   }
   const parts: string[] = [];
-  if (m.size_bytes > 0) parts.push(gb(m.size_bytes) + " GB");
+  if (m.size_bytes > 0) parts.push(gb(m.size_bytes));
   if (m.vision) parts.push("vision");
   else if (m.placement) parts.push("fits");
   return parts.join(" · ");
@@ -214,7 +213,8 @@ async function openChatWindow() {
   } catch { showError("Could not open the chat window."); }
 }
 
-/** Best-effort fill of the hero's context and tok/sec from real data. */
+/** Best-effort fill of the hero's context stat from real model info.
+    (tok/sec stays a dash until live server metrics are wired.) */
 async function fillHeroStats(m: ModelView) {
   try {
     const info = await invoke<ModelInfo>("model_info", { modelId: m.id });
@@ -256,7 +256,7 @@ function renderSelector() {
       `<div class="ms-stats">` +
         `<div class="ms-stat"><div class="ms-stat__v" id="hero-tps">&mdash;</div><div class="ms-stat__l">tok / sec</div></div>` +
         `<div class="ms-stat"><div class="ms-stat__v" id="hero-ctx">&mdash;</div><div class="ms-stat__l">context</div></div>` +
-        `<div class="ms-stat"><div class="ms-stat__v">${serving.size_bytes > 0 ? gb(serving.size_bytes) : "&mdash;"}<span class="ms-stat__u">GB</span></div><div class="ms-stat__l">memory</div></div>` +
+        `<div class="ms-stat"><div class="ms-stat__v">${serving.size_bytes > 0 ? (serving.size_bytes / 1e9).toFixed(1) : "&mdash;"}<span class="ms-stat__u">GB</span></div><div class="ms-stat__l">memory</div></div>` +
       `</div>` +
       `<div class="ms-hero__actions">` +
         `<button class="ms-btn ms-btn--primary" id="hero-stop">Stop serving</button>` +
@@ -300,11 +300,12 @@ function renderSelector() {
 
   rest.forEach((m) => {
     const cloud = m.need_download;
+    const loaded = LOADED(m.status);
     const row = document.createElement("div");
     row.className = "ms-row";
 
     const dot = document.createElement("span");
-    dot.className = "ms-row__dot " + (cloud ? "ms-row__dot--cloud" : "ms-row__dot--idle");
+    dot.className = "ms-row__dot " + (loaded ? "ms-row__dot--on" : cloud ? "ms-row__dot--cloud" : "ms-row__dot--idle");
     row.appendChild(dot);
 
     const body = document.createElement("div");
@@ -331,9 +332,13 @@ function renderSelector() {
     }
 
     const btn = document.createElement("button");
-    btn.className = cloud ? "ms-row__get" : "ms-row__load";
-    btn.textContent = cloud ? "Get" : "Load";
+    btn.className = loaded || cloud ? "ms-row__get" : "ms-row__load";
+    btn.textContent = loaded ? "Stop" : cloud ? "Get" : "Load";
     btn.onclick = async () => {
+      if (loaded) {
+        try { await invoke("unload_model", { modelId: m.id }); } catch (e) { showError(String(e)); }
+        await refresh(); startPolling(); return;
+      }
       if (cloud) { view = "discover"; render(); return; }
       try { await invoke("load_model", { modelId: m.id }); } catch (e) { showError(String(e)); }
       await refresh(); startPolling();
@@ -950,11 +955,6 @@ async function init() {
       render();
     }
   });
-
-  // Surface the llama.cpp build behind the scenes (used by the cmdk footer);
-  // the selector itself stays clean.
-  void invoke<string>("llama_cpp_version").catch(() => "");
-  void getVersion().catch(() => "");
 
   // Copy the endpoint; the pill flashes "copied".
   $("copy").onclick = async () => {
