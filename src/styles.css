@@ -408,6 +408,50 @@ html, body {
 .cfg-rel__dot--ok { background: var(--ink); }
 .cfg-rel__dot--bad { background: var(--error); }
 
+/* Model quality: per-quant grades. Reuses the cfg-fit square status lights; rows
+   are mono so labels and percentages line up like part-numbers on a list. */
+.cfg-qual {
+  margin-top: 8px;
+}
+.cfg-qual__rows {
+  margin-top: 5px;
+  margin-left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cfg-qual__row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.cfg-qual__label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink);
+  min-width: 64px;
+}
+.cfg-qual__pct {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink);
+  min-width: 32px;
+  text-align: right;
+}
+.cfg-qual__note {
+  font-size: 10px;
+  color: var(--muted);
+}
+.cfg-qual__star {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .04em;
+  color: var(--ink);
+  border: 1px solid var(--line-4);
+  padding: 1px 4px;
+  margin-left: auto;
+}
+
 /* Activity view: a routing summary, per-model counts, and the recent feed. */
 .s-act-summary { margin-bottom: 10px; }
 .s-act-row {

@@ -599,20 +599,22 @@ pub fn measure_pending(port: u16, models_dir: &str) -> usize {
     done
 }
 
-/// Return the cached quality report for a base model, if one exists.
+/// Return the cached quality report for the model's base family, if one exists.
+/// Takes any model id; the base family is derived from it.
 #[tauri::command]
-pub fn quality_report(base: String) -> Option<QuantReport> {
-    load_cached(&base)
+pub fn quality_report(model_id: String) -> Option<QuantReport> {
+    load_cached(&base_name(&model_id))
 }
 
-/// Measure a base model now (the "Measure this one" button), returning the report.
+/// Measure a model's base family now (the "measure quality" button), returning
+/// the report. Takes any model id; the base family is derived from it.
 #[tauri::command]
-pub fn measure_quality(base: String, cfg: State<AppConfig>) -> Result<QuantReport, String> {
+pub fn measure_quality(model_id: String, cfg: State<AppConfig>) -> Result<QuantReport, String> {
     let (port, models_dir) = {
         let c = cfg.0.lock().unwrap();
         (c.port, c.models_dir.clone())
     };
-    measure_base(port, &models_dir, &base)
+    measure_base(port, &models_dir, &base_name(&model_id))
 }
 
 #[cfg(test)]

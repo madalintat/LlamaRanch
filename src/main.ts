@@ -51,6 +51,16 @@ type ModelFit = {
 };
 type RelCase = { id: string; passed: boolean; detail: string };
 type RelReport = { model: string; passed: number; total: number; score: number; verdict: string; cases: RelCase[] };
+type Quant = { label: string; bpw: number };
+type QuantMetrics = { kld: number; top1_agreement: number; ppl_ratio: number };
+type QuantEntry = {
+  quant: Quant; model_id: string; metrics: QuantMetrics;
+  sharpness: number; band: string; dulls_on: string; is_reference: boolean;
+};
+type QuantReport = {
+  base: string; reference: string; entries: QuantEntry[];
+  sweet_spot: string | null; measured_unix: number; calibration_version: number;
+};
 
 const CTX_TIERS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
 const tierLabel = (n: number) => (n % 1024 === 0 ? `${n / 1024}k` : String(n));
@@ -101,6 +111,54 @@ function renderRel(r: RelReport): string {
     `</div>` +
     `<div class="cfg-rel__dots">${dots}</div>`
   );
+}
+
+// Model quality: a quant's band → status class (crisp/solid/reference are calm,
+// soft warns, rough errors), and the rendered grade list for the config panel.
+function bandCls(band: string): string {
+  return band === "rough" ? "error" : band === "soft" ? "warn" : "ok";
+}
+function renderQuality(r: QuantReport): string {
+  if (!r.entries.length) {
+    return `<div class="cfg-fit__detail">no sizes to measure</div>`;
+  }
+  // A single installed size is its own reference: nothing to measure loss against.
+  if (r.entries.length === 1) {
+    return (
+      `<div class="cfg-fit__head">` +
+        `<span class="cfg-fit__led cfg-fit__led--ok"></span>` +
+        `<span class="cfg-fit__word">Quality</span>` +
+        `<span class="cfg-fit__detail">only ${escapeHtml(r.entries[0].quant.label)} installed</span>` +
+      `</div>` +
+      `<div class="cfg-fit__advice">install a higher size to measure the loss</div>`
+    );
+  }
+  const head =
+    `<div class="cfg-fit__head">` +
+      `<span class="cfg-fit__led cfg-fit__led--ok"></span>` +
+      `<span class="cfg-fit__word">Quality</span>` +
+      `<span class="cfg-fit__detail">measured vs ${escapeHtml(r.reference)}</span>` +
+    `</div>`;
+  const rows = r.entries
+    .map((e) => {
+      const notes: string[] = [e.is_reference ? "reference" : e.band];
+      if (e.dulls_on) notes.push(`dulls on ${escapeHtml(e.dulls_on)}`);
+      const sweet =
+        r.sweet_spot && e.quant.label === r.sweet_spot
+          ? `<span class="cfg-qual__star">sweet spot</span>`
+          : "";
+      return (
+        `<div class="cfg-qual__row">` +
+          `<span class="cfg-fit__led cfg-fit__led--${bandCls(e.band)}"></span>` +
+          `<span class="cfg-qual__label">${escapeHtml(e.quant.label)}</span>` +
+          `<span class="cfg-qual__pct">${e.is_reference ? "ref" : e.sharpness + "%"}</span>` +
+          `<span class="cfg-qual__note">${notes.join(" · ")}</span>` +
+          sweet +
+        `</div>`
+      );
+    })
+    .join("");
+  return head + `<div class="cfg-qual__rows">${rows}</div>`;
 }
 
 // which model's expander is open (survives re-renders so polling won't collapse it)
@@ -456,6 +514,41 @@ async function hydrateCfg(id: string) {
   };
   rel.appendChild(relBtn);
   host.appendChild(rel);
+
+  // Model quality: how much sharpness each installed size keeps, measured here.
+  // A cached grade (from the night shift) shows instantly; the button measures now.
+  const qual = document.createElement("div");
+  qual.className = "cfg-qual";
+  const qualBtn = document.createElement("button");
+  qualBtn.className = "ubtn";
+  qualBtn.textContent = "measure quality";
+  const showQual = (r: QuantReport) => {
+    if (document.getElementById("cfg-open") !== host) return;
+    qual.innerHTML = renderQuality(r);
+    qualBtn.textContent = "re-measure quality";
+    fitWindow(360);
+  };
+  qualBtn.onclick = async () => {
+    qualBtn.disabled = true;
+    qualBtn.textContent = "measuring…";
+    try {
+      const r = await invoke<QuantReport>("measure_quality", { modelId: id });
+      showQual(r);
+    } catch (e) {
+      if (document.getElementById("cfg-open") === host)
+        qual.innerHTML = `<div class="cfg-fit__detail">quality test failed: ${escapeHtml(String(e))}</div>`;
+    } finally {
+      qualBtn.disabled = false;
+      if (qualBtn.textContent === "measuring…") qualBtn.textContent = "measure quality";
+    }
+    fitWindow(360);
+  };
+  host.appendChild(qualBtn);
+  host.appendChild(qual);
+  // Show a cached grade on open, if the night shift already measured this family.
+  invoke<QuantReport | null>("quality_report", { modelId: id })
+    .then((r) => { if (r) showQual(r); })
+    .catch(() => {});
 
   // Sampling fields
   const fields: [keyof ModelOverride, string][] = [
