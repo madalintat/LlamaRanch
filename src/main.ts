@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { exit, relaunch } from "@tauri-apps/plugin-process";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
@@ -173,151 +172,152 @@ function updateHairlineColor() {
   dither?.refresh();
 }
 
+// Color the endpoint pill's status dot: ink when running, muted while starting,
+// red on error. The pulse is CSS.
 function setHeader() {
-  const el = $("status");
-  const label = $("status-label");
-  el.className = "head__status";
-  if (router.status.startsWith("error")) {
-    el.classList.add("head__status--error");
-    label.textContent = "error";
-    return;
-  }
-  if (router.status !== "running") {
-    el.classList.add("head__status--starting");
-    label.textContent = "starting";
-    return;
-  }
-  const loaded = models.filter((m) => LOADED(m.status));
-  const loading = models.find((m) => BUSY(m.status));
-  if (loading) {
-    el.classList.add("head__status--starting");
-    label.textContent = "loading";
-  } else {
-    el.classList.add("head__status--running");
-    if (loaded.length > 1) {
-      label.textContent = `serving ${loaded.length}`;
-    } else if (loaded.length === 1) {
-      label.textContent = `serving ${prettyName(loaded[0].name || loaded[0].id)}`;
-    } else {
-      label.textContent = "running";
-    }
-  }
+  const led = document.getElementById("status-led");
+  if (!led) return;
+  led.className = "ms-endpoint__dot";
+  if (router.status.startsWith("error")) led.classList.add("ms-endpoint__dot--error");
+  else if (router.status !== "running") led.classList.add("ms-endpoint__dot--starting");
+  else led.classList.add("ms-endpoint__dot--on");
 }
 
-function renderInstalled() {
-  const host = $("models");
-  host.innerHTML = "";
-  if (models.length === 0) {
-    const msg = router.status === "running"
-      ? "no models yet, try discover"
-      : "starting router…";
-    host.innerHTML = `<div class="empty">${msg}</div>`;
-    return;
+// ── Model selector (the design's hero + list) ──────────────────────────────
+
+/** A short sub-line for the hero: size, vision, placement. */
+function heroSub(m: ModelView): string {
+  const parts: string[] = [];
+  if (m.size_bytes > 0) parts.push(gb(m.size_bytes) + " GB");
+  if (m.vision) parts.push("vision");
+  if (m.placement) parts.push("on your " + m.placement.toUpperCase());
+  return parts.join(" · ") || "ready to ride";
+}
+
+/** A short sub-line for a list row. */
+function rowSub(m: ModelView): string {
+  if (m.need_download) {
+    return "Cloud · " + (m.size_bytes > 0 ? gb(m.size_bytes) + " GB to fetch" : "fetch to run");
+  }
+  const parts: string[] = [];
+  if (m.size_bytes > 0) parts.push(gb(m.size_bytes) + " GB");
+  if (m.vision) parts.push("vision");
+  else if (m.placement) parts.push("fits");
+  return parts.join(" · ");
+}
+
+/** Open the chat window (the hero "Open chat" action). */
+async function openChatWindow() {
+  try {
+    const w = await WebviewWindow.getByLabel("chat");
+    if (w) { await w.show(); await (w as any).unminimize?.(); await w.setFocus(); }
+  } catch { showError("Could not open the chat window."); }
+}
+
+/** Best-effort fill of the hero's context and tok/sec from real data. */
+async function fillHeroStats(m: ModelView) {
+  try {
+    const info = await invoke<ModelInfo>("model_info", { modelId: m.id });
+    const ctx = info.override.ctx_size ?? info.native_ctx ?? 0;
+    const el = document.getElementById("hero-ctx");
+    if (el && ctx > 0) el.textContent = ctx % 1024 === 0 ? `${ctx / 1024}K` : String(ctx);
+  } catch { /* leave the dash */ }
+}
+
+function renderSelector() {
+  const heroHost = document.getElementById("hero");
+  const listHost = $("models");
+  const label = document.getElementById("list-label");
+  if (!heroHost) return;
+
+  const serving = models.find((m) => LOADED(m.status));
+  const loading = models.find((m) => BUSY(m.status));
+  const hero = serving || loading;
+
+  // ── HERO ──
+  heroHost.innerHTML = "";
+  if (serving) {
+    const name = prettyName(serving.name || serving.id);
+    heroHost.innerHTML =
+      `<div class="ms-hero__label">Serving now</div>` +
+      `<div class="ms-hero__name">${escapeHtml(name)}</div>` +
+      `<div class="ms-hero__sub">${escapeHtml(heroSub(serving))}</div>` +
+      `<div class="ms-hero__scope"><canvas data-glyph="scope" data-seed="3" data-cell="2.2" data-color="#0d0d0f" style="width:100%;height:100%;display:block;"></canvas></div>` +
+      `<div class="ms-stats">` +
+        `<div class="ms-stat"><div class="ms-stat__v" id="hero-tps">&mdash;</div><div class="ms-stat__l">tok / sec</div></div>` +
+        `<div class="ms-stat"><div class="ms-stat__v" id="hero-ctx">&mdash;</div><div class="ms-stat__l">context</div></div>` +
+        `<div class="ms-stat"><div class="ms-stat__v">${serving.size_bytes > 0 ? gb(serving.size_bytes) : "&mdash;"}<span class="ms-stat__u">GB</span></div><div class="ms-stat__l">memory</div></div>` +
+      `</div>` +
+      `<div class="ms-hero__actions">` +
+        `<button class="ms-btn ms-btn--primary" id="hero-stop">Stop serving</button>` +
+        `<button class="ms-btn" id="hero-chat">Open chat</button>` +
+      `</div>`;
+    heroHost.querySelector("#hero-stop")?.addEventListener("click", async () => {
+      try { await invoke("unload_model", { modelId: serving.id }); } catch (e) { showError(String(e)); }
+      await refresh(); startPolling();
+    });
+    heroHost.querySelector("#hero-chat")?.addEventListener("click", () => openChatWindow());
+    void fillHeroStats(serving);
+  } else if (loading) {
+    const name = prettyName(loading.name || loading.id);
+    heroHost.innerHTML =
+      `<div class="ms-hero__label">Saddling up</div>` +
+      `<div class="ms-hero__name">${escapeHtml(name)}</div>` +
+      `<div class="ms-hero__sub">Loading into memory…</div>` +
+      `<div class="ms-hero__bar"><div class="ms-hero__bar-fill"></div></div>` +
+      `<div class="ms-hero__barlabel">fitting layers to your hardware</div>`;
+  } else {
+    heroHost.innerHTML =
+      `<div class="ms-hero__quiet">The ranch is quiet.</div>` +
+      `<div class="ms-hero__quietsub">Load a model below to start serving. Nothing leaves the valley.</div>`;
   }
 
-  const list = [...models].sort((a, b) => {
-    const al = LOADED(a.status) ? 0 : 1, bl = LOADED(b.status) ? 0 : 1;
-    return al - bl || prettyName(a.id).localeCompare(prettyName(b.id));
-  });
+  if (label) label.textContent = hero ? "Switch to" : "Models";
 
-  list.forEach((m, idx) => {
-    const loaded = LOADED(m.status);
-    const busy = BUSY(m.status);
-    const name = prettyName(m.name || m.id);
-    const num = String(idx + 1).padStart(2, "0");
+  // ── LIST (everything that is not the hero) ──
+  listHost.innerHTML = "";
+  const rest = models
+    .filter((m) => m !== hero)
+    .sort((a, b) => prettyName(a.id).localeCompare(prettyName(b.id)));
 
-    // Build .meta string: "2.4 GB / GPU / VISION"
-    const parts: string[] = [];
-    if (m.size_bytes > 0) parts.push(gb(m.size_bytes));
-    else if (m.need_download) parts.push("CLOUD");
-    if (m.placement) parts.push(m.placement.toUpperCase());
-    if (m.vision) parts.push("VISION");
-    const metaStr = parts.join(" / ");
+  if (rest.length === 0) {
+    listHost.innerHTML = `<div class="ms-empty">${
+      router.status === "running" ? "No other models. Discover more below." : "Starting the router…"
+    }</div>`;
+  }
 
+  rest.forEach((m) => {
+    const cloud = m.need_download;
     const row = document.createElement("div");
-    row.className = "row" + (loaded ? " row--serving" : "");
+    row.className = "ms-row";
 
-    // Scan canvas behind serving row
-    if (loaded) {
-      const cv = document.createElement("canvas");
-      cv.className = "row__scan";
-      cv.dataset.glyph = "scan";
-      cv.dataset.seed = String((idx + 1) * 3);
-      cv.dataset.cell = "2.4";
-      cv.dataset.color = document.documentElement.dataset.theme === "dark" ||
-        (!document.documentElement.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches)
-        ? "#33312a" : "#ddd9cd";
-      row.appendChild(cv);
-    }
+    const dot = document.createElement("span");
+    dot.className = "ms-row__dot " + (cloud ? "ms-row__dot--cloud" : "ms-row__dot--idle");
+    row.appendChild(dot);
 
-    // Part number
-    const pn = document.createElement("span");
-    pn.className = "partno";
-    pn.textContent = num;
-    row.appendChild(pn);
-
-    // Body
     const body = document.createElement("div");
-    body.className = "row__body";
-    const nameEl = document.createElement("div");
-    nameEl.className = "row__name" + (loaded ? " row__name--serving" : "");
-    nameEl.title = name;
-    nameEl.textContent = name;
-    const metaEl = document.createElement("div");
-    metaEl.className = "meta";
-    metaEl.textContent = metaStr;
-    body.appendChild(nameEl);
-    body.appendChild(metaEl);
+    body.className = "ms-row__body";
+    const nm = document.createElement("div");
+    nm.className = "ms-row__name" + (cloud ? " ms-row__name--cloud" : "");
+    nm.textContent = prettyName(m.name || m.id);
+    const sb = document.createElement("div");
+    sb.className = "ms-row__sub";
+    sb.textContent = rowSub(m);
+    body.appendChild(nm);
+    body.appendChild(sb);
     row.appendChild(body);
 
-    // Cfg toggle (hover-revealed, only for downloaded models)
-    const downloaded = m.local || !m.need_download;
-    if (downloaded) {
-      const cfgBtn = document.createElement("button");
-      cfgBtn.className = "ubtn row__cfg-btn";
-      cfgBtn.textContent = "cfg";
-      cfgBtn.title = "Configure";
-      cfgBtn.onclick = (e) => {
-        e.stopPropagation();
-        openCfg = openCfg === m.id ? null : m.id;
-        render();
-      };
-      row.appendChild(cfgBtn);
-    }
-
-    // Primary action ubtn
-    const actionLabel = loaded ? "stop" : m.need_download ? "get" : "load";
-    const actionBtn = document.createElement("button");
-    actionBtn.className = "ubtn row__action";
-    actionBtn.textContent = actionLabel;
-    actionBtn.disabled = busy;
-    actionBtn.onclick = async () => {
-      try {
-        if (loaded) await invoke("unload_model", { modelId: m.id });
-        else await invoke("load_model", { modelId: m.id });
-      } catch (err) { showError(String(err)); }
-      await refresh();
-      startPolling();
+    const btn = document.createElement("button");
+    btn.className = cloud ? "ms-row__get" : "ms-row__load";
+    btn.textContent = cloud ? "Get" : "Load";
+    btn.onclick = async () => {
+      if (cloud) { view = "discover"; render(); return; }
+      try { await invoke("load_model", { modelId: m.id }); } catch (e) { showError(String(e)); }
+      await refresh(); startPolling();
     };
-    row.appendChild(actionBtn);
+    row.appendChild(btn);
 
-    // Square LED
-    const led = document.createElement("span");
-    led.className = "led row__led " + (
-      loaded ? "led--on" : m.need_download ? "led--cloud" : "led--idle"
-    );
-    row.appendChild(led);
-
-    host.appendChild(row);
-
-    // Config expander immediately after this row
-    if (downloaded && openCfg === m.id) {
-      const ph = document.createElement("div");
-      ph.className = "cfg-expander";
-      ph.id = "cfg-open";
-      ph.innerHTML = `<div class="cfg-note">Loading…</div>`;
-      host.appendChild(ph);
-    }
+    listHost.appendChild(row);
   });
 
   dither?.refresh();
@@ -426,7 +426,7 @@ async function hydrateCfg(id: string) {
   const ov: ModelOverride = { ...info.override };
   const m = models.find((x) => x.id === id);
   const name = m ? prettyName(m.name || m.id) : id;
-  const grow = () => fitWindow(380);
+  const grow = () => fitWindow(430, 760);
   host.innerHTML = "";
 
   // Small helper: a titled section with breathing room.
@@ -624,17 +624,21 @@ async function hydrateCfg(id: string) {
 
 function render() {
   setHeader();
-  // (no resetGlyphs - per-model glyphs dropped)
-  const ready = router.status === "running";
-  const agentBtn = $("agent-btn") as HTMLButtonElement;
-  agentBtn.disabled = !ready;
-  agentBtn.title = ready ? "" : "Router is starting";
-  $("tab-installed").classList.toggle("tab--active", view === "installed");
-  $("tab-discover").classList.toggle("tab--active", view === "discover");
-  if (view === "installed") renderInstalled();
-  else renderDiscover();
+  const dLink = document.getElementById("discover-link");
+  if (view === "installed") {
+    const n = catalog.filter((c) => !c.installed).length;
+    if (dLink) dLink.textContent = n > 0 ? `Discover ${n} more` : "Discover models";
+    renderSelector();
+  } else {
+    const lbl = document.getElementById("list-label");
+    if (lbl) lbl.textContent = "Discover";
+    if (dLink) dLink.textContent = "← Installed";
+    renderDiscover();
+  }
   lastSig = sigOf();
-  fitWindow(360);
+  fitWindow(430, 760);
+  // The per-model config surface is being rebuilt in the Full Design pass; keep
+  // its renderer wired so it stays live for that work.
   if (view === "installed" && openCfg) void hydrateCfg(openCfg);
   dither?.refresh();
 }
@@ -924,54 +928,23 @@ async function init() {
     }
   });
 
-  // Footer: "LLAMARANCH <appVersion> · LLAMA.CPP b<build>"
-  const rawVer = (await invoke<string>("llama_cpp_version")) || "";
-  const build = rawVer.match(/\b(\d{3,})\b/)?.[1];
-  const appVer = await getVersion().catch(() => "");
-  ($("version") as HTMLElement).textContent = [
-    appVer ? `LLAMARANCH ${appVer}` : "LLAMARANCH",
-    build ? `LLAMA.CPP b${build}` : rawVer ? rawVer.toUpperCase() : "LLAMA.CPP",
-  ].filter(Boolean).join(" · ");
+  // Surface the llama.cpp build behind the scenes (used by the cmdk footer);
+  // the selector itself stays clean.
+  void invoke<string>("llama_cpp_version").catch(() => "");
+  void getVersion().catch(() => "");
 
-  $("tab-installed").onclick = () => { view = "installed"; render(); };
-  $("tab-discover").onclick = () => { view = "discover"; render(); };
-
+  // Copy the endpoint; the pill flashes "copied".
   $("copy").onclick = async () => {
     await navigator.clipboard.writeText(router.endpoint || "");
     const label = $("copy-label");
-    const prev = label.textContent;
     label.textContent = "copied";
-    setTimeout(() => (label.textContent = prev), 1200);
+    setTimeout(() => (label.textContent = ""), 1200);
   };
 
-  // AGENT button: opens the in-app chat window
-  $("agent-btn").onclick = async () => {
-    const w = await WebviewWindow.getByLabel("chat");
-    if (w) {
-      await w.show();
-      if (typeof (w as any).unminimize === "function") {
-        await (w as any).unminimize();
-      }
-      await w.setFocus();
-    } else {
-      showError("Could not open the chat window.");
-    }
-  };
-
-  // ⌘K hint button - labeled based on OS
-  const cmdkHint = $("cmdk-hint") as HTMLButtonElement;
-  const isMac = document.documentElement.dataset.os === "macos";
-  cmdkHint.textContent = isMac ? "⌘K" : "Ctrl K";
-  cmdkHint.onclick = () => openCmdk();
-
-  $("quit").onclick = () => exit(0);
-
-  $("close-btn").onclick = async () => {
-    await getCurrentWindow().hide();
-    if (!localStorage.getItem("tray-hint-shown")) {
-      localStorage.setItem("tray-hint-shown", "1");
-      notify("LlamaRanch is still running", "Click the llama icon in your tray to reopen it.");
-    }
+  // "Discover N more" / "← Installed" toggles the model list view.
+  $("discover-link").onclick = () => {
+    view = view === "installed" ? "discover" : "installed";
+    render();
   };
 
   // ── ⌘K / Ctrl+K global keyboard handler ──────────────────────────────

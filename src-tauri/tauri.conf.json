@@ -15,10 +15,10 @@
     "windows": [
       {
         "title": "LlamaRanch",
-        "width": 340,
-        "height": 200,
-        "minWidth": 340,
-        "maxWidth": 340,
+        "width": 430,
+        "height": 240,
+        "minWidth": 430,
+        "maxWidth": 430,
         "minHeight": 80,
         "resizable": false,
         "visible": false,
