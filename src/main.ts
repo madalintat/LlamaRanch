@@ -324,57 +324,60 @@ function renderSelector() {
 }
 
 function renderDiscover() {
+  // Discover has no serving hero — clear it so the list owns the card.
+  const heroHost = document.getElementById("hero");
+  if (heroHost) heroHost.innerHTML = "";
   const host = $("models");
   host.innerHTML = "";
 
-  catalog.forEach((e, idx) => {
-    const num = String(idx + 1).padStart(2, "0");
+  if (catalog.length === 0) {
+    host.innerHTML = `<div class="ms-empty">Nothing new to discover right now.</div>`;
+    dither?.refresh();
+    return;
+  }
+
+  catalog.forEach((e) => {
     const prog = dl.get(e.id);
+    const pct = prog && prog.total ? Math.round((prog.done / prog.total) * 100) : 0;
 
     const row = document.createElement("div");
-    row.className = "disc-row";
+    row.className = "ms-row";
 
-    const head = document.createElement("div");
-    head.className = "disc-row__head";
-
-    const pn = document.createElement("span");
-    pn.className = "partno";
-    pn.textContent = num;
-    head.appendChild(pn);
+    const dot = document.createElement("span");
+    dot.className = "ms-row__dot " + (e.installed ? "ms-row__dot--on" : prog ? "ms-row__dot--dl" : "ms-row__dot--cloud");
+    row.appendChild(dot);
 
     const body = document.createElement("div");
-    body.className = "disc-row__body";
-    const nameEl = document.createElement("div");
-    nameEl.className = "disc-row__name" + (e.installed ? " disc-row__name--installed" : "");
-    nameEl.textContent = e.name;
-    const metaEl = document.createElement("div");
-    metaEl.className = "meta";
-    metaEl.textContent = `~${e.approx_gb.toFixed(1)} GB · ${e.description || e.group}`;
-    body.appendChild(nameEl);
-    body.appendChild(metaEl);
-    head.appendChild(body);
+    body.className = "ms-row__body";
+    const nm = document.createElement("div");
+    nm.className = "ms-row__name" + (e.installed ? "" : " ms-row__name--cloud");
+    nm.textContent = e.name;
+    const sb = document.createElement("div");
+    sb.className = "ms-row__sub";
+    sb.textContent = `${e.approx_gb.toFixed(1)} GB · ${e.description || e.group}`;
+    body.appendChild(nm);
+    body.appendChild(sb);
+    row.appendChild(body);
 
-    // Action
-    const pct = prog && prog.total ? Math.round((prog.done / prog.total) * 100) : 0;
     if (e.installed) {
       const done = document.createElement("span");
-      done.className = "ubtn";
-      done.textContent = "done ▣";
-      head.appendChild(done);
+      done.className = "ms-row__get";
+      done.textContent = "Installed";
+      row.appendChild(done);
     } else if (prog) {
       const pctEl = document.createElement("span");
-      pctEl.className = "disc-row__pct";
+      pctEl.className = "ms-row__pct";
       pctEl.textContent = prog.total ? `${pct}%` : "…";
-      head.appendChild(pctEl);
+      row.appendChild(pctEl);
       const cancel = document.createElement("button");
-      cancel.className = "ubtn";
-      cancel.textContent = "cancel";
+      cancel.className = "ms-row__get";
+      cancel.textContent = "Cancel";
       cancel.onclick = () => invoke("cancel_download", { id: e.id });
-      head.appendChild(cancel);
+      row.appendChild(cancel);
     } else {
       const getBtn = document.createElement("button");
-      getBtn.className = "ubtn ubtn--bordered";
-      getBtn.textContent = "get";
+      getBtn.className = "ms-row__load";
+      getBtn.textContent = "Get";
       getBtn.onclick = async () => {
         dl.set(e.id, { done: 0, total: 0 });
         renderDiscover();
@@ -386,33 +389,21 @@ function renderDiscover() {
           renderDiscover();
         }
       };
-      head.appendChild(getBtn);
-    }
-
-    row.appendChild(head);
-
-    // Dithered progress bar (only during download)
-    if (prog) {
-      const track = document.createElement("div");
-      track.className = "progress-track";
-      const fill = document.createElement("div");
-      fill.className = "progress-fill";
-      fill.style.width = prog.total ? `${pct}%` : "6%";
-      const isDark = document.documentElement.dataset.theme === "dark" ||
-        (!document.documentElement.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches);
-      const cv = document.createElement("canvas");
-      cv.dataset.glyph = "band";
-      cv.dataset.seed = String(idx + 3);
-      cv.dataset.cell = "2";
-      cv.dataset.color = isDark ? "#ece9df" : "#15140f";
-      cv.style.width = "100%";
-      cv.style.height = "10px";
-      fill.appendChild(cv);
-      track.appendChild(fill);
-      row.appendChild(track);
+      row.appendChild(getBtn);
     }
 
     host.appendChild(row);
+
+    // Solid progress bar beneath a downloading row (the design's discover bar).
+    if (prog) {
+      const track = document.createElement("div");
+      track.className = "ms-prog";
+      const fill = document.createElement("div");
+      fill.className = "ms-prog__fill";
+      fill.style.width = prog.total ? `${pct}%` : "6%";
+      track.appendChild(fill);
+      host.appendChild(track);
+    }
   });
 
   dither?.refresh();
