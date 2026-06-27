@@ -83,6 +83,12 @@ pub struct Config {
     /// Global shortcut for the Settings window (default: CmdOrCtrl+,).
     #[serde(default = "default_shortcut_settings")]
     pub shortcut_settings: String,
+    /// When true, the router pairs each model with a small same-family draft
+    /// model from the herd for speculative decoding (faster decode, identical
+    /// output). Off by default until validated on your hardware; when on, the
+    /// draft is auto-selected, no manual config.
+    #[serde(default)]
+    pub speculative_decoding: bool,
 }
 
 fn home() -> PathBuf {
@@ -264,6 +270,7 @@ impl Default for Config {
             shortcut_cmdbar: default_shortcut_cmdbar(),
             shortcut_agent: default_shortcut_agent(),
             shortcut_settings: default_shortcut_settings(),
+            speculative_decoding: false,
         }
     }
 }

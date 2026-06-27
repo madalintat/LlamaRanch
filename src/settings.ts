@@ -154,6 +154,7 @@ const setExpose    = bindToggle("s-expose-toggle",    "s-expose",    "s-expose-l
 const setAutostart = bindToggle("s-autostart-toggle", "s-autostart", "s-autostart-led");
 const setOffline   = bindToggle("s-offline-toggle",   "s-offline",   "s-offline-led");
 const setGateway   = bindToggle("s-gw-toggle",        "s-gw",        "s-gw-led");
+const setSpec      = bindToggle("s-spec-toggle",      "s-spec",      "s-spec-led");
 
 // Keep the read-only endpoint field showing the address apps should point at.
 function syncGatewayEndpoint() {
@@ -174,6 +175,9 @@ document.getElementById("s-offline-row")?.addEventListener("click", (e) => {
 });
 document.getElementById("s-gw-row")?.addEventListener("click", (e) => {
   if (!(e.target as HTMLElement).closest(".toggle")) document.getElementById("s-gw-toggle")!.click();
+});
+document.getElementById("s-spec-row")?.addEventListener("click", (e) => {
+  if (!(e.target as HTMLElement).closest(".toggle")) document.getElementById("s-spec-toggle")!.click();
 });
 
 function renderTools(tools: ToolInfo[]) {
@@ -769,6 +773,7 @@ async function load() {
   setExpose(cfg.expose_to_network);
   setOffline(cfg.offline_mode ?? false);
   setGateway(cfg.gateway_enabled ?? true);
+  setSpec(cfg.speculative_decoding ?? false);
   $("s-gw-port").value = String(cfg.gateway_port ?? 2277);
   syncGatewayEndpoint();
   ($("s-searxng") as HTMLInputElement).value = cfg.searxng_url ?? "";
@@ -849,6 +854,7 @@ async function save() {
         offline_mode: $("s-offline").checked,
         gateway_enabled: $("s-gw").checked,
         gateway_port: Number($("s-gw-port").value) || 2277,
+        speculative_decoding: $("s-spec").checked,
         searxng_url,
         allowed_dirs,
       },

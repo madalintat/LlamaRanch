@@ -49,13 +49,25 @@ fn override_lines(o: &ModelOverride) -> String {
 
 /// Render a router preset (.ini) listing each model as its own section, pairing
 /// vision models with their mmproj. Section name = model id.
-pub fn preset_for(models: &[Model], overrides: &BTreeMap<String, ModelOverride>) -> String {
+pub fn preset_for(
+    models: &[Model],
+    overrides: &BTreeMap<String, ModelOverride>,
+    draft_enabled: bool,
+) -> String {
     let mut s = String::from("version = 1\n\n");
-    for m in models {
+    for (idx, m) in models.iter().enumerate() {
         s.push_str(&format!("[{}]\n", m.id));
         s.push_str(&format!("model = {}\n", m.path));
         if let Some(mm) = &m.mmproj_path {
             s.push_str(&format!("mmproj = {mm}\n"));
+        }
+        // Speculative decoding: pair the model with a small same-family draft
+        // from the herd so the router runs them together for faster decode.
+        // Best-effort: emits nothing when no suitable draft is installed.
+        if draft_enabled {
+            if let Some(di) = pick_draft(idx, models) {
+                s.push_str(&format!("model-draft = {}\n", models[di].path));
+            }
         }
         if let Some(o) = overrides.get(&m.id) {
             s.push_str(&override_lines(o));
@@ -74,6 +86,74 @@ pub fn preset_for(models: &[Model], overrides: &BTreeMap<String, ModelOverride>)
         s.push('\n');
     }
     s
+}
+
+// ── Speculative-decoding draft pairing ──────────────────────────────────────
+
+/// True for a parameter-size token like "8b", "1.7b", or the MoE form "8x7b".
+fn is_size_token(tok: &str) -> bool {
+    let t = tok.trim_end_matches('b');
+    if t == tok || t.is_empty() {
+        return false; // didn't end with 'b'
+    }
+    t.chars().all(|c| c.is_ascii_digit() || c == '.' || c == 'x')
+}
+
+/// A coarse model-family signature for draft pairing: the base name lowercased
+/// with the parameter-size token, quant, and common instruct suffixes removed,
+/// so different sizes of one family share a key ("Qwen3-8B" and "Qwen3-0.6B"
+/// both map to "qwen3"). Pure.
+pub fn family_key(name: &str) -> String {
+    crate::quant::base_name(name)
+        .to_lowercase()
+        .split(|c| c == '-' || c == '_' || c == ' ')
+        .filter(|tok| !tok.is_empty())
+        .filter(|tok| !is_size_token(tok))
+        .filter(|tok| !matches!(*tok, "it" | "instruct" | "chat" | "base"))
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+/// Approximate parameter count in billions parsed from a name ("8B" → 8.0,
+/// "1.7B" → 1.7), or None when absent. An MoE "AxB" form returns the product.
+pub fn param_b(name: &str) -> Option<f32> {
+    for tok in name.to_lowercase().split(|c| c == '-' || c == '_' || c == ' ') {
+        if is_size_token(tok) {
+            let t = tok.trim_end_matches('b');
+            if let Some((a, b)) = t.split_once('x') {
+                return match (a.parse::<f32>(), b.parse::<f32>()) {
+                    (Ok(a), Ok(b)) => Some(a * b),
+                    _ => None,
+                };
+            }
+            return t.parse::<f32>().ok();
+        }
+    }
+    None
+}
+
+/// Pick the best draft model for the target at `target_idx`: same family, and
+/// small enough to be a fast speculator (at most ~40% of the target's
+/// parameters). The smallest qualifying model wins. Returns its index, or None
+/// when nothing suitable is installed. Pure.
+pub fn pick_draft(target_idx: usize, models: &[Model]) -> Option<usize> {
+    let target = models.get(target_idx)?;
+    let fam = family_key(&target.id);
+    let target_b = param_b(&target.id)?;
+    let mut best: Option<(usize, f32)> = None;
+    for (i, m) in models.iter().enumerate() {
+        if i == target_idx || family_key(&m.id) != fam {
+            continue;
+        }
+        let Some(b) = param_b(&m.id) else { continue };
+        if b > target_b * 0.4 {
+            continue; // not clearly smaller; a draft must be much faster
+        }
+        if best.map(|(_, bb)| b < bb).unwrap_or(true) {
+            best = Some((i, b));
+        }
+    }
+    best.map(|(i, _)| i)
 }
 
 /// Build router CLI args. `--jinja` and `--fit on` are inherited by every model
@@ -447,7 +527,7 @@ mod tests {
                 mmproj_path: Some("/m/vision/mmproj.gguf".into()),
             },
         ];
-        let ini = preset_for(&models, &std::collections::BTreeMap::new());
+        let ini = preset_for(&models, &std::collections::BTreeMap::new(), false);
         assert!(ini.contains("[Qwen3-4B]\nmodel = /m/chat/q.gguf\n"));
         assert!(ini.contains("[MiniCPM]\nmodel = /m/vision/v.gguf\nmmproj = /m/vision/mmproj.gguf\n"));
     }
@@ -474,7 +554,7 @@ mod tests {
         }];
         let mut ov = BTreeMap::new();
         ov.insert("Qwen3".to_string(), ModelOverride { ctx_size: Some(4096), ..Default::default() });
-        let ini = preset_for(&models, &ov);
+        let ini = preset_for(&models, &ov, false);
         assert!(ini.contains("[Qwen3]\nmodel = /m/q.gguf\nctx-size = 4096\n"));
     }
 
@@ -626,12 +706,61 @@ mod tests {
         let mut ov = BTreeMap::new();
         ov.insert("Local".to_string(), ModelOverride { ctx_size: Some(4096), ..Default::default() });
         ov.insert("org/repo:Q4".to_string(), ModelOverride { ctx_size: Some(8192), ..Default::default() });
-        let ini = preset_for(&models, &ov);
+        let ini = preset_for(&models, &ov, false);
         // local model: plain section + override, NO hf-repo line
         assert!(ini.contains("[Local]\nmodel = /m/l.gguf\nctx-size = 4096\n"));
         assert!(!ini.contains("[Local]\nmodel = /m/l.gguf\nhf-repo"));
         assert!(!ini.contains("hf-repo = Local"));
         // cached override: hf-repo section
         assert!(ini.contains("[org/repo:Q4]\nhf-repo = org/repo:Q4\nctx-size = 8192\n"));
+    }
+
+    // ── speculative-decoding draft pairing ──
+    fn dmodel(id: &str, path: &str) -> Model {
+        Model {
+            id: id.into(), name: id.into(), group: "chat".into(),
+            path: path.into(), size_bytes: 0, mmproj_path: None,
+        }
+    }
+
+    #[test]
+    fn family_key_strips_size_quant_and_suffix() {
+        assert_eq!(family_key("Qwen3-8B-Q4_K_M"), "qwen3");
+        assert_eq!(family_key("gemma-3-4b-it"), "gemma-3");
+        assert_eq!(family_key("Llama-3.2-3B-Instruct"), "llama-3.2");
+    }
+
+    #[test]
+    fn param_b_parses_sizes() {
+        assert_eq!(param_b("Qwen3-8B-Q4_K_M"), Some(8.0));
+        assert_eq!(param_b("model-1.7b"), Some(1.7));
+        assert_eq!(param_b("no-size-here"), None);
+    }
+
+    #[test]
+    fn pick_draft_chooses_smallest_same_family() {
+        let models = vec![
+            dmodel("Qwen3-8B-Q4_K_M", "/8b"),
+            dmodel("Qwen3-1.7B-Q4_K_M", "/1.7b"),
+            dmodel("Qwen3-0.6B-Q4_K_M", "/0.6b"),
+            dmodel("Llama-3.2-3B", "/llama"),
+        ];
+        assert_eq!(pick_draft(0, &models), Some(2)); // smallest same-family draft
+        assert_eq!(pick_draft(3, &models), None); // llama has no small sibling here
+    }
+
+    #[test]
+    fn pick_draft_none_when_sibling_not_small_enough() {
+        let models = vec![dmodel("Qwen3-8B", "/8b"), dmodel("Qwen3-7B", "/7b")];
+        assert_eq!(pick_draft(0, &models), None); // 7B is not <= 40% of 8B
+    }
+
+    #[test]
+    fn preset_emits_model_draft_only_when_enabled() {
+        let models = vec![dmodel("Qwen3-8B", "/m/8b.gguf"), dmodel("Qwen3-0.6B", "/m/0.6b.gguf")];
+        let on = preset_for(&models, &std::collections::BTreeMap::new(), true);
+        assert!(on.contains("[Qwen3-8B]\nmodel = /m/8b.gguf\nmodel-draft = /m/0.6b.gguf\n"));
+        let off = preset_for(&models, &std::collections::BTreeMap::new(), false);
+        assert!(!off.contains("model-draft"));
     }
 }

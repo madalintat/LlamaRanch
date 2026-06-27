@@ -199,6 +199,17 @@
             </label>
           </div>
 
+          <!-- Speculative decoding -->
+          <div class="s-toggle-row" id="s-spec-row">
+            <span class="led led--idle" id="s-spec-led"></span>
+            <div class="s-toggle-row__body">
+              <div class="s-toggle-row__name">Speculative decoding</div>
+              <div class="s-toggle-row__sub meta">Pair each model with a small same-family draft for faster decode, same output. The draft is auto-picked from your herd. Off until validated on your hardware. Applies on restart.</div>
+            </div>
+            <div class="toggle toggle--off" id="s-spec-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
+            <input type="checkbox" id="s-spec" class="s-hidden-check" />
+          </div>
+
           <!-- Expose to network -->
           <div class="s-toggle-row" id="s-expose-row">
             <span class="led led--idle" id="s-expose-led"></span>
