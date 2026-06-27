@@ -54,7 +54,7 @@ Local-first is only worth something if you can trust it. So the ranch shows you.
 
 When you run a local model you run a shrunk version of it (a quantization). Smaller fits your machine, but it loses a little sharpness, and almost nothing tells you how much. The ranch measures it.
 
-- **Quant Truth.** On your own machine, the ranch measures how much sharpness a given size actually lost, and shows it as a plain grade.
+- **Quality, measured.** On your own machine, the ranch measures how much sharpness a given size actually lost, and shows it as a plain grade.
 - **The sweet spot for your hardware:** the lightest size that still rides true.
 - **Honest about its own limits.** When two sizes are genuinely too close to call, it says so instead of pretending.
 - Measured once, on the night shift, remembered forever, never in your way. New animals you bring yourself get measured in the background, or you can ask for it with one button.
@@ -151,7 +151,7 @@ Local by default, full stop. Every tool wears a LOCAL or ONLINE tag. Flip Offlin
 
 **Now**
 
-- **Quant Truth:** measure on your machine how much sharpness each model size loses, and name the sweet spot
+- **Quality grades:** measure on your machine how much sharpness each model size loses, and name the sweet spot
 - **Power surfaced:** guaranteed-valid structured output and auto speculative decoding, set up for you
 - **The Ledger:** a live, honest record that nothing left the valley
 

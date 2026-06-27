@@ -12,6 +12,7 @@ mod server;
 mod telemetry;
 mod commands;
 mod gguf;
+mod quant;
 
 use commands::AppConfig;
 use server::SharedServer;
@@ -83,6 +84,8 @@ pub fn run() {
             commands::eval_tool_reliability,
             commands::recent_activity,
             commands::set_model_config,
+            quant::quality_report,
+            quant::measure_quality,
             commands::list_tools,
             commands::websearch_status,
             commands::websearch_setup,
@@ -177,6 +180,30 @@ pub fn run() {
             {
                 let cfg = app.state::<AppConfig>().0.lock().unwrap().clone();
                 searxng::start(&cfg);
+            }
+
+            // Night shift: measure Quant Truth for un-graded models in the
+            // background. Waits well past launch so it never competes with the
+            // first thing the user does, then sweeps periodically. Best-effort
+            // and fully off the critical path; the router lazy-loads each model
+            // it scores and sleeps it again when idle.
+            {
+                let h = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_secs(90));
+                    loop {
+                        let (port, models_dir) = {
+                            let state = h.state::<AppConfig>();
+                            let c = state.0.lock().unwrap();
+                            (c.port, c.models_dir.clone())
+                        };
+                        let n = crate::quant::measure_pending(port, &models_dir);
+                        if n > 0 {
+                            eprintln!("llamaranch: measured quality for {n} model(s) on the night shift");
+                        }
+                        std::thread::sleep(Duration::from_secs(6 * 60 * 60));
+                    }
+                });
             }
 
             Ok(())

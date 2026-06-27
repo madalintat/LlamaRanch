@@ -75,9 +75,9 @@ build the **judgment layer** on top of it, and it comes down to three things.
    connector, a square LED that proves home, a live Ledger, and one switch that
    closes every gate. Nothing leaves the valley, and you can see it.
 3. **The truth about your models.** A local model is a shrunk model, and almost
-   nothing tells you how much sharpness it lost. Quant Truth measures it on your
-   own machine, names the sweet spot for your hardware, and is honest about its
-   own limits.
+   nothing tells you how much sharpness it lost. We measure it on your own
+   machine, name the sweet spot for your hardware, and stay honest about the
+   limits of the measurement.
 
 Build on llama.cpp, add judgment, stay open, stay local, show the work. That is
 the how.
@@ -130,7 +130,7 @@ Same purpose getting deeper over time, not a pile of unrelated features.
 
 - **Now:** the three pillars made real. Power surfaced (structured output,
   speculative decoding, warm swap), privacy you can watch (the live Ledger), and
-  Quant Truth measured on your own machine.
+  quality measured on your own machine.
 - **Soon:** a local RAG stack (embeddings and reranking) wired for you,
   fill-in-the-middle for code, and more dialects so any agent plugs in.
 - **Later:** become the substrate every local-AI app rides into (expose the ranch
