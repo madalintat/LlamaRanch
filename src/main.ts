@@ -224,6 +224,16 @@ async function fillHeroStats(m: ModelView) {
   } catch { /* leave the dash */ }
 }
 
+// Feather "settings" gear — the configure affordance on the hero and rows.
+const GEAR =
+  `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+
+/** Toggle the inline config expander for a downloaded model. */
+function toggleCfg(id: string) {
+  openCfg = openCfg === id ? null : id;
+  render();
+}
+
 function renderSelector() {
   const heroHost = document.getElementById("hero");
   const listHost = $("models");
@@ -251,12 +261,14 @@ function renderSelector() {
       `<div class="ms-hero__actions">` +
         `<button class="ms-btn ms-btn--primary" id="hero-stop">Stop serving</button>` +
         `<button class="ms-btn" id="hero-chat">Open chat</button>` +
+        `<button class="ms-btn ms-btn--icon${openCfg === serving.id ? " ms-btn--icon-on" : ""}" id="hero-cfg" title="Configure" aria-label="Configure">${GEAR}</button>` +
       `</div>`;
     heroHost.querySelector("#hero-stop")?.addEventListener("click", async () => {
       try { await invoke("unload_model", { modelId: serving.id }); } catch (e) { showError(String(e)); }
       await refresh(); startPolling();
     });
     heroHost.querySelector("#hero-chat")?.addEventListener("click", () => openChatWindow());
+    heroHost.querySelector("#hero-cfg")?.addEventListener("click", () => toggleCfg(serving.id));
     void fillHeroStats(serving);
   } else if (loading) {
     const name = prettyName(loading.name || loading.id);
@@ -307,6 +319,17 @@ function renderSelector() {
     body.appendChild(sb);
     row.appendChild(body);
 
+    // Configure gear (downloaded models only) — hover-revealed, opens inline.
+    if (!cloud) {
+      const cfgBtn = document.createElement("button");
+      cfgBtn.className = "ms-row__cfg" + (openCfg === m.id ? " ms-row__cfg--on" : "");
+      cfgBtn.title = "Configure";
+      cfgBtn.setAttribute("aria-label", "Configure " + prettyName(m.name || m.id));
+      cfgBtn.innerHTML = GEAR;
+      cfgBtn.onclick = (e) => { e.stopPropagation(); toggleCfg(m.id); };
+      row.appendChild(cfgBtn);
+    }
+
     const btn = document.createElement("button");
     btn.className = cloud ? "ms-row__get" : "ms-row__load";
     btn.textContent = cloud ? "Get" : "Load";
@@ -319,6 +342,15 @@ function renderSelector() {
 
     listHost.appendChild(row);
   });
+
+  // Inline config expander for whichever model has it open (hydrateCfg fills it).
+  if (openCfg) {
+    const ph = document.createElement("div");
+    ph.className = "cfg-expander";
+    ph.id = "cfg-open";
+    ph.innerHTML = `<div class="cfg-note">Loading…</div>`;
+    listHost.appendChild(ph);
+  }
 
   dither?.refresh();
 }

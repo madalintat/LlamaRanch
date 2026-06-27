@@ -74,6 +74,18 @@ html, body {
 .ms-btn:hover { background: #f7f7f9; }
 .ms-btn--primary { flex: 1; background: #0d0d0f; color: #fff; border-color: #0d0d0f; }
 .ms-btn--primary:hover { background: #232327; }
+.ms-btn--icon { flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 44px; color: #6b6b73; }
+.ms-btn--icon:hover { color: #0d0d0f; }
+.ms-btn--icon-on { background: #0d0d0f; color: #fff; border-color: #0d0d0f; }
+.ms-btn--icon-on:hover { background: #232327; color: #fff; }
+.ms-row__cfg {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border: none; background: none; color: #a0a0a8;
+  border-radius: 8px; cursor: pointer; opacity: 0; transition: opacity .12s, color .12s, background .12s;
+}
+.ms-row:hover .ms-row__cfg, .ms-row__cfg--on { opacity: 1; }
+.ms-row__cfg:hover { color: #0d0d0f; background: #f0f0f3; }
+.ms-row__cfg--on { color: #0d0d0f; background: #f0f0f3; }
 .ms-hero__bar { position: relative; height: 12px; margin: 22px 0 6px; border-radius: 999px; background: #ededf1; overflow: hidden; }
 .ms-hero__bar-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 60%; background: #0d0d0f; border-radius: 999px; animation: ms-saddle 1.4s ease-in-out infinite; }
 @keyframes ms-saddle { 0% { width: 18%; } 50% { width: 78%; } 100% { width: 18%; } }
