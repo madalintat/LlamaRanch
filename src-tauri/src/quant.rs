@@ -166,8 +166,17 @@ pub fn mean_kld(candidate: &[PositionScore], reference: &[PositionScore]) -> f64
     for i in 0..n {
         let cand: BTreeMap<&str, f64> =
             candidate[i].dist.iter().map(|(t, p)| (t.as_str(), *p)).collect();
-        // Renormalize the reference's top-k into a distribution over its support.
+        // Compare both distributions over the reference's top-k support,
+        // renormalizing each by its own mass on that support. Without this the
+        // candidate's truncated top-k (which sums to < 1) would inject a constant
+        // positive divergence floor, so two identical sizes would never read as
+        // "too close to call".
         let ref_mass: f64 = reference[i].dist.iter().map(|(_, p)| *p).sum();
+        let cand_mass: f64 = reference[i]
+            .dist
+            .iter()
+            .map(|(tok, _)| cand.get(tok.as_str()).copied().unwrap_or(0.0))
+            .sum();
         if ref_mass <= 0.0 {
             continue;
         }
@@ -177,7 +186,8 @@ pub fn mean_kld(candidate: &[PositionScore], reference: &[PositionScore]) -> f64
             if p <= 0.0 {
                 continue;
             }
-            let q = cand.get(tok.as_str()).copied().unwrap_or(0.0).max(EPS);
+            let q_raw = cand.get(tok.as_str()).copied().unwrap_or(0.0);
+            let q = if cand_mass > 0.0 { (q_raw / cand_mass).max(EPS) } else { EPS };
             kld += p * (p / q).ln();
         }
         acc += kld.max(0.0);
@@ -471,7 +481,15 @@ pub fn score_text(port: u16, model_id: &str, text: &str) -> Option<Vec<PositionS
         .ok()?;
     let v: serde_json::Value = resp.into_json().ok()?;
     let lp = v.get("choices")?.get(0)?.get("logprobs")?;
-    parse_logprobs(lp)
+    let scores = parse_logprobs(lp)?;
+    // An all-null / empty logprobs payload means the server did not actually
+    // score the prompt (some builds do not return prompt-token logprobs under
+    // echo). Treat that as a failure so the caller records the model as
+    // unmeasurable rather than grading it a flawless reference-equal.
+    if scores.is_empty() {
+        return None;
+    }
+    Some(scores)
 }
 
 /// Turn an OpenAI-style `logprobs` object (`tokens`, `token_logprobs`,

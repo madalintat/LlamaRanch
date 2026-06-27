@@ -50,10 +50,10 @@ pub fn explicit_category(model: &str) -> Option<Category> {
 /// gets guaranteed-valid output; the gateway forwards it untouched and reports
 /// the kind back in a header. Pure.
 pub fn wants_structured(body: &Value) -> Option<&'static str> {
-    if body.get("grammar").map(|g| !g.is_null()).unwrap_or(false) {
+    if body.get("grammar").and_then(|g| g.as_str()).is_some_and(|s| !s.trim().is_empty()) {
         return Some("grammar");
     }
-    if body.get("json_schema").map(|g| !g.is_null()).unwrap_or(false) {
+    if body.get("json_schema").is_some_and(|g| g.is_object()) {
         return Some("json_schema");
     }
     match body
@@ -462,5 +462,12 @@ mod tests {
     fn wants_structured_none_for_plain_request() {
         assert_eq!(wants_structured(&json!({"messages": [], "temperature": 0.7})), None);
         assert_eq!(wants_structured(&json!({"response_format": {"type": "text"}})), None);
+    }
+
+    #[test]
+    fn wants_structured_ignores_empty_or_wrong_typed() {
+        assert_eq!(wants_structured(&json!({"grammar": ""})), None);
+        assert_eq!(wants_structured(&json!({"grammar": false})), None);
+        assert_eq!(wants_structured(&json!({"json_schema": false})), None);
     }
 }

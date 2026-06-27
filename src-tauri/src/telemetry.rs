@@ -31,6 +31,10 @@ struct Inner {
     seq: u64,
     ring: VecDeque<RouteEvent>,
     tool_ring: VecDeque<ToolEvent>,
+    /// Monotonic action counts (never trimmed), so the ledger's "stayed local"
+    /// proof can never flip back to true after the rings evict an online event.
+    local_total: u32,
+    online_total: u32,
 }
 
 /// Managed telemetry state. Recording holds the lock only briefly.
@@ -49,6 +53,7 @@ impl Telemetry {
         let ev = {
             let mut g = self.0.lock().unwrap();
             g.seq += 1;
+            g.local_total = g.local_total.saturating_add(1); // every inference is local
             let ev = RouteEvent {
                 seq: g.seq,
                 model: model.to_string(),
@@ -74,6 +79,11 @@ impl Telemetry {
         let ev = {
             let mut g = self.0.lock().unwrap();
             g.seq += 1;
+            if scope == "online" {
+                g.online_total = g.online_total.saturating_add(1);
+            } else {
+                g.local_total = g.local_total.saturating_add(1);
+            }
             let ev = ToolEvent { seq: g.seq, name: name.to_string(), scope: scope.to_string(), ok };
             g.tool_ring.push_back(ev.clone());
             while g.tool_ring.len() > CAP {
@@ -84,9 +94,19 @@ impl Telemetry {
         append_tool_jsonl(&ev);
     }
 
-    /// All retained tool runs, oldest first.
-    pub fn tool_snapshot(&self) -> Vec<ToolEvent> {
-        self.0.lock().unwrap().tool_ring.iter().cloned().collect()
+    /// The proof-of-local ledger: monotonic action totals plus the most recent
+    /// online actions (newest first) still retained in the ring.
+    pub fn ledger(&self) -> Ledger {
+        let g = self.0.lock().unwrap();
+        let recent_online: Vec<ToolEvent> = g
+            .tool_ring
+            .iter()
+            .rev()
+            .filter(|t| t.scope == "online")
+            .take(10)
+            .cloned()
+            .collect();
+        build_ledger(g.local_total, g.online_total, recent_online)
     }
 }
 
@@ -164,18 +184,15 @@ pub struct Ledger {
     pub recent_online: Vec<ToolEvent>,
 }
 
-/// Build the ledger from routing and tool history. Every inference is local (the
-/// router is loopback); only online tools can leave the valley. Newest online
-/// actions first, for transparency. Pure.
-pub fn ledger(routes: &[RouteEvent], tools: &[ToolEvent]) -> Ledger {
-    let local_tools = tools.iter().filter(|t| t.scope == "local").count() as u32;
-    let online: Vec<&ToolEvent> = tools.iter().filter(|t| t.scope == "online").collect();
-    let online_actions = online.len() as u32;
-    let recent_online: Vec<ToolEvent> = online.into_iter().rev().take(10).cloned().collect();
+/// Build the ledger from monotonic action totals and the recent online events.
+/// Every inference is local (the router is loopback); only online tools can leave
+/// the valley. The totals come from never-trimmed counters, so "stayed local" is
+/// honest even after the rings evict old events. Pure.
+pub fn build_ledger(local_total: u32, online_total: u32, recent_online: Vec<ToolEvent>) -> Ledger {
     Ledger {
-        local_actions: routes.len() as u32 + local_tools,
-        online_actions,
-        stayed_local: online_actions == 0,
+        local_actions: local_total,
+        online_actions: online_total,
+        stayed_local: online_total == 0,
         recent_online,
     }
 }
@@ -218,53 +235,61 @@ mod tests {
         assert_eq!(s, Summary::default());
     }
 
-    fn route(seq: u64) -> RouteEvent {
-        RouteEvent { seq, model: "g".into(), category: "chat".into(), via_gateway: false }
-    }
     fn tool(seq: u64, name: &str, scope: &str) -> ToolEvent {
         ToolEvent { seq, name: name.into(), scope: scope.into(), ok: true }
     }
 
     #[test]
-    fn ledger_stays_local_with_no_online_tools() {
-        let l = ledger(&[route(1)], &[tool(2, "read_file", "local")]);
-        assert_eq!(l.local_actions, 2); // one inference + one local tool
+    fn build_ledger_stays_local_with_no_online() {
+        let l = build_ledger(2, 0, vec![]);
+        assert_eq!(l.local_actions, 2);
         assert_eq!(l.online_actions, 0);
         assert!(l.stayed_local);
         assert!(l.recent_online.is_empty());
     }
 
     #[test]
-    fn ledger_flags_online_actions_newest_first() {
-        let tools = vec![
-            tool(1, "web_fetch", "online"),
-            tool(2, "read_file", "local"),
-            tool(3, "web_search", "online"),
-        ];
-        let l = ledger(&[], &tools);
+    fn build_ledger_flags_online_newest_first() {
+        let l = build_ledger(
+            1,
+            2,
+            vec![tool(3, "web_search", "online"), tool(1, "web_fetch", "online")],
+        );
         assert_eq!(l.online_actions, 2);
         assert!(!l.stayed_local);
-        assert_eq!(l.local_actions, 1); // the one local tool
-        assert_eq!(l.recent_online[0].name, "web_search"); // newest first
-        assert_eq!(l.recent_online[1].name, "web_fetch");
+        assert_eq!(l.local_actions, 1);
+        assert_eq!(l.recent_online[0].name, "web_search");
     }
 
     #[test]
-    fn ledger_empty_is_local() {
-        let l = ledger(&[], &[]);
-        assert!(l.stayed_local);
-        assert_eq!(l.local_actions, 0);
-    }
-
-    #[test]
-    fn record_tool_trims_and_snapshots() {
+    fn ledger_counts_routes_and_tools_as_local() {
         let t = Telemetry::default();
-        t.record_tool("read_file", "local", true);
-        t.record_tool("web_fetch", "online", false);
-        let snap = t.tool_snapshot();
-        assert_eq!(snap.len(), 2);
-        assert_eq!(snap[1].name, "web_fetch");
-        assert_eq!(snap[1].scope, "online");
-        assert!(!snap[1].ok);
+        t.record("g", "chat", false); // one local inference
+        t.record_tool("read_file", "local", true); // one local tool
+        let l = t.ledger();
+        assert_eq!(l.local_actions, 2);
+        assert!(l.stayed_local);
+    }
+
+    #[test]
+    fn ledger_online_total_survives_ring_eviction() {
+        let t = Telemetry::default();
+        t.record_tool("web_fetch", "online", true); // one online action
+        for _ in 0..(CAP + 5) {
+            t.record_tool("read_file", "local", true); // floods + evicts the online event from the ring
+        }
+        let l = t.ledger();
+        assert_eq!(l.online_actions, 1); // counted from the monotonic total, not the ring
+        assert!(!l.stayed_local); // the proof stays honest
+        assert_eq!(l.recent_online.len(), 0); // ring no longer holds it; the total still does
+    }
+
+    #[test]
+    fn ledger_local_total_not_trimmed_by_ring() {
+        let t = Telemetry::default();
+        for i in 0..(CAP + 3) {
+            t.record_tool(&format!("t{i}"), "local", true);
+        }
+        assert_eq!(t.ledger().local_actions, (CAP + 3) as u32);
     }
 }

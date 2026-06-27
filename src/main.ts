@@ -141,7 +141,7 @@ function renderQuality(r: QuantReport): string {
     `</div>`;
   const rows = r.entries
     .map((e) => {
-      const notes: string[] = [e.is_reference ? "reference" : e.band];
+      const notes: string[] = [e.is_reference ? "reference" : escapeHtml(e.band)];
       if (e.dulls_on) notes.push(`dulls on ${escapeHtml(e.dulls_on)}`);
       const sweet =
         r.sweet_spot && e.quant.label === r.sweet_spot

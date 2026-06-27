@@ -139,10 +139,21 @@ pub fn param_b(name: &str) -> Option<f32> {
 pub fn pick_draft(target_idx: usize, models: &[Model]) -> Option<usize> {
     let target = models.get(target_idx)?;
     let fam = family_key(&target.id);
+    // An empty family key (a name that was only a size/quant token) would match
+    // every other empty key, pairing unrelated architectures; refuse it. Vision
+    // targets carry an mmproj and cannot speculate against a text-only draft.
+    if fam.is_empty() || target.mmproj_path.is_some() {
+        return None;
+    }
     let target_b = param_b(&target.id)?;
     let mut best: Option<(usize, f32)> = None;
     for (i, m) in models.iter().enumerate() {
         if i == target_idx || family_key(&m.id) != fam {
+            continue;
+        }
+        // A draft must share the target's group (same tokenizer/architecture) and
+        // be a plain text model, or llama.cpp rejects the pair on a vocab mismatch.
+        if m.group != target.group || m.mmproj_path.is_some() {
             continue;
         }
         let Some(b) = param_b(&m.id) else { continue };
@@ -753,6 +764,24 @@ mod tests {
     fn pick_draft_none_when_sibling_not_small_enough() {
         let models = vec![dmodel("Qwen3-8B", "/8b"), dmodel("Qwen3-7B", "/7b")];
         assert_eq!(pick_draft(0, &models), None); // 7B is not <= 40% of 8B
+    }
+
+    #[test]
+    fn pick_draft_skips_vision_and_cross_group() {
+        let mut vision = dmodel("Gemma-3-4B", "/v4");
+        vision.group = "vision".into();
+        vision.mmproj_path = Some("/mmproj".into());
+        let draft = dmodel("Gemma-3-1B", "/c1"); // same family, chat, no mmproj
+        let models = vec![vision, draft];
+        assert_eq!(pick_draft(0, &models), None); // vision target: drafts incompatible
+        assert_eq!(pick_draft(1, &models), None); // only sibling is a different group
+    }
+
+    #[test]
+    fn pick_draft_none_on_empty_family_key() {
+        // Names that are only a size token share an empty family; must not pair.
+        let models = vec![dmodel("8B", "/8b"), dmodel("1B", "/1b")];
+        assert_eq!(pick_draft(0, &models), None);
     }
 
     #[test]
