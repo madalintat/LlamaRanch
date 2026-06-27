@@ -14,10 +14,10 @@ import { LLAMA_INSTALL_DIR } from './engine.js';
 
 const colored = () => !process.env.NO_COLOR && process.stdout.isTTY;
 
-const gold   = (s) => colored() ? chalk.hex('#c7a228')(s)  : s;
-const cream  = (s) => colored() ? chalk.hex('#f5f0e8')(s)  : s;
-const muted  = (s) => colored() ? chalk.hex('#6b6456')(s)  : s;
-const dim    = (s) => colored() ? chalk.hex('#3f3d34')(s)  : s;
+const gold   = (s) => colored() ? chalk.hex('#f4f4f5')(s)  : s;
+const cream  = (s) => colored() ? chalk.hex('#d8d8dd')(s)  : s;
+const muted  = (s) => colored() ? chalk.hex('#8a8a92')(s)  : s;
+const dim    = (s) => colored() ? chalk.hex('#44444c')(s)  : s;
 
 // Clack-style glyphs
 const G_BAR    = dim('│');
@@ -820,23 +820,23 @@ export async function runUninstall({ yes = false } = {}) {
 
     if (step === 'select') {
       return React.createElement(Box, { flexDirection: 'column' },
-        React.createElement(Text, { color: '#3f3d34' }, '┌'),
-        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, { color: '#44444c' }, '┌'),
+        React.createElement(Text, { color: '#44444c' }, '│'),
         React.createElement(Text, null,
-          React.createElement(Text, { color: '#c7a228' }, '◆ '),
-          React.createElement(Text, { color: '#f5f0e8', bold: true }, 'LlamaRanch'),
-          React.createElement(Text, { color: '#6b6456' }, '  uninstall · choose what to remove'),
+          React.createElement(Text, { color: '#f4f4f5' }, '◆ '),
+          React.createElement(Text, { color: '#d8d8dd', bold: true }, 'LlamaRanch'),
+          React.createElement(Text, { color: '#8a8a92' }, '  uninstall · choose what to remove'),
         ),
-        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, { color: '#44444c' }, '│'),
         ...checkboxItems.map((item, i) => {
           const isActive = i === cursor;
           const isChecked = checked[item.key];
           const cursorGlyph = isActive
-            ? React.createElement(Text, { color: '#c7a228' }, '❯')
+            ? React.createElement(Text, { color: '#f4f4f5' }, '❯')
             : React.createElement(Text, null, ' ');
           const boxGlyph = isChecked
-            ? React.createElement(Text, { color: '#c7a228' }, '◼')
-            : React.createElement(Text, { color: '#6b6456' }, '◻');
+            ? React.createElement(Text, { color: '#f4f4f5' }, '◼')
+            : React.createElement(Text, { color: '#8a8a92' }, '◻');
           // Fixed-width label, then optional size, then shortened path
           const paddedLabel = item.label.padEnd(LABEL_W);
           const sizeStr = item.size ? item.size.padStart(7) : '       ';
@@ -844,24 +844,24 @@ export async function runUninstall({ yes = false } = {}) {
           const pathMaxLen = Math.max(20, 80 - 5 - 1 - 1 - 1 - 1 - LABEL_W - 7 - 2);
           const displayPath = shortenPath(item.path, pathMaxLen);
           return React.createElement(Box, { key: item.key },
-            React.createElement(Text, { color: '#3f3d34' }, '│  '),
+            React.createElement(Text, { color: '#44444c' }, '│  '),
             cursorGlyph,
             React.createElement(Text, null, ' '),
             boxGlyph,
             React.createElement(Text, null, ' '),
-            React.createElement(Text, { color: '#f5f0e8' }, paddedLabel),
-            React.createElement(Text, { color: '#6b6456' }, sizeStr),
-            React.createElement(Text, { color: '#6b6456', wrap: 'truncate-end' }, '  ' + displayPath),
+            React.createElement(Text, { color: '#d8d8dd' }, paddedLabel),
+            React.createElement(Text, { color: '#8a8a92' }, sizeStr),
+            React.createElement(Text, { color: '#8a8a92', wrap: 'truncate-end' }, '  ' + displayPath),
           );
         }),
         targets.manualModelsDir
           ? React.createElement(Box, { key: 'manual-models-info' },
-              React.createElement(Text, { color: '#3f3d34' }, '│     '),
-              React.createElement(Text, { color: '#6b6456', wrap: 'truncate-end' }, 'models (custom location, remove manually): ' + shortenPath(targets.manualModelsDir, 40)),
+              React.createElement(Text, { color: '#44444c' }, '│     '),
+              React.createElement(Text, { color: '#8a8a92', wrap: 'truncate-end' }, 'models (custom location, remove manually): ' + shortenPath(targets.manualModelsDir, 40)),
             )
           : null,
-        React.createElement(Text, { color: '#3f3d34' }, '│'),
-        React.createElement(Text, { color: '#6b6456' },
+        React.createElement(Text, { color: '#44444c' }, '│'),
+        React.createElement(Text, { color: '#8a8a92' },
           '│  space toggles · enter confirms · your models and llama.cpp are kept unless you check them'
         ),
       );
@@ -869,43 +869,43 @@ export async function runUninstall({ yes = false } = {}) {
 
     if (step === 'confirm') {
       return React.createElement(Box, { flexDirection: 'column' },
-        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, { color: '#44444c' }, '│'),
         React.createElement(Text, null,
-          React.createElement(Text, { color: '#3f3d34' }, '│  '),
-          React.createElement(Text, { color: '#c7a228' }, '▲  '),
-          React.createElement(Text, { color: '#c7a228' }, 'This permanently deletes the items above. Models and config cannot be recovered.'),
+          React.createElement(Text, { color: '#44444c' }, '│  '),
+          React.createElement(Text, { color: '#f4f4f5' }, '▲  '),
+          React.createElement(Text, { color: '#f4f4f5' }, 'This permanently deletes the items above. Models and config cannot be recovered.'),
         ),
-        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, { color: '#44444c' }, '│'),
         React.createElement(Text, null,
-          React.createElement(Text, { color: '#c7a228' }, '◆  '),
-          React.createElement(Text, { color: '#f5f0e8' }, 'Remove the selected items?'),
-        ),
-        React.createElement(Text, null,
-          React.createElement(Text, { color: '#3f3d34' }, '│  '),
-          React.createElement(Text, { color: confirmIdx === 0 ? '#c7a228' : '#6b6456' }, (confirmIdx === 0 ? '❯ ' : '  ') + 'No, keep everything'),
+          React.createElement(Text, { color: '#f4f4f5' }, '◆  '),
+          React.createElement(Text, { color: '#d8d8dd' }, 'Remove the selected items?'),
         ),
         React.createElement(Text, null,
-          React.createElement(Text, { color: '#3f3d34' }, '│  '),
-          React.createElement(Text, { color: confirmIdx === 1 ? '#c7a228' : '#6b6456' }, (confirmIdx === 1 ? '❯ ' : '  ') + 'Yes, remove the selected items'),
+          React.createElement(Text, { color: '#44444c' }, '│  '),
+          React.createElement(Text, { color: confirmIdx === 0 ? '#f4f4f5' : '#8a8a92' }, (confirmIdx === 0 ? '❯ ' : '  ') + 'No, keep everything'),
         ),
-        React.createElement(Text, { color: '#3f3d34' }, '│'),
-        React.createElement(Text, { color: '#6b6456' }, '│  arrow keys move · enter selects · default is No'),
+        React.createElement(Text, null,
+          React.createElement(Text, { color: '#44444c' }, '│  '),
+          React.createElement(Text, { color: confirmIdx === 1 ? '#f4f4f5' : '#8a8a92' }, (confirmIdx === 1 ? '❯ ' : '  ') + 'Yes, remove the selected items'),
+        ),
+        React.createElement(Text, { color: '#44444c' }, '│'),
+        React.createElement(Text, { color: '#8a8a92' }, '│  arrow keys move · enter selects · default is No'),
       );
     }
 
     if (step === 'removing') {
       return React.createElement(Box, { flexDirection: 'column' },
-        React.createElement(Text, { color: '#3f3d34' }, '│'),
+        React.createElement(Text, { color: '#44444c' }, '│'),
         React.createElement(Text, null,
-          React.createElement(Text, { color: '#c7a228' }, '◆  '),
-          React.createElement(Text, { color: '#f5f0e8' }, 'Removing selected items...'),
+          React.createElement(Text, { color: '#f4f4f5' }, '◆  '),
+          React.createElement(Text, { color: '#d8d8dd' }, 'Removing selected items...'),
         ),
         ...removeResults.map(r =>
           React.createElement(Text, { key: r.key },
-            React.createElement(Text, { color: '#3f3d34' }, '│  '),
-            React.createElement(Text, { color: '#c7a228' }, '◒  '),
-            React.createElement(Text, { color: '#f5f0e8' }, r.label),
-            React.createElement(Text, { color: '#6b6456' }, '   ' + r.status),
+            React.createElement(Text, { color: '#44444c' }, '│  '),
+            React.createElement(Text, { color: '#f4f4f5' }, '◒  '),
+            React.createElement(Text, { color: '#d8d8dd' }, r.label),
+            React.createElement(Text, { color: '#8a8a92' }, '   ' + r.status),
           )
         ),
       );

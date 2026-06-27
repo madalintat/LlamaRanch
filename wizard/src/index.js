@@ -28,9 +28,9 @@ process.on('unhandledRejection', (reason) => {
 
 function printHelp() {
   renderLogo();
-  const gold = (s) => chalk.hex('#c7a228')(s);
-  const cream = (s) => chalk.hex('#f5f0e8')(s);
-  const muted = (s) => chalk.hex('#6b6456')(s);
+  const gold = (s) => chalk.hex('#f4f4f5')(s);
+  const cream = (s) => chalk.hex('#d8d8dd')(s);
+  const muted = (s) => chalk.hex('#8a8a92')(s);
   console.log(cream('Usage:'));
   console.log('');
   console.log('  ' + gold('llamaranch-wizard') + '             ' + muted('run the setup wizard'));
@@ -97,8 +97,8 @@ async function runWizard() {
     return React.createElement(
       Text,
       null,
-      React.createElement(Text, { color: '#f5f0e8' }, '█'.repeat(filled)),
-      React.createElement(Text, { color: '#2a2820' }, '░'.repeat(w - filled))
+      React.createElement(Text, { color: '#d8d8dd' }, '█'.repeat(filled)),
+      React.createElement(Text, { color: '#2a2a30' }, '░'.repeat(w - filled))
     );
   }
 
@@ -111,10 +111,10 @@ async function runWizard() {
     return React.createElement(
       Box,
       { flexDirection: 'row' },
-      React.createElement(Text, { color: '#3f3d34' }, '│ '),
-      React.createElement(Text, { color: '#8a8270' }, paddedLabel),
-      React.createElement(Text, { color: '#f5f0e8' }, value || ''),
-      tag ? React.createElement(Text, { color: '#c7a228' }, '  ' + tag) : null
+      React.createElement(Text, { color: '#44444c' }, '│ '),
+      React.createElement(Text, { color: '#6e6e76' }, paddedLabel),
+      React.createElement(Text, { color: '#d8d8dd' }, value || ''),
+      tag ? React.createElement(Text, { color: '#f4f4f5' }, '  ' + tag) : null
     );
   }
 
@@ -126,8 +126,8 @@ async function runWizard() {
     return React.createElement(
       Box,
       { flexDirection: 'row' },
-      React.createElement(Text, { color: '#3f3d34' }, '│   '),
-      React.createElement(Text, { color: '#6b6456' }, text || '')
+      React.createElement(Text, { color: '#44444c' }, '│   '),
+      React.createElement(Text, { color: '#8a8a92' }, text || '')
     );
   }
 
@@ -170,25 +170,25 @@ async function runWizard() {
       const isSuggested = suggestedIds.has(m.id);
 
       const checkbox = isSelected
-        ? React.createElement(Text, { color: '#f5f0e8' }, '◼ ')
-        : React.createElement(Text, { color: '#8a8270' }, '◻ ');
+        ? React.createElement(Text, { color: '#d8d8dd' }, '◼ ')
+        : React.createElement(Text, { color: '#6e6e76' }, '◻ ');
 
-      const nameColor = isCursor ? '#f5f0e8' : isSelected ? '#e6e0d4' : '#8a8270';
+      const nameColor = isCursor ? '#d8d8dd' : isSelected ? '#e6e6ea' : '#6e6e76';
 
       return React.createElement(
         Box,
         { key: m.id, flexDirection: 'row' },
-        React.createElement(Text, { color: '#3f3d34' }, '│  '),
+        React.createElement(Text, { color: '#44444c' }, '│  '),
         isCursor
-          ? React.createElement(Text, { color: '#c7a228' }, '❯ ')
+          ? React.createElement(Text, { color: '#f4f4f5' }, '❯ ')
           : React.createElement(Text, null, '  '),
         checkbox,
         React.createElement(Text, { color: nameColor }, (m.name || '').padEnd(18).slice(0, 18)),
         React.createElement(Text, null, '  '),
-        React.createElement(Text, { color: '#6b6456' }, (m.sizeGB + ' GB').padEnd(8)),
-        React.createElement(Text, { color: '#8a8270' }, m.description || ''),
+        React.createElement(Text, { color: '#8a8a92' }, (m.sizeGB + ' GB').padEnd(8)),
+        React.createElement(Text, { color: '#6e6e76' }, m.description || ''),
         isSuggested
-          ? React.createElement(Text, { color: '#c7a228' }, '  ★')
+          ? React.createElement(Text, { color: '#f4f4f5' }, '  ★')
           : null
       );
     });
@@ -196,8 +196,8 @@ async function runWizard() {
     const hintRow = React.createElement(
       Box,
       { flexDirection: 'row' },
-      React.createElement(Text, { color: '#3f3d34' }, '│  '),
-      React.createElement(Text, { color: '#6b6456' }, 'space toggles · enter confirms')
+      React.createElement(Text, { color: '#44444c' }, '│  '),
+      React.createElement(Text, { color: '#8a8a92' }, 'space toggles · enter confirms')
     );
 
     return React.createElement(
@@ -206,8 +206,8 @@ async function runWizard() {
       React.createElement(
         Box,
         { flexDirection: 'row' },
-        React.createElement(Text, { color: '#c7a228' }, '◆ '),
-        React.createElement(Text, { color: '#f5f0e8' }, 'Select models to download')
+        React.createElement(Text, { color: '#f4f4f5' }, '◆ '),
+        React.createElement(Text, { color: '#d8d8dd' }, 'Select models to download')
       ),
       ...rows,
       hintRow
@@ -226,7 +226,7 @@ async function runWizard() {
         Text,
         null,
         ...line.split('').map((ch, ci) => {
-          if ('█▀▄'.includes(ch)) return React.createElement(Text, { key: ci, color: '#f5f0e8' }, ch);
+          if ('█▀▄'.includes(ch)) return React.createElement(Text, { key: ci, color: '#d8d8dd' }, ch);
           return React.createElement(Text, { key: ci }, ch);
         })
       );
@@ -234,34 +234,77 @@ async function runWizard() {
     return React.createElement(
       Box,
       { flexDirection: 'column' },
-      React.createElement(Text, { color: '#c7a228' }, '┌'),
+      React.createElement(Text, { color: '#f4f4f5' }, '┌'),
       ...llamaLines.map((l, i) =>
         React.createElement(Box, { key: i, flexDirection: 'row' },
-          React.createElement(Text, { color: '#3f3d34' }, '  '),
+          React.createElement(Text, { color: '#44444c' }, '  '),
           colorLine(l)
         )
       ),
-      React.createElement(Text, { color: '#3f3d34' }, '│'),
+      React.createElement(Text, { color: '#44444c' }, '│'),
       React.createElement(
         Box,
         { flexDirection: 'row' },
-        React.createElement(Text, { color: '#3f3d34' }, '  '),
+        React.createElement(Text, { color: '#44444c' }, '  '),
         React.createElement(
           Text,
-          { backgroundColor: '#f5f0e8', color: '#16150f', bold: true },
+          { backgroundColor: '#d8d8dd', color: '#0c0c0e', bold: true },
           ' LlamaRanch '
         ),
         React.createElement(Text, null, ' '),
-        React.createElement(Text, { color: '#6b6456' }, 'setup wizard · v' + VERSION)
+        React.createElement(Text, { color: '#8a8a92' }, 'setup wizard · v' + VERSION)
       ),
-      React.createElement(Text, { color: '#3f3d34' }, '│'),
+      React.createElement(Text, { color: '#44444c' }, '│'),
       React.createElement(
         Box,
         { flexDirection: 'row' },
-        React.createElement(Text, { color: '#3f3d34' }, '  '),
-        React.createElement(Text, { color: '#6b6456' }, 'A quiet ranch for your local models. Nothing leaves the valley.')
+        React.createElement(Text, { color: '#44444c' }, '  '),
+        React.createElement(Text, { color: '#8a8a92' }, 'A quiet ranch for your local models. Nothing leaves the valley.')
       ),
-      React.createElement(Text, { color: '#3f3d34' }, '│')
+      React.createElement(Text, { color: '#44444c' }, '│')
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Step rail — the five phases, with done / current / upcoming markers.
+  // Mirrors the design's left rail, laid out across the top for the terminal.
+  // -------------------------------------------------------------------------
+
+  const PHASES = ['Hardware', 'Engine', 'Models', 'Download', 'Ready'];
+
+  function phaseOf(step) {
+    if (['confirm', 'detect-running', 'detect-done'].includes(step)) return 0;
+    if (['engine-running', 'engine-done'].includes(step)) return 1;
+    if (step === 'model-select') return 2;
+    if (['download-running', 'download-done', 'config-writing', 'config-done',
+         'app-install-running', 'app-install-done'].includes(step)) return 3;
+    if (['websearch-confirm', 'websearch-running', 'websearch-done', 'outro'].includes(step)) return 4;
+    return -1; // error / unknown: no rail
+  }
+
+  function StepRail({ step }) {
+    const cur = phaseOf(step);
+    if (cur < 0) return null;
+    const cells = [];
+    PHASES.forEach((label, i) => {
+      const done = i < cur, isCur = i === cur;
+      const mark = done ? '✓' : isCur ? '●' : '○';
+      const markColor = done ? '#8a8a92' : isCur ? '#f4f4f5' : '#44444c';
+      const labelColor = i <= cur ? '#d8d8dd' : '#6e6e76';
+      cells.push(React.createElement(Text, { key: 'm' + i, color: markColor, bold: isCur }, mark + ' '));
+      cells.push(React.createElement(Text, { key: 'l' + i, color: labelColor, bold: isCur }, label));
+      if (i < PHASES.length - 1) cells.push(React.createElement(Text, { key: 's' + i, color: '#44444c' }, '   '));
+    });
+    return React.createElement(
+      Box,
+      { flexDirection: 'column' },
+      React.createElement(
+        Box,
+        { flexDirection: 'row' },
+        React.createElement(Text, { color: '#44444c' }, '  '),
+        ...cells
+      ),
+      React.createElement(Text, { color: '#44444c' }, '│')
     );
   }
 
@@ -641,8 +684,9 @@ async function runWizard() {
 
     const rows = [];
 
-    // Intro frame (always shown)
+    // Intro frame (always shown), then the five-phase step rail.
     rows.push(React.createElement(IntroFrame, { key: 'intro' }));
+    rows.push(React.createElement(StepRail, { key: 'rail', step }));
 
     // Confirm prompt
     if (step === 'confirm') {
@@ -650,9 +694,9 @@ async function runWizard() {
         React.createElement(
           Box,
           { key: 'confirm', flexDirection: 'row' },
-          React.createElement(Text, { color: '#c7a228' }, '◆ '),
-          React.createElement(Text, { color: '#f5f0e8' }, 'Ready to set up LlamaRanch?  '),
-          React.createElement(Text, { color: '#6b6456' }, '[enter ↵]')
+          React.createElement(Text, { color: '#f4f4f5' }, '◆ '),
+          React.createElement(Text, { color: '#d8d8dd' }, 'Ready to set up LlamaRanch?  '),
+          React.createElement(Text, { color: '#8a8a92' }, '[enter ↵]')
         )
       );
     }
@@ -671,8 +715,8 @@ async function runWizard() {
           React.createElement(
             Box,
             { key: 'detect-spin', flexDirection: 'row' },
-            React.createElement(Text, { color: '#f5f0e8' }, spinFrame + ' '),
-            React.createElement(Text, { color: '#f5f0e8' }, 'Detecting your environment')
+            React.createElement(Text, { color: '#d8d8dd' }, spinFrame + ' '),
+            React.createElement(Text, { color: '#d8d8dd' }, 'Detecting your environment')
           )
         );
       } else {
@@ -680,8 +724,8 @@ async function runWizard() {
           React.createElement(
             Box,
             { key: 'detect-done', flexDirection: 'row' },
-            React.createElement(Text, { color: '#cbb78a' }, '◇ '),
-            React.createElement(Text, { color: '#cbb78a' }, 'Detecting your environment')
+            React.createElement(Text, { color: '#9a9aa2' }, '◇ '),
+            React.createElement(Text, { color: '#9a9aa2' }, 'Detecting your environment')
           )
         );
         if (detectResult) {
@@ -716,8 +760,8 @@ async function runWizard() {
           React.createElement(
             Box,
             { key: 'eng-spin', flexDirection: 'row' },
-            React.createElement(Text, { color: '#f5f0e8' }, spinFrame + ' '),
-            React.createElement(Text, { color: '#f5f0e8' }, 'Installing engine')
+            React.createElement(Text, { color: '#d8d8dd' }, spinFrame + ' '),
+            React.createElement(Text, { color: '#d8d8dd' }, 'Installing engine')
           )
         );
         for (let i = Math.max(0, engineLines.length - 6); i < engineLines.length; i++) {
@@ -728,8 +772,8 @@ async function runWizard() {
           React.createElement(
             Box,
             { key: 'eng-done', flexDirection: 'row' },
-            React.createElement(Text, { color: '#cbb78a' }, '◇ '),
-            React.createElement(Text, { color: '#cbb78a' }, 'Installing engine')
+            React.createElement(Text, { color: '#9a9aa2' }, '◇ '),
+            React.createElement(Text, { color: '#9a9aa2' }, 'Installing engine')
           )
         );
         if (detectResult?.llamaServer?.found) {
@@ -739,8 +783,8 @@ async function runWizard() {
             React.createElement(
               Box,
               { key: 'eng-warn', flexDirection: 'row' },
-              React.createElement(Text, { color: '#c7a228' }, '▲ '),
-              React.createElement(Text, { color: '#f5f0e8' }, 'Manual install required: ' + engineManual.split('\n')[0])
+              React.createElement(Text, { color: '#f4f4f5' }, '▲ '),
+              React.createElement(Text, { color: '#d8d8dd' }, 'Manual install required: ' + engineManual.split('\n')[0])
             )
           );
         } else if (enginePath) {
@@ -773,9 +817,9 @@ async function runWizard() {
         React.createElement(
           Box,
           { key: 'model-sel-done', flexDirection: 'row' },
-          React.createElement(Text, { color: '#cbb78a' }, '◇ '),
-          React.createElement(Text, { color: '#cbb78a' }, 'Select models to download'),
-          React.createElement(Text, { color: '#8a8270' }, '   ' + selectedModels.length + ' selected')
+          React.createElement(Text, { color: '#9a9aa2' }, '◇ '),
+          React.createElement(Text, { color: '#9a9aa2' }, 'Select models to download'),
+          React.createElement(Text, { color: '#6e6e76' }, '   ' + selectedModels.length + ' selected')
         )
       );
     }
@@ -786,8 +830,8 @@ async function runWizard() {
         React.createElement(
           Box,
           { key: 'dl-spin', flexDirection: 'row' },
-          React.createElement(Text, { color: '#f5f0e8' }, spinFrame + ' '),
-          React.createElement(Text, { color: '#f5f0e8' }, 'Downloading from Hugging Face')
+          React.createElement(Text, { color: '#d8d8dd' }, spinFrame + ' '),
+          React.createElement(Text, { color: '#d8d8dd' }, 'Downloading from Hugging Face')
         )
       );
       for (const model of selectedModels) {
@@ -798,12 +842,12 @@ async function runWizard() {
           React.createElement(
             Box,
             { key: 'dl-row-' + model.id, flexDirection: 'row' },
-            React.createElement(Text, { color: '#3f3d34' }, '│   '),
-            React.createElement(Text, { color: '#8a8270' }, nameCol),
+            React.createElement(Text, { color: '#44444c' }, '│   '),
+            React.createElement(Text, { color: '#6e6e76' }, nameCol),
             React.createElement(Text, null, '  '),
             React.createElement(ProgressBar, { percent: pct }),
             React.createElement(Text, null, '  '),
-            React.createElement(Text, { color: '#6b6456' }, pctStr)
+            React.createElement(Text, { color: '#8a8a92' }, pctStr)
           )
         );
       }
@@ -817,9 +861,9 @@ async function runWizard() {
         React.createElement(
           Box,
           { key: 'dl-done', flexDirection: 'row' },
-          React.createElement(Text, { color: '#cbb78a' }, '◇ '),
-          React.createElement(Text, { color: '#cbb78a' }, 'Downloading from Hugging Face'),
-          React.createElement(Text, { color: '#8a8270' }, '   ' + downloadedModels.length + ' downloaded')
+          React.createElement(Text, { color: '#9a9aa2' }, '◇ '),
+          React.createElement(Text, { color: '#9a9aa2' }, 'Downloading from Hugging Face'),
+          React.createElement(Text, { color: '#6e6e76' }, '   ' + downloadedModels.length + ' downloaded')
         )
       );
     }
@@ -830,8 +874,8 @@ async function runWizard() {
         React.createElement(
           Box,
           { key: 'cfg-spin', flexDirection: 'row' },
-          React.createElement(Text, { color: '#f5f0e8' }, spinFrame + ' '),
-          React.createElement(Text, { color: '#f5f0e8' }, 'Writing config')
+          React.createElement(Text, { color: '#d8d8dd' }, spinFrame + ' '),
+          React.createElement(Text, { color: '#d8d8dd' }, 'Writing config')
         )
       );
     }
@@ -844,8 +888,8 @@ async function runWizard() {
           React.createElement(
             Box,
             { key: 'cfg-done', flexDirection: 'row' },
-            React.createElement(Text, { color: '#c7a228' }, '▲ '),
-            React.createElement(Text, { color: '#f5f0e8' }, 'Config write failed: ' + configData.error)
+            React.createElement(Text, { color: '#f4f4f5' }, '▲ '),
+            React.createElement(Text, { color: '#d8d8dd' }, 'Config write failed: ' + configData.error)
           )
         );
       } else {
@@ -853,10 +897,10 @@ async function runWizard() {
           React.createElement(
             Box,
             { key: 'cfg-done', flexDirection: 'row' },
-            React.createElement(Text, { color: '#cbb78a' }, '◇ '),
-            React.createElement(Text, { color: '#cbb78a' }, 'Config written'),
+            React.createElement(Text, { color: '#9a9aa2' }, '◇ '),
+            React.createElement(Text, { color: '#9a9aa2' }, 'Config written'),
             React.createElement(Text, null, '  '),
-            React.createElement(Text, { color: '#6b6456' }, configPath)
+            React.createElement(Text, { color: '#8a8a92' }, configPath)
           )
         );
       }
@@ -868,8 +912,8 @@ async function runWizard() {
         React.createElement(
           Box,
           { key: 'app-spin', flexDirection: 'row' },
-          React.createElement(Text, { color: '#f5f0e8' }, spinFrame + ' '),
-          React.createElement(Text, { color: '#f5f0e8' }, 'Installing desktop app')
+          React.createElement(Text, { color: '#d8d8dd' }, spinFrame + ' '),
+          React.createElement(Text, { color: '#d8d8dd' }, 'Installing desktop app')
         )
       );
       for (let i = Math.max(0, appLines.length - 5); i < appLines.length; i++) {
@@ -885,8 +929,8 @@ async function runWizard() {
           React.createElement(
             Box,
             { key: 'app-warn', flexDirection: 'row' },
-            React.createElement(Text, { color: '#c7a228' }, '▲ '),
-            React.createElement(Text, { color: '#f5f0e8' }, 'Desktop app: manual install required')
+            React.createElement(Text, { color: '#f4f4f5' }, '▲ '),
+            React.createElement(Text, { color: '#d8d8dd' }, 'Desktop app: manual install required')
           )
         );
         if (appInstallResult.instructions) {
@@ -897,8 +941,8 @@ async function runWizard() {
           React.createElement(
             Box,
             { key: 'app-done', flexDirection: 'row' },
-            React.createElement(Text, { color: '#cbb78a' }, '◇ '),
-            React.createElement(Text, { color: '#cbb78a' }, 'Installing desktop app')
+            React.createElement(Text, { color: '#9a9aa2' }, '◇ '),
+            React.createElement(Text, { color: '#9a9aa2' }, 'Installing desktop app')
           )
         );
       }
@@ -911,9 +955,9 @@ async function runWizard() {
         React.createElement(
           Box,
           { key: 'ws-confirm', flexDirection: 'row' },
-          React.createElement(Text, { color: '#c7a228' }, '◆ '),
-          React.createElement(Text, { color: '#f5f0e8' }, 'Set up local web search (SearXNG)?  '),
-          React.createElement(Text, { color: '#6b6456' },
+          React.createElement(Text, { color: '#f4f4f5' }, '◆ '),
+          React.createElement(Text, { color: '#d8d8dd' }, 'Set up local web search (SearXNG)?  '),
+          React.createElement(Text, { color: '#8a8a92' },
             hasRuntime
               ? '[Y/n] · ' + detectResult.container.runtime + ' detected'
               : '[y/N] · no container runtime detected')
@@ -935,8 +979,8 @@ async function runWizard() {
         React.createElement(
           Box,
           { key: 'ws-spin', flexDirection: 'row' },
-          React.createElement(Text, { color: '#f5f0e8' }, spinFrame + ' '),
-          React.createElement(Text, { color: '#f5f0e8' }, 'Setting up local web search')
+          React.createElement(Text, { color: '#d8d8dd' }, spinFrame + ' '),
+          React.createElement(Text, { color: '#d8d8dd' }, 'Setting up local web search')
         )
       );
       for (let i = Math.max(0, searxngLines.length - 6); i < searxngLines.length; i++) {
@@ -951,10 +995,10 @@ async function runWizard() {
           React.createElement(
             Box,
             { key: 'ws-done', flexDirection: 'row' },
-            React.createElement(Text, { color: '#cbb78a' }, '◇ '),
-            React.createElement(Text, { color: '#cbb78a' }, 'Web search ready'),
+            React.createElement(Text, { color: '#9a9aa2' }, '◇ '),
+            React.createElement(Text, { color: '#9a9aa2' }, 'Web search ready'),
             React.createElement(Text, null, '  '),
-            React.createElement(Text, { color: '#6b6456' }, searxngResult.url)
+            React.createElement(Text, { color: '#8a8a92' }, searxngResult.url)
           )
         );
       } else {
@@ -962,8 +1006,8 @@ async function runWizard() {
           React.createElement(
             Box,
             { key: 'ws-warn', flexDirection: 'row' },
-            React.createElement(Text, { color: '#c7a228' }, '▲ '),
-            React.createElement(Text, { color: '#f5f0e8' }, 'Web search not set up')
+            React.createElement(Text, { color: '#f4f4f5' }, '▲ '),
+            React.createElement(Text, { color: '#d8d8dd' }, 'Web search not set up')
           )
         );
         const firstLine = (searxngResult.error || searxngResult.instructions || '').split('\n')[0];
@@ -989,13 +1033,13 @@ async function runWizard() {
           ? '~/.local/bin/LlamaRanch.AppImage'
           : 'LlamaRanch';
 
-      rows.push(React.createElement(Text, { key: 'outro-gap', color: '#3f3d34' }, '│'));
+      rows.push(React.createElement(Text, { key: 'outro-gap', color: '#44444c' }, '│'));
       rows.push(
         React.createElement(
           Box,
           { key: 'outro-head', flexDirection: 'row' },
-          React.createElement(Text, { color: '#c7a228' }, '└ '),
-          React.createElement(Text, { color: '#f5f0e8', bold: true }, 'The ranch is up.')
+          React.createElement(Text, { color: '#f4f4f5' }, '└ '),
+          React.createElement(Text, { color: '#d8d8dd', bold: true }, 'The ranch is up.')
         )
       );
       if (serverBin) {
@@ -1004,12 +1048,12 @@ async function runWizard() {
             Box,
             { key: 'outro-serve', flexDirection: 'row' },
             React.createElement(Text, null, '   '),
-            React.createElement(Text, { color: '#f5f0e8', bold: true }, 'serve  '),
-            React.createElement(Text, { color: '#f5f0e8' }, '127.0.0.1:2276/v1'),
+            React.createElement(Text, { color: '#d8d8dd', bold: true }, 'serve  '),
+            React.createElement(Text, { color: '#d8d8dd' }, '127.0.0.1:2276/v1'),
             generalModelFile
-              ? React.createElement(Text, { color: '#f5f0e8' }, ' · ' + generalModelFile)
+              ? React.createElement(Text, { color: '#d8d8dd' }, ' · ' + generalModelFile)
               : null,
-            React.createElement(Text, { color: '#6b6456' }, ' · local')
+            React.createElement(Text, { color: '#8a8a92' }, ' · local')
           )
         );
       }
@@ -1018,8 +1062,8 @@ async function runWizard() {
           Box,
           { key: 'outro-app', flexDirection: 'row' },
           React.createElement(Text, null, '   '),
-          React.createElement(Text, { color: '#f5f0e8', bold: true }, 'app    '),
-          React.createElement(Text, { color: '#f5f0e8' }, appPath)
+          React.createElement(Text, { color: '#d8d8dd', bold: true }, 'app    '),
+          React.createElement(Text, { color: '#d8d8dd' }, appPath)
         )
       );
       if (searxngResult?.ok) {
@@ -1028,20 +1072,20 @@ async function runWizard() {
             Box,
             { key: 'outro-search', flexDirection: 'row' },
             React.createElement(Text, null, '   '),
-            React.createElement(Text, { color: '#f5f0e8', bold: true }, 'search '),
-            React.createElement(Text, { color: '#f5f0e8' }, searxngResult.url),
-            React.createElement(Text, { color: '#6b6456' }, ' · private · managed by the app')
+            React.createElement(Text, { color: '#d8d8dd', bold: true }, 'search '),
+            React.createElement(Text, { color: '#d8d8dd' }, searxngResult.url),
+            React.createElement(Text, { color: '#8a8a92' }, ' · private · managed by the app')
           )
         );
       }
-      rows.push(React.createElement(Text, { key: 'outro-gap2', color: '#3f3d34' }, '│'));
+      rows.push(React.createElement(Text, { key: 'outro-gap2', color: '#44444c' }, '│'));
       rows.push(
         React.createElement(
           Box,
           { key: 'outro-cmd1', flexDirection: 'row' },
           React.createElement(Text, null, '   '),
-          React.createElement(Text, { color: '#c7a228' }, 'llamaranch chat'),
-          React.createElement(Text, { color: '#6b6456' }, '     # start a local conversation')
+          React.createElement(Text, { color: '#f4f4f5' }, 'llamaranch chat'),
+          React.createElement(Text, { color: '#8a8a92' }, '     # start a local conversation')
         )
       );
       rows.push(
@@ -1049,39 +1093,39 @@ async function runWizard() {
           Box,
           { key: 'outro-cmd2', flexDirection: 'row' },
           React.createElement(Text, null, '   '),
-          React.createElement(Text, { color: '#c7a228' }, 'llamaranch ui'),
-          React.createElement(Text, { color: '#6b6456' }, '       # open the desktop app')
+          React.createElement(Text, { color: '#f4f4f5' }, 'llamaranch ui'),
+          React.createElement(Text, { color: '#8a8a92' }, '       # open the desktop app')
         )
       );
       // Surface config write failure if it occurred
       if (configData && configData.error) {
-        rows.push(React.createElement(Text, { key: 'outro-cfg-gap', color: '#3f3d34' }, '│'));
+        rows.push(React.createElement(Text, { key: 'outro-cfg-gap', color: '#44444c' }, '│'));
         rows.push(
           React.createElement(
             Box,
             { key: 'outro-cfg-err', flexDirection: 'row' },
-            React.createElement(Text, { color: '#c7a228' }, '▲ '),
-            React.createElement(Text, { color: '#f5f0e8' }, 'Config write failed: ' + configData.error)
+            React.createElement(Text, { color: '#f4f4f5' }, '▲ '),
+            React.createElement(Text, { color: '#d8d8dd' }, 'Config write failed: ' + configData.error)
           )
         );
         rows.push(
           React.createElement(
             Box,
             { key: 'outro-cfg-hint', flexDirection: 'row' },
-            React.createElement(Text, { color: '#3f3d34' }, '│ '),
-            React.createElement(Text, { color: '#6b6456' }, 'Create ' + configPath + ' manually, then re-run.')
+            React.createElement(Text, { color: '#44444c' }, '│ '),
+            React.createElement(Text, { color: '#8a8a92' }, 'Create ' + configPath + ' manually, then re-run.')
           )
         );
       }
       // Surface any download failures
       if (failedModels.length > 0) {
-        rows.push(React.createElement(Text, { key: 'outro-fail-gap', color: '#3f3d34' }, '│'));
+        rows.push(React.createElement(Text, { key: 'outro-fail-gap', color: '#44444c' }, '│'));
         rows.push(
           React.createElement(
             Box,
             { key: 'outro-fail-head', flexDirection: 'row' },
-            React.createElement(Text, { color: '#c7a228' }, '▲ '),
-            React.createElement(Text, { color: '#f5f0e8' }, failedModels.length + ' model(s) did not download:')
+            React.createElement(Text, { color: '#f4f4f5' }, '▲ '),
+            React.createElement(Text, { color: '#d8d8dd' }, failedModels.length + ' model(s) did not download:')
           )
         );
         for (let fi = 0; fi < failedModels.length; fi++) {
@@ -1090,9 +1134,9 @@ async function runWizard() {
             React.createElement(
               Box,
               { key: 'outro-fail-' + fi, flexDirection: 'row' },
-              React.createElement(Text, { color: '#3f3d34' }, '│   '),
-              React.createElement(Text, { color: '#8a8270' }, (fm.model?.name || fm.model?.file || 'unknown') + ': '),
-              React.createElement(Text, { color: '#6b6456' }, fm.error || 'download error')
+              React.createElement(Text, { color: '#44444c' }, '│   '),
+              React.createElement(Text, { color: '#6e6e76' }, (fm.model?.name || fm.model?.file || 'unknown') + ': '),
+              React.createElement(Text, { color: '#8a8a92' }, fm.error || 'download error')
             )
           );
         }
@@ -1100,8 +1144,8 @@ async function runWizard() {
           React.createElement(
             Box,
             { key: 'outro-fail-hint', flexDirection: 'row' },
-            React.createElement(Text, { color: '#3f3d34' }, '│ '),
-            React.createElement(Text, { color: '#6b6456' }, 'Re-run the wizard to retry failed downloads.')
+            React.createElement(Text, { color: '#44444c' }, '│ '),
+            React.createElement(Text, { color: '#8a8a92' }, 'Re-run the wizard to retry failed downloads.')
           )
         );
       }
@@ -1109,7 +1153,7 @@ async function runWizard() {
         React.createElement(
           Box,
           { key: 'outro-caret', flexDirection: 'row' },
-          React.createElement(Text, { color: '#c7a228' }, '❯')
+          React.createElement(Text, { color: '#f4f4f5' }, '❯')
         )
       );
     }
@@ -1120,16 +1164,16 @@ async function runWizard() {
         React.createElement(
           Box,
           { key: 'err-head', flexDirection: 'row' },
-          React.createElement(Text, { color: '#c7a228' }, '▲ '),
-          React.createElement(Text, { color: '#f5f0e8' }, errorMsg || 'An unexpected error occurred.')
+          React.createElement(Text, { color: '#f4f4f5' }, '▲ '),
+          React.createElement(Text, { color: '#d8d8dd' }, errorMsg || 'An unexpected error occurred.')
         )
       );
       rows.push(
         React.createElement(
           Box,
           { key: 'err-hint', flexDirection: 'row' },
-          React.createElement(Text, { color: '#3f3d34' }, '│ '),
-          React.createElement(Text, { color: '#6b6456' }, 'Press any key to exit')
+          React.createElement(Text, { color: '#44444c' }, '│ '),
+          React.createElement(Text, { color: '#8a8a92' }, 'Press any key to exit')
         )
       );
     }
@@ -1156,7 +1200,7 @@ if (cmd === '--help' || cmd === '-h') {
   const { runServe } = await import('./serve.js');
   // Branded header
   renderLogo();
-  console.log(chalk.hex('#c7a228')('  serve') + chalk.hex('#6b6456')('  starting llama-server...'));
+  console.log(chalk.hex('#f4f4f5')('  serve') + chalk.hex('#8a8a92')('  starting llama-server...'));
   console.log('');
   await runServe();
   process.exit(0);
@@ -1168,7 +1212,7 @@ if (cmd === '--help' || cmd === '-h') {
   const { runUpdate } = await import('./update.js');
   // Branded header
   renderLogo();
-  console.log(chalk.hex('#c7a228')('  update') + chalk.hex('#6b6456')('  checking for new releases...'));
+  console.log(chalk.hex('#f4f4f5')('  update') + chalk.hex('#8a8a92')('  checking for new releases...'));
   console.log('');
   await runUpdate();
   process.exit(0);
@@ -1180,7 +1224,7 @@ if (cmd === '--help' || cmd === '-h') {
 } else if (!cmd || cmd === 'setup') {
   await runWizard();
 } else {
-  console.error(chalk.hex('#c7a228')('▲ ') + 'Unknown command: ' + cmd);
-  console.error(chalk.hex('#6b6456')('  Run with --help for usage.'));
+  console.error(chalk.hex('#f4f4f5')('▲ ') + 'Unknown command: ' + cmd);
+  console.error(chalk.hex('#8a8a92')('  Run with --help for usage.'));
   process.exit(1);
 }

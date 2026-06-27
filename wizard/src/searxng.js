@@ -235,9 +235,9 @@ export async function runWebsearch() {
   const { detect } = await import('./detect.js');
   const { writeConfig } = await import('./config.js');
 
-  const gold = (s) => chalk.hex('#c7a228')(s);
-  const cream = (s) => chalk.hex('#f5f0e8')(s);
-  const muted = (s) => chalk.hex('#6b6456')(s);
+  const gold = (s) => chalk.hex('#f4f4f5')(s);
+  const cream = (s) => chalk.hex('#d8d8dd')(s);
+  const muted = (s) => chalk.hex('#8a8a92')(s);
 
   renderLogo();
   console.log(gold('  websearch') + muted('  setting up local web search (SearXNG)...'));
