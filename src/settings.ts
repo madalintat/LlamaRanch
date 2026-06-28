@@ -23,10 +23,10 @@ const fit = () => fitWindow(700, 640);
 // transparent, acrylic-blurred window on macOS can glitch the compositor.)
 
 // ── Settings tab switching ────────────────────────────────────────
-type SettingsTab = "general" | "tools" | "server" | "activity";
+type SettingsTab = "general" | "models" | "tools" | "server" | "privacy";
 
 function switchTab(tab: SettingsTab) {
-  const tabs: SettingsTab[] = ["general", "tools", "server", "activity"];
+  const tabs: SettingsTab[] = ["general", "models", "tools", "server", "privacy"];
   tabs.forEach((t) => {
     const btn = document.getElementById(`s-tab-${t}`)!;
     const panel = document.getElementById(`s-panel-${t}`)!;
@@ -34,14 +34,15 @@ function switchTab(tab: SettingsTab) {
     btn.classList.toggle("tab--active", active);
     panel.classList.toggle("s-panel--hidden", !active);
   });
-  if (tab === "activity") void renderActivity(); // re-fetch when opened
+  if (tab === "privacy") void renderActivity(); // the Ledger lives in Privacy now
   fit();
 }
 
 document.getElementById("s-tab-general")?.addEventListener("click", () => switchTab("general"));
+document.getElementById("s-tab-models")?.addEventListener("click", () => switchTab("models"));
 document.getElementById("s-tab-tools")?.addEventListener("click", () => switchTab("tools"));
 document.getElementById("s-tab-server")?.addEventListener("click", () => switchTab("server"));
-document.getElementById("s-tab-activity")?.addEventListener("click", () => switchTab("activity"));
+document.getElementById("s-tab-privacy")?.addEventListener("click", () => switchTab("privacy"));
 
 // ── Activity view ─────────────────────────────────────────────────
 type ActModel = { model: string; count: number };
