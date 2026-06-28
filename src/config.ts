@@ -48,19 +48,20 @@ async function applyConfig(id: string, override: ModelOverride, forceLoadId: boo
 }
 
 // Auto-size the window to its content (config window is 420 wide).
+const resizeToContent = () => {
+  const el = document.getElementById("app");
+  if (!el) return;
+  const h = Math.min(760, Math.max(220, Math.ceil(el.offsetHeight)));
+  win.setSize(new LogicalSize(420, h)).catch(() => {});
+};
+// Coalesce: a burst of fit() calls (open, async results, tab switch) collapses
+// to one frame measure + one trailing measure that catches late layout.
+let fitScheduled = false;
 const fit = () => {
-  requestAnimationFrame(() => {
-    const el = document.getElementById("app");
-    if (!el) return;
-    const h = Math.min(760, Math.max(220, Math.ceil(el.offsetHeight)));
-    win.setSize(new LogicalSize(420, h)).catch(() => {});
-  });
-  setTimeout(() => {
-    const el = document.getElementById("app");
-    if (!el) return;
-    const h = Math.min(760, Math.max(220, Math.ceil(el.offsetHeight)));
-    win.setSize(new LogicalSize(420, h)).catch(() => {});
-  }, 90);
+  if (fitScheduled) return;
+  fitScheduled = true;
+  requestAnimationFrame(resizeToContent);
+  setTimeout(() => { resizeToContent(); fitScheduled = false; }, 100);
 };
 
 function fitVerdict(f: ModelFit): { word: string; cls: string; detail: string; advice: string } {
