@@ -36,6 +36,36 @@ type QuantReport = { base: string; reference: string; entries: QuantEntry[]; swe
 const gb = (n: number) => (n / 1e9).toFixed(1) + " GB";
 const CTX_TIERS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
 const tierLabel = (n: number) => (n % 1024 === 0 ? `${n / 1024}k` : String(n));
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const LOADED = (s: string) => s === "loaded" || s === "sleeping";
+
+/** Ids currently loaded in the router, so we can restore them after a restart. */
+async function loadedModelIds(): Promise<string[]> {
+  try {
+    const ms = await invoke<{ id: string; status: string }[]>("list_models");
+    return ms.filter((m) => LOADED(m.status)).map((m) => m.id);
+  } catch { return []; }
+}
+
+/** Retry load_model until the (restarting) router accepts it, or we give up. */
+async function loadWithRetry(modelId: string, timeoutMs = 15000): Promise<void> {
+  const start = Date.now();
+  for (;;) {
+    try { await invoke("load_model", { modelId }); return; }
+    catch (e) { if (Date.now() - start > timeoutMs) throw e; await sleep(300); }
+  }
+}
+
+/** Persist a model's config — which restarts the router to bake in its preset —
+    then bring the model (and anything else that was loaded) back online so a
+    config change never silently unloads what was running. */
+async function applyConfig(id: string, override: ModelOverride, forceLoadId: boolean): Promise<void> {
+  const wanted = await loadedModelIds();
+  if (forceLoadId && !wanted.includes(id)) wanted.push(id);
+  await invoke("set_model_config", { modelId: id, override });
+  await sleep(500); // let the old router shut down before poking the new one
+  for (const m of wanted) { try { await loadWithRetry(m); } catch { /* restore the rest */ } }
+}
 
 // Auto-size the window to its content (config window is 420 wide).
 const fit = () => {
@@ -317,16 +347,22 @@ async function render(id: string, displayName: string, isLocal: boolean) {
   const reset = document.createElement("button");
   reset.className = "btn";
   reset.textContent = "Reset";
-  reset.onclick = async () => {
-    try { await invoke("set_model_config", { modelId: id, override: {} }); } catch (err) { alert(String(err)); return; }
-    await emit("config-changed");
-    await close();
-  };
   const save = document.createElement("button");
   save.className = "btn btn--primary";
   save.textContent = "Save and load";
+  const setBusy = (b: boolean) => { save.disabled = reset.disabled = delBtn.disabled = b; };
+
+  reset.onclick = async () => {
+    setBusy(true); reset.textContent = "Resetting…";
+    try { await applyConfig(id, {}, false); }
+    catch (err) { alert(String(err)); setBusy(false); reset.textContent = "Reset"; return; }
+    await emit("config-changed");
+    await close();
+  };
   save.onclick = async () => {
-    try { await invoke("set_model_config", { modelId: id, override: ov }); } catch (err) { alert(String(err)); return; }
+    setBusy(true); save.textContent = "Saving & loading…";
+    try { await applyConfig(id, ov, true); }
+    catch (err) { alert(String(err)); setBusy(false); save.textContent = "Save and load"; return; }
     await emit("config-changed");
     await close();
   };
