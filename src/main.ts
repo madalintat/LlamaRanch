@@ -234,6 +234,12 @@ function toggleCfg(id: string) {
   render();
 }
 
+/** True when the resolved theme is dark (explicit data-theme or system). */
+function isDarkTheme(): boolean {
+  const t = document.documentElement.dataset.theme;
+  return t === "dark" || (t !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+}
+
 /** Build a bare .ms-row (dot + name + sub); the caller appends the action(s). */
 function makeRow(dotClass: string, name: string, sub: string, dim = false): HTMLDivElement {
   const row = document.createElement("div");
@@ -272,7 +278,7 @@ function renderSelector() {
       `<div class="ms-hero__label">Serving now</div>` +
       `<div class="ms-hero__name">${escapeHtml(name)}</div>` +
       `<div class="ms-hero__sub">${escapeHtml(heroSub(serving))}</div>` +
-      `<div class="ms-hero__scope"><canvas data-glyph="scope" data-seed="3" data-cell="2.2" data-color="#0d0d0f" style="width:100%;height:100%;display:block;"></canvas></div>` +
+      `<div class="ms-hero__scope"><canvas data-glyph="scope" data-seed="3" data-cell="2.2" data-color="${isDarkTheme() ? "#f4f4f5" : "#0d0d0f"}" style="width:100%;height:100%;display:block;"></canvas></div>` +
       `<div class="ms-stats">` +
         `<div class="ms-stat"><div class="ms-stat__v" id="hero-tps">&mdash;</div><div class="ms-stat__l">tok / sec</div></div>` +
         `<div class="ms-stat"><div class="ms-stat__v" id="hero-ctx">&mdash;</div><div class="ms-stat__l">context</div></div>` +

@@ -25,6 +25,36 @@ html[data-theme="dark"]{
   --inv-bg:#ece9df; --inv-ink:#15140f;
   --error:#e8736a;
 }
+
+/* ── New design system tokens (monochrome), light + dark ──────────────────
+   Used by the redesigned surfaces (.ms-*, settings, chat, config). Distinct
+   --d-* namespace so they don't collide with the legacy warm tokens above. */
+:root{
+  --d-bg:#fafafb; --d-card:#ffffff; --d-card-2:#f4f4f6; --d-rail:#efeff2; --d-desk:#ebebef;
+  --d-ink:#0d0d0f; --d-on-ink:#ffffff;
+  --d-muted:#6b6b73; --d-faint:#a0a0a8;
+  --d-line:#ededf1; --d-edge:#e6e6eb; --d-dotline:#c6c6ce;
+  --d-chip:#f4f4f6; --d-chip-2:#e7e7ec;
+  --d-hover:#f7f7f9; --d-chip-hover:#ececf0; --d-ink-hover:#232327;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --d-bg:#161619; --d-card:#1d1d22; --d-card-2:#26262c; --d-rail:#1a1a1e; --d-desk:#161619;
+    --d-ink:#f4f4f5; --d-on-ink:#0c0c0e;
+    --d-muted:#9a9aa2; --d-faint:#6e6e76;
+    --d-line:#2a2a30; --d-edge:#33333a; --d-dotline:#44444c;
+    --d-chip:#26262c; --d-chip-2:#2e2e35;
+    --d-hover:#26262c; --d-chip-hover:#2e2e35; --d-ink-hover:#e2e2e6;
+  }
+}
+html[data-theme="dark"]{
+  --d-bg:#161619; --d-card:#1d1d22; --d-card-2:#26262c; --d-rail:#1a1a1e; --d-desk:#161619;
+  --d-ink:#f4f4f5; --d-on-ink:#0c0c0e;
+  --d-muted:#9a9aa2; --d-faint:#6e6e76;
+  --d-line:#2a2a30; --d-edge:#33333a; --d-dotline:#44444c;
+  --d-chip:#26262c; --d-chip-2:#2e2e35;
+  --d-hover:#26262c; --d-chip-hover:#2e2e35; --d-ink-hover:#e2e2e6;
+}
 *{box-sizing:border-box;}
 body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); -webkit-font-smoothing:antialiased;}
 @keyframes ledPulse{0%,100%{opacity:1;}50%{opacity:.35;}}
