@@ -76,14 +76,15 @@ function relCls(verdict: string): string {
 }
 function renderRel(r: RelReport): string {
   const dots = r.cases.map((c) => {
-    const tip = escapeHtml(`${c.id}: ${c.detail}`);
+    const tip = escapeHtml(`${c.id}: ${c.passed ? "passed" : "failed"} — ${c.detail}`);
     return `<span class="cfg-rel__dot cfg-rel__dot--${c.passed ? "ok" : "bad"}" title="${tip}"></span>`;
   }).join("");
+  const word = r.verdict === "dependable" ? "Reliable with tools" : r.verdict === "flaky" ? "Sometimes works" : "Struggles with tools";
   return (
     `<div class="cfg-fit__head">` +
       `<span class="cfg-fit__led cfg-fit__led--${relCls(r.verdict)}"></span>` +
-      `<span class="cfg-fit__word">Tools: ${r.verdict}</span>` +
-      `<span class="cfg-fit__detail">${r.passed}/${r.total} cases</span>` +
+      `<span class="cfg-fit__word">${word}</span>` +
+      `<span class="cfg-fit__detail">${r.passed} of ${r.total} tool calls correct</span>` +
     `</div>` +
     `<div class="cfg-rel__dots">${dots}</div>`
   );
@@ -278,6 +279,11 @@ async function render(id: string, displayName: string, isLocal: boolean) {
 
   // ── Reliability: a one-shot tool-call check ──
   const relSec = section("Reliability", tSampling);
+  const relNote = document.createElement("div");
+  relNote.className = "cfg-note";
+  relNote.textContent =
+    "The agent reaches for tools (web search, reading files) by emitting a structured call. This runs four tiny tests to see whether this model produces valid calls — handy before you trust it in the agent.";
+  relSec.appendChild(relNote);
   const rel = document.createElement("div");
   rel.className = "cfg-rel";
   const relBtn = document.createElement("button");

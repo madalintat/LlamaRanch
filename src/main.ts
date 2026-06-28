@@ -197,7 +197,7 @@ function renderSelector() {
       `<div class="ms-hero__label">Saddling up</div>` +
       `<div class="ms-hero__name">${escapeHtml(name)}</div>` +
       `<div class="ms-hero__sub">Loading into memory…</div>` +
-      `<div class="ms-hero__bar"><div class="ms-hero__bar-fill"></div></div>` +
+      `<div class="ms-hero__loadscope"><canvas data-glyph="scan" data-seed="5" data-cell="2.2" data-color="${isDarkTheme() ? "#f4f4f5" : "#0d0d0f"}" style="width:100%;height:100%;display:block;"></canvas></div>` +
       `<div class="ms-hero__barlabel">fitting layers to your hardware</div>`;
   } else {
     heroHost.innerHTML =

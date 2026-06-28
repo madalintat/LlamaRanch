@@ -88,9 +88,7 @@ html, body {
 .ms-row:hover .ms-row__cfg, .ms-row__cfg--on { opacity: 1; }
 .ms-row__cfg:hover { color: var(--d-ink); background: var(--d-line); }
 .ms-row__cfg--on { color: var(--d-ink); background: var(--d-line); }
-.ms-hero__bar { position: relative; height: 10px; margin: 16px 0 6px; border-radius: 999px; background: var(--d-line); overflow: hidden; }
-.ms-hero__bar-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 60%; background: var(--d-ink); border-radius: 999px; animation: ms-saddle 1.4s ease-in-out infinite; }
-@keyframes ms-saddle { 0% { width: 18%; } 50% { width: 78%; } 100% { width: 18%; } }
+.ms-hero__loadscope { position: relative; height: 22px; margin: 14px 0 8px; overflow: hidden; }
 .ms-hero__barlabel { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--d-faint); margin-top: 8px; }
 .ms-hero__quiet { font-family: 'Bricolage Grotesque', sans-serif; font-size: 21px; font-weight: 600; letter-spacing: -.02em; text-align: center; padding-top: 8px; }
 .ms-hero__quietsub { font-size: 13px; color: var(--d-muted); margin: 6px auto 0; max-width: 34ch; text-align: center; }
