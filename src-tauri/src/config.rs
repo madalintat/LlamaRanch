@@ -66,6 +66,14 @@ pub struct Config {
     /// When true, online tools (web_fetch, web_search) are excluded from the registry.
     #[serde(default)]
     pub offline_mode: bool,
+    /// When true, the smart-routing HTTP gateway is served on `gateway_port` so
+    /// any OpenAI client can get LlamaRanch routing. Binds loopback unless
+    /// `expose_to_network` is set. Applied at launch.
+    #[serde(default = "default_gateway_enabled")]
+    pub gateway_enabled: bool,
+    /// Port for the smart-routing gateway. Distinct from the router `port`.
+    #[serde(default = "default_gateway_port")]
+    pub gateway_port: u16,
     /// Global shortcut for the command bar popover (default: CmdOrCtrl+K).
     #[serde(default = "default_shortcut_cmdbar")]
     pub shortcut_cmdbar: String,
@@ -75,6 +83,12 @@ pub struct Config {
     /// Global shortcut for the Settings window (default: CmdOrCtrl+,).
     #[serde(default = "default_shortcut_settings")]
     pub shortcut_settings: String,
+    /// When true, the router pairs each model with a small same-family draft
+    /// model from the herd for speculative decoding (faster decode, identical
+    /// output). Off by default until validated on your hardware; when on, the
+    /// draft is auto-selected, no manual config.
+    #[serde(default)]
+    pub speculative_decoding: bool,
 }
 
 fn home() -> PathBuf {
@@ -170,43 +184,9 @@ fn default_server_bin() -> String {
     discover_server_bin()
 }
 
-/// Total physical RAM in bytes, per-OS, std only. None if detection fails.
+/// Total physical RAM in bytes. Single source of truth lives in `hardware`.
 fn total_ram_bytes() -> Option<u64> {
-    #[cfg(target_os = "macos")]
-    {
-        let out = std::process::Command::new("sysctl")
-            .args(["-n", "hw.memsize"])
-            .output()
-            .ok()?;
-        String::from_utf8_lossy(&out.stdout).trim().parse().ok()
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let txt = std::fs::read_to_string("/proc/meminfo").ok()?;
-        for line in txt.lines() {
-            if let Some(rest) = line.strip_prefix("MemTotal:") {
-                let kb: u64 = rest.trim().trim_end_matches("kB").trim().parse().ok()?;
-                return Some(kb * 1024);
-            }
-        }
-        None
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let out = std::process::Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory",
-            ])
-            .output()
-            .ok()?;
-        String::from_utf8_lossy(&out.stdout).trim().parse().ok()
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
-    {
-        None
-    }
+    crate::hardware::total_ram_bytes()
 }
 
 /// How many models to keep resident by default, from total RAM:
@@ -244,6 +224,17 @@ fn default_embedding_model() -> String {
     "nomic-embed-1.5".to_string()
 }
 
+/// The smart-routing gateway is on by default: "use it anywhere" only works if
+/// the endpoint is actually there.
+fn default_gateway_enabled() -> bool {
+    true
+}
+
+/// Gateway port, one above the router's default 2276 so the two never collide.
+fn default_gateway_port() -> u16 {
+    2277
+}
+
 fn default_shortcut_cmdbar() -> String {
     "CmdOrCtrl+K".to_string()
 }
@@ -274,9 +265,12 @@ impl Default for Config {
             searxng_url: String::new(),
             searxng_managed: false,
             offline_mode: false,
+            gateway_enabled: default_gateway_enabled(),
+            gateway_port: default_gateway_port(),
             shortcut_cmdbar: default_shortcut_cmdbar(),
             shortcut_agent: default_shortcut_agent(),
             shortcut_settings: default_shortcut_settings(),
+            speculative_decoding: false,
         }
     }
 }
@@ -413,5 +407,26 @@ mod tests {
         let json = r#"{"port":2276,"models_dir":"/m","server_bin":"/b","expose_to_network":false}"#;
         let cfg: Config = serde_json::from_str(json).unwrap();
         assert!(cfg.model_config.is_empty());
+    }
+
+    #[test]
+    fn missing_gateway_fields_use_defaults() {
+        // An older config file without the gateway keys still loads, with the
+        // gateway on and on its own port.
+        let json = r#"{"port":2276,"models_dir":"/m","server_bin":"/b","expose_to_network":false}"#;
+        let cfg: Config = serde_json::from_str(json).unwrap();
+        assert!(cfg.gateway_enabled);
+        assert_eq!(cfg.gateway_port, 2277);
+    }
+
+    #[test]
+    fn gateway_fields_roundtrip() {
+        let mut cfg = Config::default();
+        cfg.gateway_enabled = false;
+        cfg.gateway_port = 9000;
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("config.json");
+        save_to(&p, &cfg).unwrap();
+        assert_eq!(load_from(&p), cfg);
     }
 }

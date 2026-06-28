@@ -10,23 +10,19 @@
   </head>
 
   <body>
-    <div id="app">
+    <div class="ms" id="app">
 
-      <!-- HEAD -->
-      <header class="head">
-        <img class="brand__mark" id="brand-mark" alt="" width="22" height="22" />
-        <span class="brand__name">Llama<b>Ranch</b></span>
-        <span class="head__spacer"></span>
-        <span class="head__status" id="status">
-          <span class="led led--sm" id="status-led"></span>
-          <span class="head__status-label" id="status-label">starting</span>
-        </span>
-        <button class="head__close" id="close-btn" title="Close to tray" aria-label="Close">&times;</button>
-      </header>
-
-      <!-- DITHER HAIRLINE -->
-      <div class="hairline">
-        <canvas data-glyph="band" data-hairline="1" data-seed="9" data-cell="2.4" data-color="#c4c0b4" style="width:100%;height:14px;"></canvas>
+      <!-- BRAND STRIP -->
+      <div class="ms-brand">
+        <img class="ms-brand__mark" id="brand-mark" alt="" width="26" height="26" />
+        <span class="ms-brand__name">LlamaRanch</span>
+        <button class="ms-agent" id="agent-btn" title="Open the agent (showroom chat)">Agent</button>
+        <span class="ms-spacer"></span>
+        <button class="ms-endpoint" id="copy" title="Copy endpoint to clipboard">
+          <span class="ms-endpoint__dot" id="status-led"></span>
+          <span id="endpoint">127.0.0.1:2276</span>
+          <span class="ms-endpoint__copied" id="copy-label"></span>
+        </button>
       </div>
 
       <!-- UPDATE BANNER -->
@@ -36,41 +32,27 @@
         <button class="update__dismiss" id="update-later">Later</button>
       </div>
 
-      <!-- ENDPOINT ROW -->
-      <div class="bar">
-        <button class="bar__copy" id="copy" title="Copy endpoint to clipboard">
-          <span class="endpoint" id="endpoint">127.0.0.1:2276/v1</span>
-          <span class="ubtn" id="copy-label">copy</span>
-        </button>
-        <button class="ubtn ubtn--bordered" id="agent-btn">agent</button>
-      </div>
-
       <!-- ERROR -->
-      <div class="error hidden" id="error"></div>
+      <div class="ms-error hidden" id="error"></div>
 
-      <!-- TABS -->
-      <div class="tabs">
-        <button class="tab tab--active" id="tab-installed">installed</button>
-        <button class="tab" id="tab-discover">discover</button>
+      <!-- HERO (serving / loading / empty) — rendered by main.ts -->
+      <div class="ms-hero" id="hero"></div>
+
+      <!-- LIST -->
+      <div class="ms-list">
+        <div class="ms-list__label" id="list-label">Models</div>
+        <main id="models"></main>
+        <div class="ms-foot">
+          <button class="ms-foot__link" id="discover-link">Discover</button>
+          <span class="ms-spacer"></span>
+          <button class="ms-foot__link ms-foot__link--strong" id="settings-btn">Settings</button>
+        </div>
       </div>
-
-      <!-- MODEL LIST -->
-      <main class="models" id="models"></main>
-
-      <!-- FOOTER -->
-      <footer class="foot">
-        <span class="foot__ver" id="version">LLAMARANCH · LLAMA.CPP</span>
-        <span class="foot__spacer"></span>
-        <button class="foot__action" id="cmdk-hint" title="Open command bar"></button>
-        <button class="foot__action" id="settings-btn">settings</button>
-        <button class="foot__action" id="quit">quit</button>
-      </footer>
-
     </div>
+
     <!-- ⌘K COMMAND BAR OVERLAY -->
     <div id="cmdk-overlay" class="cmdk-overlay hidden" role="dialog" aria-modal="true" aria-label="Switch model">
       <div class="cmdk-card">
-        <!-- Search row -->
         <div class="cmdk-search">
           <svg class="cmdk-search__icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <div class="cmdk-search__field">
@@ -78,15 +60,8 @@
           </div>
           <span class="cmdk-key">ESC</span>
         </div>
-        <!-- Dither hairline band -->
-        <div class="cmdk-band">
-          <canvas data-glyph="band" data-hairline="1" data-seed="4" data-cell="2.4" data-color="#c4c0b4" style="width:100%;height:14px;"></canvas>
-        </div>
-        <!-- Section label -->
         <div class="cmdk-section-label" id="cmdk-section-label">loaded · ready now</div>
-        <!-- Model list -->
         <div class="cmdk-list" id="cmdk-list" role="listbox"></div>
-        <!-- Footer -->
         <div class="cmdk-footer">
           <span class="cmdk-footer__left">
             <span class="cmdk-footer__sq"></span>

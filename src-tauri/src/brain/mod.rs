@@ -257,7 +257,8 @@ use std::path::Path;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
 /// Classifier using the small general model via a single, non-streamed call.
-struct RouterClassifier { port: u16, model: String }
+/// Public so the HTTP gateway can reuse the exact same routing fallback.
+pub struct RouterClassifier { pub port: u16, pub model: String }
 impl Classifier for RouterClassifier {
     fn classify(&self, text: &str) -> Category {
         let label = classify_once(self.port, &self.model, text).unwrap_or_default();
@@ -287,6 +288,38 @@ fn classify_once(port: u16, model: &str, text: &str) -> Option<String> {
         .send_json(body).ok()?;
     let v: serde_json::Value = resp.into_json().ok()?;
     Some(v.get("choices")?.get(0)?.get("message")?.get("content")?.as_str()?.to_string())
+}
+
+/// Installed models as routing facts (scanned from the models dir). Shared by the
+/// in-app chat and the gateway so both route over the same view of what is present.
+pub fn installed_models(models_dir: &str) -> Vec<ModelLite> {
+    scanner::scan(Path::new(models_dir))
+        .into_iter()
+        .map(|m| ModelLite { id: m.id, group: m.group })
+        .collect()
+}
+
+/// Ids of models the router currently has resident (loaded or sleeping).
+pub fn loaded_ids(port: u16) -> Vec<String> {
+    server::list_models(port)
+        .into_iter()
+        .filter(|m| m.status == "loaded" || m.status == "sleeping")
+        .map(|m| m.id)
+        .collect()
+}
+
+/// Build the default router (embedding gate + tiny-model classifier). One place
+/// so the in-app chat and the gateway share an identical routing policy.
+pub fn build_router<'a>(
+    port: u16,
+    embedding_model: String,
+    general_model: String,
+    cache: &'a gate::GateCache,
+) -> DefaultRouter<gate::EmbedGate<'a>, RouterClassifier> {
+    DefaultRouter {
+        gate: gate::EmbedGate::new(port, embedding_model, cache),
+        classifier: RouterClassifier { port, model: general_model },
+    }
 }
 
 #[tauri::command]
@@ -320,21 +353,10 @@ pub fn chat_send<R: Runtime>(
     };
 
     std::thread::spawn(move || {
-        let installed: Vec<ModelLite> = scanner::scan(Path::new(&models_dir))
-            .into_iter()
-            .map(|m| ModelLite { id: m.id, group: m.group })
-            .collect();
-        let loaded: Vec<String> = server::list_models(port)
-            .into_iter()
-            .filter(|m| m.status == "loaded" || m.status == "sleeping")
-            .map(|m| m.id)
-            .collect();
-
+        let installed = installed_models(&models_dir);
+        let loaded = loaded_ids(port);
         let gate_state = app.state::<gate::GateCache>();
-        let router = DefaultRouter {
-            gate: gate::EmbedGate::new(port, embedding_model, gate_state.inner()),
-            classifier: RouterClassifier { port, model: general.clone() },
-        };
+        let router = build_router(port, embedding_model, general.clone(), gate_state.inner());
         let resolver = DefaultResolver;
         let capacity = (models_max as usize).saturating_sub(1).max(1);
         let pool_state = app.state::<pool::Pool>();
@@ -364,6 +386,15 @@ pub fn chat_send<R: Runtime>(
             explicit_model,
             &registry,
             move |ev| {
+                let tel = app2.state::<crate::telemetry::Telemetry>();
+                // Record the one routing decision per turn for the Activity view.
+                if let BrainEvent::Routed { model_id, category, .. } = &ev {
+                    tel.record(model_id, category.group(), false);
+                }
+                // Record each tool run with its privacy scope for the Ledger.
+                if let BrainEvent::ToolResult { name, ok, .. } = &ev {
+                    tel.record_tool(name, tools::scope_of(name), *ok);
+                }
                 let _ = app2.emit("chat:event", serde_json::json!({ "session": sid, "event": ev }));
             });
 

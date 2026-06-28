@@ -971,3 +971,89 @@ html[data-theme="light"] .empty-state__dither {
   mix-blend-mode: multiply;
   opacity: .5;
 }
+
+/* ══ CHAT WINDOW — new design reskin ═══════════════════════════════════════
+   CSS-only; chat.html markup + chat.ts wiring untouched. Brings the chat
+   window onto the new system (Bricolage / Hanken / JetBrains, white/black/
+   cool-grey). Matches Full Design §03. */
+body { font-family: 'Hanken Grotesk', system-ui, sans-serif; color: var(--d-ink); background: var(--d-bg); }
+.serif { font-family: 'Bricolage Grotesque', sans-serif; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+/* titlebar */
+.titlebar { background: var(--d-card); border-bottom: 1px solid var(--d-line); }
+.titlebar__model { color: var(--d-muted); font-size: 12.5px; }
+.titlebar__led-pill { color: var(--d-muted); background: var(--d-chip); border-radius: 999px; padding: 5px 10px; font-size: 11.5px; }
+
+/* layout columns */
+.chat-layout { background: var(--d-bg); }
+.rail { background: var(--d-rail); border-right: 1px solid var(--d-line); }
+.chat-main { background: var(--d-bg); }
+.privacy { background: var(--d-card); border-left: 1px solid var(--d-line); }
+
+/* serving LCD card */
+.rail__lcd, .lcd { background: #0c0c0e; border-radius: 12px; overflow: hidden; }
+.rail__lcd-name { color: #f4f4f5; font-family: 'Hanken Grotesk', sans-serif; font-weight: 600; font-size: 14px; }
+.rail__lcd-kbd { color: #8a8a92; }
+.rail__lcd-status { color: #b8b8c0; }
+
+/* new chat + section labels + recent + tools */
+.rail__new-chat { background: var(--d-card); border: none; border-radius: 12px; box-shadow: 0 1px 3px rgba(13,13,15,.07); font-family: 'Hanken Grotesk', sans-serif; font-weight: 600; font-size: 13.5px; color: var(--d-ink); cursor: pointer; }
+.rail__new-chat:hover { background: var(--d-bg); }
+.label, .rail__section-label { font-family: 'Hanken Grotesk', sans-serif; font-size: 12px; color: var(--d-faint); letter-spacing: 0; text-transform: none; }
+.rail__recent-item { font-size: 13.5px; color: var(--d-muted); border-radius: 10px; }
+.rail__recent-item--muted { color: var(--d-faint); }
+.rail__tool-name { font-size: 13px; color: var(--d-ink); }
+.rail__tool-tag { color: var(--d-faint); }
+
+/* empty state */
+.empty-state__title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 28px; font-weight: 600; letter-spacing: -.01em; color: var(--d-ink); }
+.empty-state__sub { font-size: 14px; color: var(--d-muted); }
+.empty-state__chip { font-family: 'Hanken Grotesk', sans-serif; font-size: 14px; color: var(--d-muted); }
+
+/* composer */
+.composer-wrap { background: var(--d-bg); }
+.composer { background: var(--d-card); border: 1px solid var(--d-edge); border-radius: 14px; box-shadow: 0 1px 3px rgba(13,13,15,.05); }
+.composer__input { font-family: 'Hanken Grotesk', sans-serif; font-size: 14px; color: var(--d-ink); background: transparent; }
+.composer__input::placeholder { color: var(--d-faint); }
+.chip { font-family: 'Hanken Grotesk', sans-serif; font-size: 12px; font-weight: 600; color: var(--d-muted); background: var(--d-chip); border-radius: 999px; padding: 6px 12px; }
+.chip--active, .chip.is-active { background: var(--d-ink); color: var(--d-on-ink); }
+.composer__model-pick { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--d-muted); background: transparent; border: none; }
+.composer__send { background: var(--d-ink); color: var(--d-on-ink); border: none; border-radius: 10px; cursor: pointer; }
+.composer__send:hover { background: var(--d-ink-hover); }
+
+/* privacy panel */
+.privacy__title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 17px; font-weight: 600; color: var(--d-ink); }
+.privacy__sub { color: var(--d-faint); }
+.privacy__row { display: flex; align-items: center; gap: 11px; padding: 12px 0; border-top: 1px solid var(--d-line); }
+.privacy__info { flex: 1; min-width: 0; }
+.privacy__info-name { font-size: 14px; font-weight: 600; color: var(--d-ink); }
+.privacy__info-desc { font-size: 12px; color: var(--d-muted); margin-top: 2px; }
+.privacy__row--off { opacity: .55; }
+.privacy__led { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.privacy__led--on { background: var(--d-ink); box-shadow: 0 0 0 4px rgba(13,13,15,.08); }
+.privacy__led--off { border: 1.5px solid var(--d-faint); }
+.privacy__badge { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-weight: 500; color: var(--d-muted); background: var(--d-line); border-radius: 999px; padding: 3px 9px; }
+.privacy__badge--off { color: var(--d-faint); }
+.privacy__offline { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; background: #0c0c0e; color: #f4f4f5; }
+.privacy__offline-name { font-size: 14px; font-weight: 600; }
+.privacy__offline-desc { font-size: 12px; color: #93939b; margin-top: 2px; }
+/* The toggle sits on the dark card, so the default ink-on-dark would vanish.
+   On = bright pill + dark knob; off = light outline + light knob — both legible. */
+.privacy__offline .toggle { background: #f4f4f5; border: none; }
+.privacy__offline .toggle::after { background: #0c0c0e; }
+.privacy__offline .toggle--off { background: transparent; border: 1.5px solid #6e6e76; }
+.privacy__offline .toggle--off::after { background: #9a9aa2; }
+
+/* shared dots + toggles */
+.led { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--d-ink); }
+.led--idle { background: transparent; border: 1.5px solid var(--d-dotline); }
+.led--sm { width: 7px; height: 7px; }
+.toggle { width: 42px; height: 24px; border-radius: 999px; background: var(--d-ink); position: relative; border: none; flex: none; cursor: pointer; }
+.toggle::after { content: ""; position: absolute; right: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--d-card); transition: all .15s; }
+.toggle--off { background: transparent; border: 1.5px solid #44444c; }
+.toggle--off::after { right: auto; left: 3px; top: 2.5px; width: 17px; height: 17px; background: #5e5e66; }
+
+/* model picker popup */
+.model-popup { background: var(--d-card); border: 1px solid var(--d-line); border-radius: 16px; box-shadow: 0 24px 56px rgba(13,13,15,.18); }
+.model-popup__header, .model-popup__footer { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--d-faint); }

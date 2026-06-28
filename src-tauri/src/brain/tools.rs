@@ -9,6 +9,16 @@ pub trait Tool: Send + Sync {
     fn run(&self, args: &Value) -> Result<String, String>;
 }
 
+/// The privacy scope of a tool by name: the two web tools reach the internet;
+/// everything else stays on the machine. The single source of truth for the
+/// LOCAL / ONLINE tags in the privacy panel and the proof-of-local ledger.
+pub fn scope_of(name: &str) -> &'static str {
+    match name {
+        "web_fetch" | "web_search" => "online",
+        _ => "local",
+    }
+}
+
 // ── SSRF guard ────────────────────────────────────────────────────────────────
 
 /// Returns true for hosts that must never be fetched (SSRF-unsafe).
@@ -144,10 +154,16 @@ pub struct ToolRegistry {
 }
 
 impl ToolRegistry {
+    /// A deterministic, offline tool set (clock + calculator). Used by the
+    /// reliability eval so scores are reproducible and need no network or files.
+    pub fn local_only() -> Self {
+        ToolRegistry { tools: vec![Box::new(Clock), Box::new(Calculator)] }
+    }
+
     /// Minimal registry used by existing tests (no I/O tools).
     #[cfg(test)]
     pub fn with_defaults() -> Self {
-        ToolRegistry { tools: vec![Box::new(Clock), Box::new(Calculator)] }
+        Self::local_only()
     }
 
     /// Full registry built from app config.

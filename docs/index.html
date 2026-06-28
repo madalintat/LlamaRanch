@@ -1,384 +1,238 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LlamaRanch · A quiet ranch for your local models</title>
-  <meta name="description" content="Every llama.cpp model on your machine, in one tray, behind a single private endpoint. No cloud. No keys. Nothing leaves the valley." />
-  <link rel="icon" href="assets/llama.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="style.css" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LlamaRanch · A quiet ranch for your local models</title>
+<meta name="description" content="The right model saddled and warm, fit to your machine, behind one private endpoint. Privacy you can watch, the plain truth about what running local costs you. Nothing leaves the valley." />
+<link rel="icon" href="assets/llama.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  a { text-decoration: none; color: inherit; }
+  @keyframes softPulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+  @keyframes caret { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+  @keyframes heroDrift { from { transform: scale(1.04) translate(0,0); } to { transform: scale(1.1) translate(-1.5%,-1%); } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
 </head>
 <body>
 
-  <!-- ── NAV ── -->
-  <div class="nav-outer">
-    <nav class="site-nav">
-      <a href="./" class="nav-logo" aria-label="LlamaRanch home">
-        <img src="assets/llama.svg" alt="" width="26" height="26" />
-        <span class="wordmark">Llama<span>Ranch</span></span>
-      </a>
-      <ul class="nav-links">
-        <li class="nav-features"><a href="#features">Features</a></li>
-        <li class="nav-models"><a href="#models">Models</a></li>
-        <li class="nav-install"><a href="#download">Install</a></li>
-        <li class="nav-docs"><a href="./docs/">Docs</a></li>
-        <li><a href="https://github.com/madalintat/LlamaRanch" class="nav-github" target="_blank" rel="noopener">GitHub ↗</a></li>
-      </ul>
-    </nav>
+<div style="background:#ffffff; font-family:'Hanken Grotesk',system-ui,sans-serif; color:#0d0d0f; min-height:100vh;">
+
+  <!-- NAV -->
+  <div style="position:sticky; top:0; z-index:50; background:rgba(255,255,255,.85); backdrop-filter:blur(10px); border-bottom:1px solid #ededf1;">
+    <div style="max-width:1180px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; padding:16px 32px;">
+      <a href="#top" style="display:flex; align-items:center; gap:11px;"><img src="assets/llama.svg" alt="" width="28" height="28" style="border-radius:8px; display:block;" /><span style="font-family:'Bricolage Grotesque',sans-serif; font-size:20px; font-weight:600; letter-spacing:-.01em;">LlamaRanch</span></a>
+      <div style="display:flex; gap:30px; align-items:center; font-size:14px; color:#6b6b73;"><a href="#features">Features</a><a href="#models">Models</a><a href="#quality">Quality</a><a href="#download">Install</a><a href="https://github.com/madalintat/LlamaRanch" target="_blank" rel="noopener" style="color:#0d0d0f; font-weight:600; border:1px solid #e6e6eb; border-radius:999px; padding:8px 16px;">GitHub ↗</a></div>
+    </div>
   </div>
 
-  <!-- ── PAGE container ── -->
-  <main class="page">
-
-    <!-- ── HERO ── -->
-    <section class="hero">
-      <img
-        src="assets/ranch-dither.jpg"
-        alt=""
-        class="hero-bg"
-        aria-hidden="true"
-      />
-      <div class="hero-content">
-        <h1 class="hero-headline">A quiet ranch for your local models.</h1>
-        <p class="hero-body">Every llama.cpp model on your machine, in one tray, behind a single private endpoint. No cloud. No keys. Nothing leaves the valley.</p>
-        <div class="hero-install">
-          <div class="install-cmd">
-            <span class="install-prompt">$</span>
-            <code class="install-text">npx @llamaranch/wizard</code>
-            <button class="install-copy" type="button" data-copy="npx @llamaranch/wizard" aria-label="Copy install command">Copy</button>
-          </div>
-          <div class="install-note">One command. Installs the engine, your models, and the app.</div>
+  <!-- HERO -->
+  <div id="top" style="position:relative; overflow:hidden; background:#fafafb;">
+    <img src="assets/ranch-dither.jpg" alt="" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center right; mix-blend-mode:multiply; -webkit-mask-image:linear-gradient(90deg,transparent 18%,#000 60%); mask-image:linear-gradient(90deg,transparent 18%,#000 60%); animation:heroDrift 28s ease-in-out infinite alternate; transform-origin:center;" />
+    <div style="position:relative; max-width:1180px; margin:0 auto; padding:72px 32px; min-height:90vh; display:flex; align-items:center;">
+      <div style="max-width:620px;">
+        <div style="display:flex; align-items:center; gap:11px; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#6b6b73; margin-bottom:24px;"><span style="width:24px;height:1px;background:#0d0d0f;"></span>open source · 100% local · MIT</div>
+        <h1 style="font-family:'Bricolage Grotesque',sans-serif; font-weight:600; font-size:78px; line-height:.96; letter-spacing:-.03em; margin:0 0 24px;">A quiet ranch for your local models.</h1>
+        <p style="font-size:18px; line-height:1.6; color:#4a4a52; margin:0 0 32px; max-width:40ch;">The right model saddled and warm, fit to your machine, behind one private endpoint. Nothing leaves the valley.</p>
+        <div data-copy="npx @llamaranch/wizard" style="display:flex; align-items:center; gap:10px; background:#0c0c0e; border-radius:13px; padding:15px 15px 15px 18px; font-family:'JetBrains Mono',monospace; max-width:420px; margin-bottom:18px;">
+          <span style="color:#b8b8c0; font-size:14px;">$</span>
+          <span style="color:#f4f4f5; font-size:14px; flex:1;">npx @llamaranch/wizard</span>
+          <span data-copy-label style="color:#f4f4f5; font-size:10px; letter-spacing:.1em; text-transform:uppercase; border:1px solid #33333a; border-radius:7px; padding:6px 11px;">copy</span>
         </div>
-        <div class="hero-actions">
-          <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="btn-outline">Download manually</a>
-          <a href="./docs/" class="btn-outline">Read the docs</a>
+        <div style="display:flex; gap:11px; align-items:center;">
+          <a href="https://github.com/madalintat/LlamaRanch/releases/latest" target="_blank" rel="noopener" style="background:#0d0d0f; color:#fff; font-weight:600; font-size:15px; padding:14px 28px; border-radius:999px;">Download</a>
+          <a href="./docs/" style="border:1px solid #d6d6da; color:#0d0d0f; font-weight:600; font-size:15px; padding:14px 28px; border-radius:999px;">Read the docs</a>
         </div>
-        <div class="hero-note">↳ macOS · Linux · Windows · runs only on your machine</div>
+        <div style="margin-top:24px; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:#a0a0a8;">↳ macOS · Linux · Windows · runs only on your machine</div>
       </div>
-    </section>
-
-    <!-- ── WORKS WITH ── -->
-    <div class="works-with">
-      <span class="works-with-label">Works with</span>
-      <span class="works-with-items">Open WebUI&nbsp;&nbsp;·&nbsp;&nbsp;Continue&nbsp;&nbsp;·&nbsp;&nbsp;Zed&nbsp;&nbsp;·&nbsp;&nbsp;Cline&nbsp;&nbsp;·&nbsp;&nbsp;curl&nbsp;&nbsp;·&nbsp;&nbsp;OpenAI SDKs</span>
     </div>
+  </div>
 
-    <!-- ── LOCAL-FIRST STATUS BAND ── -->
-    <section class="status-band" id="local">
-      <div class="status-row">
-        <span class="status-led" aria-hidden="true"></span>
-        <span class="status-endpoint">127.0.0.1:2276/v1</span>
-        <span class="status-tags">
-          <span class="status-tag">LOCAL</span>
-          <span class="status-tag">EMBEDDINGS</span>
-          <span class="status-tag">VISION</span>
-          <span class="status-tag">OFFLINE-READY</span>
-        </span>
-        <span class="status-note">nothing leaves the valley</span>
-      </div>
-    </section>
+  <!-- WORKS WITH -->
+  <div style="border-top:1px solid #ededf1; border-bottom:1px solid #ededf1;">
+    <div style="max-width:1180px; margin:0 auto; padding:20px 32px; display:flex; align-items:baseline; gap:24px;">
+      <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:#a0a0a8; flex:none;">works with</span>
+      <span style="font-size:15px; color:#4a4a52;">Open WebUI&nbsp;·&nbsp;Continue&nbsp;·&nbsp;Zed&nbsp;·&nbsp;Cline&nbsp;·&nbsp;curl&nbsp;·&nbsp;OpenAI SDKs</span>
+    </div>
+  </div>
 
-    <!-- ── dither divider ── -->
-    <div class="dither-divider" aria-hidden="true"></div>
+  <!-- STATUS BAND (dark, dithered) -->
+  <div style="position:relative; overflow:hidden; background:#0c0c0e;">
+    <canvas data-glyph="wall" data-seed="5" data-cell="3.4" data-color="#262630" style="position:absolute; inset:0; width:100%; height:100%; opacity:.8;"></canvas>
+    <div style="position:relative; max-width:1180px; margin:0 auto; padding:26px 32px; display:flex; align-items:center; gap:18px; flex-wrap:wrap; font-family:'JetBrains Mono',monospace;">
+      <span style="width:11px;height:11px;border-radius:50%;background:#f4f4f5; box-shadow:0 0 12px rgba(244,244,245,.6); animation:softPulse 2.4s ease-in-out infinite;"></span>
+      <span style="color:#f4f4f5; font-size:14px;">127.0.0.1:2276/v1</span>
+      <span style="display:flex; gap:8px; flex-wrap:wrap;">
+        <span style="font-size:11px; letter-spacing:.1em; color:#b8b8c0; border:1px solid #33333a; border-radius:6px; padding:4px 9px;">LOCAL</span>
+        <span style="font-size:11px; letter-spacing:.1em; color:#b8b8c0; border:1px solid #33333a; border-radius:6px; padding:4px 9px;">EMBEDDINGS</span>
+        <span style="font-size:11px; letter-spacing:.1em; color:#b8b8c0; border:1px solid #33333a; border-radius:6px; padding:4px 9px;">VISION</span>
+      </span>
+      <span style="margin-left:auto; font-family:'Bricolage Grotesque',sans-serif; font-size:15px; color:#b8b8c0; font-style:italic;">nothing leaves the valley</span>
+    </div>
+  </div>
 
-    <!-- ── THE AGENT ── -->
-    <section class="agent-section" id="agent">
-      <div class="agent-cols">
-        <!-- LEFT col -->
-        <div class="agent-left">
-          <div class="section-eyebrow" data-reveal data-reveal-rule>THE AGENT</div>
-          <h2 class="section-headline" data-reveal style="--d:.08s">More than a model server.</h2>
-          <p class="section-body" data-reveal style="--d:.16s">It reads each task, sends it to the local model that suits it, and hot-swaps experts to fit your memory. When it needs the web or a file, it reaches for a tool. Everything stays local-first.</p>
-          <div class="agent-led-tags" data-reveal style="--d:.22s">
-            <span class="agent-tag agent-tag-local">
-              <span class="agent-led agent-led-filled" aria-hidden="true"></span>
-              Model · LOCAL
-            </span>
-            <span class="agent-tag agent-tag-online">
-              <span class="agent-led agent-led-outline" aria-hidden="true"></span>
-              Web research · ONLINE
-            </span>
-          </div>
-        </div>
-        <!-- RIGHT col - chat screenshot -->
-        <div class="agent-right" data-reveal style="--d:.1s">
-          <div class="agent-shot-frame">
-            <img
-              src="assets/shot-chat.png"
-              alt="LlamaRanch chat agent UI with rail, conversation, and privacy panel"
-              class="agent-shot"
-              loading="lazy"
-            />
-          </div>
+  <!-- FEATURES -->
+  <div id="features" style="max-width:1180px; margin:0 auto; display:grid; grid-template-columns:repeat(3,1fr);">
+    <div style="padding:48px 40px; border-right:1px solid #ededf1;"><div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#a0a0a8; margin-bottom:14px;">01</div><div style="font-family:'Bricolage Grotesque',sans-serif; font-size:23px; font-weight:600; margin-bottom:9px;">Power, kept quiet</div><p style="font-size:15px; line-height:1.6; color:#6b6b73; margin:0;">Every model fit to your machine and saddled before you ask. All of llama.cpp's power, none of the flags.</p></div>
+    <div style="padding:48px 40px; border-right:1px solid #ededf1;"><div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#a0a0a8; margin-bottom:14px;">02</div><div style="font-family:'Bricolage Grotesque',sans-serif; font-size:23px; font-weight:600; margin-bottom:9px;">Privacy you can watch</div><p style="font-size:15px; line-height:1.6; color:#6b6b73; margin:0;">Local / Online / Off on everything, a dot that proves home, and one switch that closes every gate.</p></div>
+    <div style="padding:48px 40px;"><div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#a0a0a8; margin-bottom:14px;">03</div><div style="font-family:'Bricolage Grotesque',sans-serif; font-size:23px; font-weight:600; margin-bottom:9px;">The truth about models</div><p style="font-size:15px; line-height:1.6; color:#6b6b73; margin:0;">It measures how much sharpness each size really lost, on your machine, and names the sweet spot.</p></div>
+  </div>
+
+  <!-- DITHER DIVIDER -->
+  <div style="height:18px; overflow:hidden; border-top:1px solid #ededf1; border-bottom:1px solid #ededf1;"><canvas data-glyph="band" data-seed="9" data-cell="2.6" data-color="#b2b2bc" style="width:100%; height:18px;"></canvas></div>
+
+  <!-- SHOWROOM -->
+  <div style="background:#fafafb;">
+    <div style="max-width:1180px; margin:0 auto; padding:80px 32px; display:grid; grid-template-columns:42% 58%; gap:56px; align-items:center;">
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#a0a0a8; margin-bottom:18px;">The showroom</div>
+        <h2 style="font-family:'Bricolage Grotesque',sans-serif; font-weight:600; font-size:42px; line-height:1.04; letter-spacing:-.02em; margin:0 0 18px;">See the ranch ride.</h2>
+        <p style="font-size:16px; line-height:1.6; color:#6b6b73; margin:0 0 22px; max-width:42ch;">The built-in chat proves the ground is good. It reads each task, hands it to the model that suits it, reaches for a tool only when it needs one, and shows every choice out loud. Local-first, always.</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <span style="display:inline-flex; align-items:center; gap:8px; font-family:'Hanken Grotesk',sans-serif; font-size:12.5px; font-weight:600; color:#0d0d0f; background:#fff; border:1px solid #e6e6eb; padding:7px 13px; border-radius:999px;"><span style="width:8px;height:8px;border-radius:50%;background:#0d0d0f;"></span>Model · local</span>
+          <span style="display:inline-flex; align-items:center; gap:8px; font-family:'Hanken Grotesk',sans-serif; font-size:12.5px; font-weight:600; color:#6b6b73; background:#fff; border:1px solid #e6e6eb; padding:7px 13px; border-radius:999px;"><span style="width:8px;height:8px;border-radius:50%;border:1.5px solid #a0a0a8;"></span>Web research · online</span>
         </div>
       </div>
-    </section>
-
-    <!-- ── FEATURES ── -->
-    <section class="features" id="features">
-      <div class="feature" data-reveal>
-        <div class="feature-num">01</div>
-        <div class="feature-title">Hardware aware</div>
-        <p class="feature-body">llama.cpp's <code class="code-chip">--fit</code> sizes layers and context to the memory you actually have.</p>
-      </div>
-      <div class="feature" data-reveal style="--d:.1s">
-        <div class="feature-num">02</div>
-        <div class="feature-title">One-click serving</div>
-        <p class="feature-body">Models load on demand and unload when idle. One server, switched in a click.</p>
-      </div>
-      <div class="feature" data-reveal style="--d:.2s">
-        <div class="feature-num">03</div>
-        <div class="feature-title">OpenAI compatible</div>
-        <p class="feature-body">Point any client at the local endpoint. A genuine drop-in, no rewrites.</p>
-      </div>
-    </section>
-
-    <!-- ── dither divider ── -->
-    <div class="dither-divider" aria-hidden="true"></div>
-
-    <!-- ── MODELS ── -->
-    <section class="models-section" id="models">
-      <div class="models-cols">
-        <!-- LEFT col -->
-        <div class="models-left">
-          <div class="section-inner">
-            <div class="section-eyebrow" data-reveal data-reveal-rule>Models</div>
-            <h2 class="section-headline" data-reveal style="--d:.08s">25+ curated models, hardware-fit.</h2>
-            <p class="section-body" data-reveal style="--d:.16s">One click to download, or drop in any <code class="code-chip">.gguf</code> of your own. LlamaRanch fits layers and context to the memory you have. No config required.</p>
-          </div>
-          <div class="model-list-header" data-reveal style="--d:.22s">
-            <span class="model-tab model-tab-active">INSTALLED</span>
-            <span class="model-tab">DISCOVER</span>
-            <span class="model-count-chip">&#9645; 4 of 25+</span>
-          </div>
-          <div class="model-list" data-reveal style="--d:.28s">
-            <div class="model-row model-row-serving">
-              <span class="model-num">01</span>
-              <span class="model-name">Gemma 3 4B</span>
-              <span class="model-meta">2.4 GB</span>
-              <div class="model-tags">
-                <span class="model-tag">CHAT</span>
-                <span class="model-tag">VISION</span>
-              </div>
-              <span class="model-led model-led-filled" aria-hidden="true"></span>
-            </div>
-            <div class="model-row">
-              <span class="model-num">02</span>
-              <span class="model-name">Qwen3 8B</span>
-              <span class="model-meta">5.0 GB</span>
-              <div class="model-tags">
-                <span class="model-tag">CHAT</span>
-              </div>
-              <span class="model-led model-led-outline" aria-hidden="true"></span>
-            </div>
-            <div class="model-row">
-              <span class="model-num">03</span>
-              <span class="model-name">Qwen2.5 Coder 14B</span>
-              <span class="model-meta">9.0 GB</span>
-              <div class="model-tags">
-                <span class="model-tag">CODE</span>
-              </div>
-              <span class="model-led model-led-outline" aria-hidden="true"></span>
-            </div>
-            <div class="model-row">
-              <span class="model-num">04</span>
-              <span class="model-name">Llama 3.2 3B</span>
-              <span class="model-meta">1.9 GB</span>
-              <div class="model-tags">
-                <span class="model-tag">CHAT</span>
-              </div>
-              <span class="model-led model-led-outline" aria-hidden="true"></span>
-            </div>
-            <div class="model-more">
-              Browse all models on <a href="https://huggingface.co/models?apps=llama.cpp&sort=trending" target="_blank" rel="noopener">Hugging Face ↗</a>
-            </div>
-          </div>
-        </div>
-        <!-- RIGHT col - popover screenshot -->
-        <div class="models-right" data-reveal style="--d:.12s">
-          <div class="models-dot-field" aria-hidden="true"></div>
-          <img
-            src="assets/shot-popover.png"
-            alt="LlamaRanch model-selector popover"
-            class="models-shot"
-            loading="lazy"
-          />
+      <div style="background:#fff; border:1px solid #ededf1; border-radius:18px; box-shadow:0 24px 56px rgba(13,13,15,.16); overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:11px; padding:14px 18px; border-bottom:1px solid #ededf1;"><img src="assets/llama.svg" alt="" width="22" height="22" style="border-radius:6px;" /><span style="font-family:'Hanken Grotesk',sans-serif; font-size:13px; color:#6b6b73;">Gemma 3 4B · local</span><span style="flex:1;"></span><span style="display:inline-flex; align-items:center; gap:7px; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#6b6b73;"><span style="width:7px;height:7px;border-radius:50%;background:#0d0d0f; animation:softPulse 2.2s ease-in-out infinite;"></span>local · 2 tools</span></div>
+        <div style="padding:22px 24px;">
+          <div style="display:flex; justify-content:flex-end; margin-bottom:18px;"><div style="max-width:78%; background:#e7e7ec; padding:11px 15px; border-radius:15px 15px 5px 15px; font-family:'Hanken Grotesk',sans-serif; font-size:13.5px; line-height:1.5;">What changed in the llama.cpp server API this month?</div></div>
+          <div style="display:flex; gap:12px;"><img src="assets/llama.svg" alt="" width="26" height="26" style="border-radius:7px; flex:none;" /><div style="flex:1; min-width:0;"><div style="font-family:'JetBrains Mono',monospace; font-size:11px; line-height:1.9; color:#6b6b73; margin-bottom:10px;"><div>› searching web · "llama.cpp changelog"</div><div style="color:#0d0d0f;">› done · reasoning locally</div></div><div style="font-family:'Bricolage Grotesque',sans-serif; font-size:18px; font-weight:500; line-height:1.35; margin-bottom:7px;">Three notable changes landed this month.</div><p style="font-family:'Hanken Grotesk',sans-serif; font-size:13.5px; line-height:1.6; color:#3a3a42; margin:0;">The server now exposes <span style="font-family:'JetBrains Mono',monospace; font-size:12px; background:#ededf1; padding:1px 6px; border-radius:5px;">/v1/responses</span>, and the KV-cache reuse rewrite is the big throughput win.</p></div></div>
         </div>
       </div>
-    </section>
+    </div>
+  </div>
+  <div style="height:18px; overflow:hidden; border-top:1px solid #ededf1; border-bottom:1px solid #ededf1;"><canvas data-glyph="band" data-seed="15" data-cell="2.6" data-color="#b2b2bc" style="width:100%; height:18px;"></canvas></div>
 
-    <!-- ── ENDPOINT terminal ── -->
-    <div class="endpoint" id="install">
-      <div class="endpoint-cols">
-        <!-- LEFT col - headline + client list -->
-        <div class="endpoint-left" data-reveal>
-          <div class="section-eyebrow" data-reveal-rule>Endpoint</div>
-          <h2 class="endpoint-headline" data-reveal style="--d:.08s">One endpoint. Every client.</h2>
-          <p class="endpoint-tagline" data-reveal style="--d:.14s">Drop the URL into any OpenAI-compatible tool and go.</p>
-          <ul class="endpoint-clients" data-reveal style="--d:.2s">
-            <li>→ Open WebUI</li>
-            <li>→ Continue</li>
-            <li>→ Zed</li>
-            <li>→ Cline</li>
-            <li>→ curl</li>
-            <li>→ OpenAI SDKs</li>
-          </ul>
-        </div>
-        <!-- RIGHT col - terminal -->
-        <div class="endpoint-right" data-reveal style="--d:.1s">
-          <div class="endpoint-panel">
-            <div class="endpoint-header">
-              <div class="endpoint-dots" aria-hidden="true">
-                <span class="endpoint-dot"></span>
-                <span class="endpoint-dot"></span>
-                <span class="endpoint-dot"></span>
-              </div>
-              <span class="endpoint-header-url">127.0.0.1:2276/v1</span>
-              <div class="endpoint-live">
-                <span class="endpoint-live-led" aria-hidden="true"></span>
-                <span class="endpoint-live-label">LIVE</span>
-              </div>
-            </div>
-            <div class="endpoint-body">
-              <div class="endpoint-comment"># point any client at one private endpoint</div>
-              <div class="endpoint-line"><span class="endpoint-prompt">$</span> curl http://127.0.0.1:2276/v1/models</div>
-              <div class="endpoint-response">{ "data": [ { "id": "gemma-3-4b", "object": "model" } ] }</div>
-              <div class="endpoint-line"><span class="endpoint-prompt">$</span> curl http://127.0.0.1:2276/v1/chat/completions<span class="endpoint-caret">&nbsp;</span></div>
-            </div>
+  <!-- MODELS (selector showcase) -->
+  <div id="models" style="background:#fafafb;">
+    <div style="max-width:1180px; margin:0 auto; padding:80px 32px; display:grid; grid-template-columns:46% 54%; gap:56px; align-items:center;">
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#a0a0a8; margin-bottom:18px;">Models</div>
+        <h2 style="font-family:'Bricolage Grotesque',sans-serif; font-weight:600; font-size:42px; line-height:1.04; letter-spacing:-.02em; margin:0 0 18px;">25+ models, fit to your machine.</h2>
+        <p style="font-size:16px; line-height:1.6; color:#6b6b73; margin:0 0 24px; max-width:42ch;">One click to bring one home, or drop in any .gguf. The ranch sizes layers and context to the memory you have, so you always know what fits before you load it.</p>
+        <a href="https://huggingface.co/models?apps=llama.cpp&sort=trending" target="_blank" rel="noopener" style="display:flex; align-items:center; gap:10px; font-size:14px; color:#0d0d0f; font-weight:600;">Browse the catalog <span style="font-family:'JetBrains Mono',monospace;">→</span></a>
+      </div>
+      <!-- selector card -->
+      <div style="position:relative; background:#ebebef; border-radius:22px; padding:30px; overflow:hidden;">
+        <canvas data-glyph="wall" data-seed="7" data-cell="4" data-color="#aeaeb8" style="position:absolute; inset:0; width:100%; height:100%;"></canvas>
+        <div style="position:relative; background:#ffffff; border-radius:18px; box-shadow:0 24px 56px rgba(13,13,15,.18); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:11px; padding:18px 20px 14px;"><img src="assets/llama.svg" alt="" width="26" height="26" style="border-radius:8px;" /><span style="font-family:'Bricolage Grotesque',sans-serif; font-size:18px; font-weight:600;">LlamaRanch</span><span style="flex:1;"></span><span style="display:inline-flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:11.5px; color:#6b6b73; background:#f0f0f3; padding:6px 10px; border-radius:999px;"><span style="width:8px;height:8px;border-radius:50%;background:#0d0d0f; animation:softPulse 2.2s ease-in-out infinite;"></span>running</span></div>
+          <div style="height:15px; overflow:hidden; border-top:1px solid #ededf1; border-bottom:1px solid #ededf1;"><canvas data-glyph="band" data-seed="3" data-cell="2.4" data-color="#b2b2bc" style="width:560px; height:15px;"></canvas></div>
+          <!-- running -->
+          <div style="position:relative; overflow:hidden; margin:8px 10px 2px; padding:15px 14px; border-radius:14px; background:#f3f3f6; display:flex; align-items:center; gap:14px;">
+            <canvas data-glyph="scan" data-seed="3" data-cell="2.4" data-color="#d6d6dc" style="position:absolute; inset:0; width:100%; height:100%;"></canvas>
+            <span style="position:relative; width:10px;height:10px;border-radius:50%;background:#0d0d0f; box-shadow:0 0 0 4px rgba(13,13,15,.1); animation:softPulse 2.2s ease-in-out infinite;"></span>
+            <div style="position:relative; flex:1;"><div style="font-size:16px; font-weight:600;">Gemma 3 4B</div><div style="font-size:13px; color:#6b6b73; margin-top:2px;">Running · <span data-counter="41">41</span> tok/s · vision</div></div>
+            <span style="position:relative; font-size:13px; font-weight:600; color:#6b6b73;">Stop</span>
+          </div>
+          <div style="padding:2px 10px 10px;">
+            <div style="display:flex; align-items:center; gap:14px; padding:15px 14px;"><span style="width:10px;height:10px;border-radius:50%;border:1.5px solid #c6c6ce;"></span><div style="flex:1;"><div style="font-size:16px; font-weight:500;">Qwen3 8B</div><div style="font-size:13px; color:#6b6b73; margin-top:2px;">5.0 GB · fits comfortably</div></div><span style="font-size:13px; font-weight:600; border:1px solid #e6e6eb; padding:8px 16px; border-radius:999px;">Load</span></div>
+            <div style="display:flex; align-items:center; gap:14px; padding:15px 14px;"><span style="width:10px;height:10px;border-radius:50%;border:1.5px dashed #bfbfc8;"></span><div style="flex:1;"><div style="font-size:16px; font-weight:500; color:#97979f;">Llama 3.2 3B</div><div style="font-size:13px; color:#a0a0a8; margin-top:2px;">In the cloud · 1.9 GB</div></div><span style="font-size:13px; font-weight:600; color:#6b6b73;">Get</span></div>
           </div>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- ── MISSION ── -->
-    <section class="mission-section" id="mission">
-      <div class="mission-dither" aria-hidden="true"></div>
-      <div class="mission-inner">
-        <div class="section-eyebrow" data-reveal>Mission</div>
-        <blockquote class="mission-quote" data-reveal style="--d:.1s">Nothing leaves the valley.</blockquote>
-        <p class="mission-body" data-reveal style="--d:.18s">Local-first, private by default, open source (MIT). Your hardware. Your models. No cloud dependency, no telemetry, no account required. LlamaRanch is a quiet place where your data stays yours.</p>
-      </div>
-    </section>
+  <!-- DITHER DIVIDER -->
+  <div style="height:18px; overflow:hidden; border-top:1px solid #ededf1; border-bottom:1px solid #ededf1;"><canvas data-glyph="band" data-seed="12" data-cell="2.6" data-color="#b2b2bc" style="width:100%; height:18px;"></canvas></div>
 
-    <!-- ── DOWNLOAD ── -->
-    <section class="download-section" id="download">
-      <div class="section-inner">
-        <div class="section-eyebrow" data-reveal data-reveal-rule>Download</div>
-        <h2 class="section-headline" data-reveal style="--d:.08s">Get LlamaRanch.</h2>
-        <p class="section-body" data-reveal style="--d:.14s">The fast way: one command sets up the engine, your models, and the app. Or grab an installer by hand below.</p>
-        <div class="install-cmd install-cmd-wide" data-reveal style="--d:.2s">
-          <span class="install-prompt">$</span>
-          <code class="install-text">npx @llamaranch/wizard</code>
-          <button class="install-copy" type="button" data-copy="npx @llamaranch/wizard" aria-label="Copy install command">Copy</button>
-        </div>
-        <div class="install-note install-note-wide" data-reveal style="--d:.26s">Runs on macOS, Linux, and Windows. To update later: <code class="code-chip">npx @llamaranch/wizard update</code></div>
+  <!-- QUALITY -->
+  <div id="quality" style="max-width:1180px; margin:0 auto; padding:80px 32px; display:grid; grid-template-columns:54% 46%; gap:56px; align-items:center;">
+    <div style="position:relative; min-height:212px; border-radius:18px; background:#0c0c0e; overflow:hidden; padding:28px 32px; display:flex; flex-direction:column; justify-content:center;">
+      <canvas data-glyph="scope" data-seed="6" data-cell="2.3" data-color="#cfcfd6" style="position:absolute; left:0; right:0; bottom:0; width:100%; height:60px; opacity:.26;"></canvas>
+      <div style="position:relative; display:flex; align-items:center; gap:12px; margin-bottom:18px;">
+        <span style="font-family:'Bricolage Grotesque',sans-serif; font-size:21px; font-weight:600; color:#f4f4f5;">Qwen3 8B</span>
+        <span style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.04em; color:#cfcfd6; border:1px solid #3a3941; border-radius:999px; padding:4px 11px;">Q4_K_M</span>
+        <span style="flex:1;"></span>
+        <span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#6a6872;">measured here</span>
       </div>
-      <div class="download-grid">
-        <div class="download-card" data-reveal>
-          <div class="download-card-top">
-            <div class="download-card-num">01</div>
-            <span class="download-card-led" aria-hidden="true"></span>
-          </div>
-          <h3 class="download-card-os">macOS</h3>
-          <div class="download-card-meta">Apple Silicon</div>
-          <div class="download-card-tags">
-            <span class="download-tag">ARM64</span>
-            <span class="download-tag">GPU</span>
-          </div>
-          <div class="download-card-formats">.dmg</div>
-          <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="btn-primary download-btn" target="_blank" rel="noopener">Download</a>
+      <div style="position:relative; font-family:'Bricolage Grotesque',sans-serif; font-size:60px; font-weight:600; color:#f4f4f5; line-height:.92; letter-spacing:-.03em;">96<span style="font-size:25px; color:#8a8992; font-weight:500;">&nbsp;% sharp</span></div>
+      <div style="position:relative; margin-top:16px;"><span style="font-family:'Hanken Grotesk',sans-serif; font-size:13px; font-weight:600; color:#0c0c0e; background:#f4f4f5; padding:7px 14px; border-radius:999px;">Sweet spot for your hardware</span></div>
+    </div>
+    <div>
+      <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#a0a0a8; margin-bottom:18px;">Quality</div>
+      <h2 style="font-family:'Bricolage Grotesque',sans-serif; font-weight:600; font-size:40px; line-height:1.05; letter-spacing:-.02em; margin:0 0 18px;">Know what you're really riding.</h2>
+      <p style="font-size:16px; line-height:1.6; color:#6b6b73; margin:0; max-width:44ch;">A local model is a shrunk model, and almost nothing tells you how much sharpness it lost. The ranch measures it and shows a plain grade, and when two sizes are too close to call, it says so.</p>
+    </div>
+  </div>
+
+  <!-- ENDPOINT TERMINAL -->
+  <div style="background:#fafafb; border-top:1px solid #ededf1;">
+    <div style="max-width:1180px; margin:0 auto; padding:80px 32px; display:grid; grid-template-columns:38% 62%; gap:48px; align-items:center;">
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#a0a0a8; margin-bottom:18px;">Endpoint</div>
+        <h2 style="font-family:'Bricolage Grotesque',sans-serif; font-weight:600; font-size:36px; line-height:1.05; letter-spacing:-.02em; margin:0 0 14px;">One endpoint. Every client.</h2>
+        <p style="font-size:16px; line-height:1.6; color:#6b6b73; margin:0;">Drop the URL into any OpenAI-compatible tool and ride.</p>
+      </div>
+      <div style="background:#0c0c0e; border-radius:14px; overflow:hidden; box-shadow:0 24px 56px rgba(13,13,15,.3);">
+        <div style="display:flex; align-items:center; gap:10px; padding:13px 16px; background:#141318; border-bottom:1px solid #222127;">
+          <span style="width:9px;height:9px;border-radius:50%;background:#2e2c34;"></span><span style="width:9px;height:9px;border-radius:50%;background:#2e2c34;"></span><span style="width:9px;height:9px;border-radius:50%;background:#2e2c34;"></span>
+          <span style="flex:1;"></span><span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#6a6872;">127.0.0.1:2276/v1</span><span style="flex:1;"></span>
+          <span style="display:inline-flex; align-items:center; gap:7px; font-family:'JetBrains Mono',monospace; font-size:11px; color:#f4f4f5;"><span style="width:7px;height:7px;border-radius:50%;background:#f4f4f5; animation:softPulse 2s ease-in-out infinite;"></span>LIVE</span>
         </div>
-        <div class="download-card" data-reveal style="--d:.1s">
-          <div class="download-card-top">
-            <div class="download-card-num">02</div>
-            <span class="download-card-led" aria-hidden="true"></span>
-          </div>
-          <h3 class="download-card-os">Linux</h3>
-          <div class="download-card-meta">x86_64 · arm64</div>
-          <div class="download-card-tags">
-            <span class="download-tag">X86_64</span>
-            <span class="download-tag">ARM64</span>
-          </div>
-          <div class="download-card-formats">.deb · .AppImage · .rpm</div>
-          <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="btn-primary download-btn" target="_blank" rel="noopener">Download</a>
-        </div>
-        <div class="download-card" data-reveal style="--d:.2s">
-          <div class="download-card-top">
-            <div class="download-card-num">03</div>
-            <span class="download-card-led" aria-hidden="true"></span>
-          </div>
-          <h3 class="download-card-os">Windows</h3>
-          <div class="download-card-meta">x86_64 · Arm</div>
-          <div class="download-card-tags">
-            <span class="download-tag">X86_64</span>
-            <span class="download-tag">ARM</span>
-          </div>
-          <div class="download-card-formats">.exe · .msi</div>
-          <a href="https://github.com/madalintat/LlamaRanch/releases/latest" class="btn-primary download-btn" target="_blank" rel="noopener">Download</a>
+        <div style="padding:22px 24px; font-family:'JetBrains Mono',monospace; font-size:13.5px; line-height:2; color:#cfcfd6;">
+          <div style="color:#57555f;"># point any client at one private endpoint</div>
+          <div><span style="color:#86868e;">$</span> curl http://127.0.0.1:2276/v1/models</div>
+          <div style="color:#5a5860; padding-left:14px;">{ "data": [ { "id": "gemma-3-4b" } ] }</div>
+          <div><span style="color:#86868e;">$</span> curl http://127.0.0.1:2276/v1/chat/completions<span style="border-right:2px solid #cfcfd6; margin-left:3px; animation:caret 1.1s step-end infinite;">&nbsp;</span></div>
         </div>
       </div>
-    </section>
+    </div>
+  </div>
 
-    <!-- ── FOOTER ── -->
-    <footer class="site-footer">
-      <div class="footer-dither-band" aria-hidden="true"></div>
-      <div class="footer-top">
-        <div class="footer-brand">
-          <a href="/" class="footer-logo" aria-label="LlamaRanch home">
-            <img src="assets/llama.svg" alt="" width="26" height="26" />
-            <span class="wordmark">Llama<span>Ranch</span></span>
-          </a>
-          <p class="footer-tagline">A quiet ranch for your local models. Load one, chat, and nothing ever leaves the valley.</p>
-        </div>
-        <nav class="footer-nav" aria-label="Footer navigation">
-          <div>
-            <div class="footer-col-head">Product</div>
-            <div class="footer-col-links">
-              <a href="#features">Features</a>
-              <a href="#models">Models</a>
-              <a href="#download">Install</a>
-            </div>
-          </div>
-          <div>
-            <div class="footer-col-head">Source</div>
-            <div class="footer-col-links">
-              <a href="https://github.com/madalintat/LlamaRanch" target="_blank" rel="noopener">GitHub ↗</a>
-              <a href="https://github.com/madalintat/LlamaRanch/releases" target="_blank" rel="noopener">Releases</a>
-              <a href="./docs/">Docs</a>
-              <a href="https://github.com/madalintat/LlamaRanch/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a>
-            </div>
-          </div>
-          <div>
-            <div class="footer-col-head">Family</div>
-            <div class="footer-col-links">
-              <a href="https://huggingface.co/" target="_blank" rel="noopener">Hugging Face ↗</a>
-              <a href="#">Llama for macOS</a>
-              <a href="https://github.com/ggml-org/llama.cpp" target="_blank" rel="noopener">llama.cpp ↗</a>
-            </div>
-          </div>
-        </nav>
-      </div>
-      <div class="footer-bottom">
-        <span>BUILT ON LLAMA.CPP · MIT · RUNS 100% ON YOUR MACHINE</span>
-        <span>© 2026</span>
-      </div>
-      <!-- dithered horizon canvas - full-bleed -->
-      <div class="footer-horizon">
-        <canvas
-          data-glyph="photo"
-          data-src="assets/cover.jpg"
-          data-crop="0,0.16,1,0.54"
-          data-fade="up"
-          data-cell="3.4"
-          data-color="#1b1a13"
-          aria-hidden="true"
-        ></canvas>
-      </div>
-    </footer>
+  <!-- MISSION -->
+  <div style="position:relative; overflow:hidden; text-align:center; border-top:1px solid #ededf1;">
+    <canvas data-glyph="wall" data-seed="14" data-cell="3.6" data-color="#cdcdd4" style="position:absolute; inset:0; width:100%; height:100%; opacity:.5;"></canvas>
+    <div style="position:relative; max-width:740px; margin:0 auto; padding:88px 32px;">
+      <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#a0a0a8; margin-bottom:22px;">Mission</div>
+      <div style="font-family:'Bricolage Grotesque',sans-serif; font-style:italic; font-weight:500; font-size:50px; line-height:1.06; letter-spacing:-.02em; margin-bottom:24px;">Nothing leaves the valley.</div>
+      <p style="font-size:16px; line-height:1.7; color:#4a4a52; max-width:52ch; margin:0 auto;">Local-first, private by default, open source. Your hardware, your models. No cloud dependency, no telemetry, no account. You run the ranch, and the ranch keeps your data yours.</p>
+    </div>
+  </div>
 
-  </main>
+  <!-- DOWNLOAD -->
+  <div id="download" style="border-top:1px solid #ededf1;">
+    <div style="max-width:1180px; margin:0 auto; padding:80px 32px;">
+      <div style="text-align:center; margin-bottom:40px;">
+        <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#a0a0a8; margin-bottom:14px;">Download</div>
+        <h2 style="font-family:'Bricolage Grotesque',sans-serif; font-weight:600; font-size:40px; letter-spacing:-.02em; margin:0;">Get LlamaRanch.</h2>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:20px;">
+        <div style="border:1px solid #e6e6eb; border-radius:16px; padding:28px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;"><span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#a0a0a8;">01</span><span style="width:8px;height:8px;border-radius:50%;border:1px dashed #c6c6ce;"></span></div><div style="font-family:'Bricolage Grotesque',sans-serif; font-size:24px; font-weight:600;">macOS</div><div style="font-size:13px; color:#6b6b73; margin:6px 0 14px;">Apple Silicon · .dmg</div><a href="https://github.com/madalintat/LlamaRanch/releases/latest" target="_blank" rel="noopener" style="display:block; text-align:center; background:#0d0d0f; color:#fff; font-weight:600; font-size:14px; padding:11px 0; border-radius:11px;">Download</a></div>
+        <div style="border:1px solid #e6e6eb; border-radius:16px; padding:28px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;"><span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#a0a0a8;">02</span><span style="width:8px;height:8px;border-radius:50%;border:1px dashed #c6c6ce;"></span></div><div style="font-family:'Bricolage Grotesque',sans-serif; font-size:24px; font-weight:600;">Linux</div><div style="font-size:13px; color:#6b6b73; margin:6px 0 14px;">x86_64 · arm64 · .deb .AppImage .rpm</div><a href="https://github.com/madalintat/LlamaRanch/releases/latest" target="_blank" rel="noopener" style="display:block; text-align:center; background:#0d0d0f; color:#fff; font-weight:600; font-size:14px; padding:11px 0; border-radius:11px;">Download</a></div>
+        <div style="border:1px solid #e6e6eb; border-radius:16px; padding:28px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;"><span style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#a0a0a8;">03</span><span style="width:8px;height:8px;border-radius:50%;border:1px dashed #c6c6ce;"></span></div><div style="font-family:'Bricolage Grotesque',sans-serif; font-size:24px; font-weight:600;">Windows</div><div style="font-size:13px; color:#6b6b73; margin:6px 0 14px;">x86_64 · Arm · .exe .msi</div><a href="https://github.com/madalintat/LlamaRanch/releases/latest" target="_blank" rel="noopener" style="display:block; text-align:center; background:#0d0d0f; color:#fff; font-weight:600; font-size:14px; padding:11px 0; border-radius:11px;">Download</a></div>
+      </div>
+    </div>
+  </div>
 
-  <script src="dither.js"></script>
-  <script defer src="anim.js"></script>
+  <!-- FOOTER + dithered horizon -->
+  <div style="position:relative; border-top:1px solid #ededf1; overflow:hidden;">
+    <div style="max-width:1180px; margin:0 auto; padding:52px 32px 0; display:flex; justify-content:space-between; gap:48px; flex-wrap:wrap;">
+      <div style="max-width:300px;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;"><img src="assets/llama.svg" alt="" width="26" height="26" style="border-radius:7px;" /><span style="font-family:'Bricolage Grotesque',sans-serif; font-size:18px; font-weight:600;">LlamaRanch</span></div>
+        <p style="font-family:'Bricolage Grotesque',sans-serif; font-style:italic; font-size:16px; line-height:1.55; color:#6b6b73; margin:0;">A quiet ranch for your local models. The right one saddled and warm, and nothing ever leaves the valley.</p>
+      </div>
+      <div style="display:flex; gap:56px;">
+        <div><div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:#a0a0a8; margin-bottom:14px;">Product</div><div style="display:flex; flex-direction:column; gap:9px; font-size:14px; color:#4a4a52;"><a href="#features">Features</a><a href="#models">Models</a><a href="#download">Install</a></div></div>
+        <div><div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:#a0a0a8; margin-bottom:14px;">Source</div><div style="display:flex; flex-direction:column; gap:9px; font-size:14px; color:#4a4a52;"><a href="https://github.com/madalintat/LlamaRanch" target="_blank" rel="noopener">GitHub ↗</a><a href="https://github.com/madalintat/LlamaRanch/releases" target="_blank" rel="noopener">Releases</a><a href="./docs/">Docs</a></div></div>
+        <div><div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:#a0a0a8; margin-bottom:14px;">Family</div><div style="display:flex; flex-direction:column; gap:9px; font-size:14px; color:#4a4a52;"><a href="https://huggingface.co/" target="_blank" rel="noopener">Hugging Face ↗</a><a href="https://github.com/ggml-org/llama.cpp" target="_blank" rel="noopener">llama.cpp ↗</a></div></div>
+      </div>
+    </div>
+    <div style="max-width:1180px; margin:36px auto 0; padding:0 32px; display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.04em; color:#a0a0a8;"><span>BUILT ON LLAMA.CPP · MIT · RUNS 100% ON YOUR MACHINE</span><span>© 2026</span></div>
+    <div style="height:200px; margin-top:28px; position:relative; overflow:hidden; -webkit-mask-image:linear-gradient(180deg,transparent,#000 38%); mask-image:linear-gradient(180deg,transparent,#000 38%);">
+      <canvas data-glyph="photo" data-src="assets/cover.jpg" data-crop="0,0.14,1,0.52" data-fade="up" data-cell="3.4" data-color="#26262e" style="position:absolute; inset:0; width:100%; height:100%;"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<script src="dither.js"></script>
 </body>
 </html>

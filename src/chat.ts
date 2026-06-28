@@ -129,7 +129,10 @@ function renderTools(tools: ToolInfo[]): void {
         descText = t.note || "Disabled.";
       } else if (t.scope === "online") {
         badgeClass = "mono privacy__badge privacy__badge--muted";
-        descText = "Reaches the internet when used.";
+        descText =
+          t.name === "web_fetch" ? "Opens a specific web page you point it at."
+          : t.name === "web_search" ? "Searches the web through your SearXNG."
+          : "Reaches the internet when used.";
       } else {
         descText = "Stays on your machine.";
       }
@@ -629,6 +632,15 @@ async function init() {
     // Live theme updates from Settings window.
     await listen<Theme>("theme-changed", (e) => {
       applyTheme(e.payload);
+    });
+
+    // Config/tools changed elsewhere (Settings, the config window, a download/
+    // delete): re-pull tools, the privacy panel, and the model picker so the
+    // chat never shows a stale tool state or a model that no longer exists.
+    await listen("config-changed", () => {
+      void refreshTools();
+      void loadPicker();
+      void refreshPool();
     });
 
     // Respect OS theme changes when in system mode.

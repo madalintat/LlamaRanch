@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LlamaRanch · Install Wizard</title>
+<link rel="icon" href="assets/llama.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  @keyframes softPulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+  @keyframes lineIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+<body>
+<div style="position:relative; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:48px; background:#ebebef; overflow:hidden; font-family:'Hanken Grotesk',system-ui,sans-serif; color:#0d0d0f;">
+  <canvas id="wall" style="position:absolute; inset:0; width:100%; height:100%; opacity:.7;"></canvas>
+
+  <div style="position:relative; width:760px; background:#ffffff; border-radius:22px; box-shadow:0 1px 2px rgba(13,13,15,.05), 0 50px 100px rgba(13,13,15,.24); overflow:hidden; display:flex;">
+
+    <!-- STEP RAIL -->
+    <div style="width:226px; flex:none; background:#f3f3f6; padding:26px 20px; display:flex; flex-direction:column;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:28px;">
+        <img src="assets/llama.svg" alt="" width="26" height="26" style="border-radius:8px; display:block;" />
+        <span style="font-family:'Bricolage Grotesque',sans-serif; font-size:17px; font-weight:600;">LlamaRanch</span>
+      </div>
+      <div id="rail"></div>
+      <span style="flex:1;"></span>
+      <div style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#a0a0a8; line-height:1.6; margin-top:20px;">npx @llamaranch<br/>/wizard</div>
+    </div>
+
+    <!-- CONTENT -->
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column; min-height:560px;">
+      <div id="content" style="flex:1; padding:30px 32px 8px;"></div>
+
+      <!-- INK CONSOLE -->
+      <div id="console" style="margin:0 20px; border-radius:13px; background:#fafafb; border:1px solid #ededf1; padding:13px 16px; font-family:'JetBrains Mono',monospace; font-size:11.5px; line-height:1.75; height:96px; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end;"></div>
+
+      <!-- FOOTER CTA -->
+      <div style="padding:16px 20px 22px; display:flex; align-items:center;">
+        <div id="cta"></div>
+        <span style="flex:1;"></span>
+        <span id="step-tag" style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#a0a0a8;"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var STEPS = ["Hardware", "Engine", "Models", "Download", "Ready"];
+  var state = {
+    step: 0, buildPct: 0, dl: {}, log: [],
+    models: [
+      { id: "gemma", name: "Gemma 3 4B Vision", gb: 3.4, sel: true },
+      { id: "coder", name: "Qwen2.5 Coder 7B", gb: 4.7, sel: true },
+      { id: "qwen17", name: "Qwen3 1.7B", gb: 1.1, sel: true },
+      { id: "qwen8", name: "Qwen3 8B", gb: 5.0, sel: false }
+    ]
+  };
+  var timers = [];
+  function clearTimers() { timers.forEach(function (t) { clearInterval(t); clearTimeout(t); }); timers = []; }
+
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function pushLog(text, strong) { state.log.push({ text: text, color: strong ? "#0d0d0f" : "#6b6b73" }); render(); }
+
+  function go(step) { clearTimers(); state.step = step; render(); enter(step); }
+  function enter(step) {
+    if (step === 0) { state.log = []; render(); pushLog("reading hardware…"); timers.push(setTimeout(function () { pushLog("cuda · rtx 4070 · 12 gb", true); }, 500)); timers.push(setTimeout(function () { pushLog("16 gb · 9.2 gb free"); }, 850)); }
+    if (step === 1) { state.buildPct = 0; pushLog("cloning ggml-org/llama.cpp"); rampBuild(); }
+    if (step === 2) { pushLog("herd suggested to fit 9.2 gb free", true); }
+    if (step === 3) { pushLog("fetching from hugging face"); rampDownload(); }
+    if (step === 4) { pushLog("warm pool ready · 41 tok/s", true); pushLog("the ranch is up.", true); }
+  }
+  function rampBuild() {
+    var p = 0, cmsg = false;
+    var iv = setInterval(function () {
+      p += 5 + Math.random() * 8;
+      if (p >= 100) { p = 100; clearInterval(iv); pushLog("compiled · ~/.llamaranch/bin", true); timers.push(setTimeout(function () { go(2); }, 800)); }
+      if (p > 45 && !cmsg) { cmsg = true; pushLog("configuring backend · CUDA sm_89"); }
+      state.buildPct = Math.round(p); render();
+    }, 120);
+    timers.push(iv);
+  }
+  function rampDownload() {
+    var sel = state.models.filter(function (m) { return m.sel; });
+    state.dl = {}; sel.forEach(function (m) { state.dl[m.id] = 0; }); render();
+    var done = 0;
+    sel.forEach(function (m, i) {
+      timers.push(setTimeout(function () {
+        var p = 0;
+        var iv = setInterval(function () {
+          p += 4 + Math.random() * 10;
+          if (p >= 100) { p = 100; clearInterval(iv); done++; pushLog(m.name.toLowerCase() + " · done", true); if (done === sel.length) timers.push(setTimeout(function () { go(4); }, 700)); }
+          state.dl[m.id] = Math.round(p); render();
+        }, 130);
+        timers.push(iv);
+      }, i * 500));
+    });
+  }
+  function toggle(id) { state.models = state.models.map(function (m) { return m.id === id ? Object.assign({}, m, { sel: !m.sel }) : m; }); render(); }
+
+  function check(white) { return '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="' + (white ? "#fff" : "#0d0d0f") + '" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'; }
+
+  function renderRail() {
+    return STEPS.map(function (label, i) {
+      var step = state.step;
+      var dot;
+      if (i < step) dot = '<span style="width:22px;height:22px;border-radius:50%;background:#0d0d0f;display:flex;align-items:center;justify-content:center;flex:none;">' + check(true) + '</span>';
+      else if (i === step) dot = '<span style="width:22px;height:22px;border-radius:50%;background:#0d0d0f;display:flex;align-items:center;justify-content:center;flex:none; box-shadow:0 0 0 4px rgba(13,13,15,.12);"><span style="width:7px;height:7px;border-radius:50%;background:#fff; animation:softPulse 1.6s ease-in-out infinite;"></span></span>';
+      else dot = '<span style="width:22px;height:22px;border-radius:50%;border:1.5px solid #c6c6ce;flex:none;"></span>';
+      var col = i <= step ? "#0d0d0f" : "#a0a0a8";
+      return '<div style="display:flex; align-items:center; gap:12px; padding:9px 0;">' + dot + '<span style="font-size:14.5px; font-weight:500; color:' + col + ';">' + label + '</span></div>';
+    }).join("");
+  }
+
+  var H = "font-family:'Bricolage Grotesque',sans-serif; font-size:30px; font-weight:600; letter-spacing:-.02em; margin-top:6px;";
+  var EY = "font-size:13px; font-weight:600; color:#6b6b73;";
+  var P = "font-size:14.5px; line-height:1.6; color:#6b6b73; margin:10px 0 22px; max-width:44ch;";
+
+  function renderContent() {
+    var step = state.step;
+    if (step === 0) {
+      var rows = [["System", "Linux · x86_64", ""], ["Memory", "16 GB", " · 9.2 GB free"], ["GPU", "CUDA · RTX 4070 · 12 GB", ""]];
+      return '<div style="' + EY + '">Step 1 of 5</div><div style="' + H + '">Reading your machine</div>' +
+        '<p style="' + P + '">We look at what you have so every model is fit before you ask. Nothing is sent anywhere.</p>' +
+        '<div style="display:flex; flex-direction:column; gap:1px; border-radius:14px; overflow:hidden; border:1px solid #ededf1;">' +
+        rows.map(function (r) { return '<div style="display:flex; align-items:center; gap:14px; padding:15px 18px; background:#fafafb;"><span style="font-size:13.5px; color:#6b6b73; width:90px;">' + r[0] + '</span><span style="font-size:14.5px; font-weight:500;">' + r[1] + '</span>' + (r[2] ? '<span style="font-size:13px; color:#a0a0a8;">' + r[2] + '</span>' : "") + '</div>'; }).join("") +
+        '</div>';
+    }
+    if (step === 1) {
+      return '<div style="' + EY + '">Step 2 of 5</div><div style="' + H + '">Building the engine</div>' +
+        '<p style="' + P + '">Compiling llama.cpp with the right backend for your GPU. This runs once.</p>' +
+        '<div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px;"><span style="font-size:14px; font-weight:600;">llama-server · CUDA</span><span style="font-family:\'JetBrains Mono\',monospace; font-size:13px;">' + state.buildPct + '%</span></div>' +
+        '<div style="height:12px; border-radius:999px; background:#ededf1; overflow:hidden;"><div style="height:12px; background:#0d0d0f; border-radius:999px; width:' + state.buildPct + '%; transition:width .12s linear;"></div></div>';
+    }
+    if (step === 2) {
+      var used = state.models.filter(function (m) { return m.sel; }).reduce(function (a, m) { return a + m.gb; }, 0);
+      var usedPct = Math.min(100, used / 16 * 100);
+      return '<div style="' + EY + '">Step 3 of 5</div><div style="' + H + '">Pick what fits</div>' +
+        '<p style="' + P.replace("22px", "18px") + '">We checked your memory and suggested a herd that fits. Toggle any.</p>' +
+        '<div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px;"><span style="font-size:13px; color:#6b6b73;">Memory budget</span><span style="font-size:13px; font-weight:600;">' + used.toFixed(1) + ' / 16 GB</span></div>' +
+        '<div style="height:8px; border-radius:999px; background:#ededf1; overflow:hidden; margin-bottom:16px;"><div style="height:8px; background:#0d0d0f; border-radius:999px; width:' + usedPct + '%; transition:width .2s ease;"></div></div>' +
+        state.models.map(function (m) {
+          var box = m.sel ? '<span style="width:20px;height:20px;border-radius:6px;background:#0d0d0f;display:flex;align-items:center;justify-content:center;flex:none;">' + check(true) + '</span>' : '<span style="width:20px;height:20px;border-radius:6px;border:1.5px solid #c6c6ce;flex:none;"></span>';
+          return '<div data-toggle="' + m.id + '" style="display:flex; align-items:center; gap:13px; padding:13px 14px; border-radius:13px; cursor:pointer; background:' + (m.sel ? "#f4f4f6" : "transparent") + ';">' + box + '<div style="flex:1; min-width:0;"><div style="font-size:15px; font-weight:600;">' + esc(m.name) + '</div><div style="font-size:12.5px; color:#6b6b73; margin-top:1px;">' + m.gb + ' GB' + (m.gb <= 5 ? " · fits" : " · tight") + '</div></div></div>';
+        }).join("");
+    }
+    if (step === 3) {
+      var sel = state.models.filter(function (m) { return m.sel; });
+      return '<div style="' + EY + '">Step 4 of 5</div><div style="' + H + '">Bringing them home</div>' +
+        '<p style="' + P + '">Fetching from Hugging Face and warming the pool.</p>' +
+        sel.map(function (m) {
+          var pct = state.dl[m.id] || 0;
+          return '<div style="margin-bottom:16px;"><div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px;"><span style="font-size:14px; font-weight:500;">' + esc(m.name) + '</span><span style="font-family:\'JetBrains Mono\',monospace; font-size:12px; color:#6b6b73;">' + pct + '%</span></div><div style="height:8px; border-radius:999px; background:#ededf1; overflow:hidden;"><div style="height:8px; background:#0d0d0f; border-radius:999px; width:' + pct + '%; transition:width .14s linear;"></div></div></div>';
+        }).join("");
+    }
+    // step 4
+    return '<div style="display:flex; align-items:center; gap:10px;"><span style="width:9px;height:9px;border-radius:50%;background:#0d0d0f; box-shadow:0 0 0 4px rgba(13,13,15,.1); animation:softPulse 2.2s ease-in-out infinite;"></span><span style="font-size:13px; font-weight:600; color:#6b6b73;">Live</span></div>' +
+      '<div style="font-family:\'Bricolage Grotesque\',sans-serif; font-size:34px; font-weight:600; letter-spacing:-.025em; margin-top:10px;">The ranch is up.</div>' +
+      '<p style="' + P + '">Your models are saddled and warm behind one private endpoint.</p>' +
+      '<div style="display:flex; align-items:center; gap:10px; background:#0c0c0e; border-radius:12px; padding:14px 16px; font-family:\'JetBrains Mono\',monospace; margin-bottom:20px;"><span style="width:8px;height:8px;border-radius:50%;background:#f4f4f5; animation:softPulse 2.2s ease-in-out infinite;"></span><span style="color:#f4f4f5; font-size:13.5px; flex:1;">127.0.0.1:2276/v1</span><span style="color:#b8b8c0; font-size:13px;">41 tok/s</span></div>' +
+      '<div style="display:flex; gap:11px;"><span style="background:#0d0d0f; color:#fff; font-weight:600; font-size:14.5px; padding:13px 24px; border-radius:12px;">Open LlamaRanch</span><span data-reset="1" style="cursor:pointer; border:1px solid #e6e6eb; color:#0d0d0f; font-weight:600; font-size:14.5px; padding:13px 22px; border-radius:12px;">Run again</span></div>';
+  }
+
+  function renderConsole() {
+    return state.log.slice(-4).map(function (l) {
+      return '<div style="animation:lineIn .2s ease-out both; color:' + l.color + ';"><span style="color:#a0a0a8;">❯</span> ' + esc(l.text) + '</div>';
+    }).join("");
+  }
+
+  function renderCta() {
+    var step = state.step;
+    if (step === 0 || step === 2) {
+      var nSel = state.models.filter(function (m) { return m.sel; }).length;
+      var label = step === 0 ? "Detect and continue" : "Download " + nSel + " models";
+      return '<span data-cta="1" style="cursor:pointer; background:#0d0d0f; color:#fff; font-weight:600; font-size:14.5px; padding:13px 26px; border-radius:12px;">' + label + '</span>';
+    }
+    if (step === 1 || step === 3) {
+      var busy = step === 1 ? "Building…" : "Downloading…";
+      return '<span style="font-size:14px; color:#6b6b73; display:inline-flex; align-items:center; gap:10px;"><span style="width:8px;height:8px;border-radius:50%;background:#0d0d0f; animation:softPulse 1.2s ease-in-out infinite;"></span>' + busy + '</span>';
+    }
+    return "";
+  }
+
+  function render() {
+    document.getElementById("rail").innerHTML = renderRail();
+    document.getElementById("content").innerHTML = renderContent();
+    document.getElementById("console").innerHTML = renderConsole();
+    document.getElementById("cta").innerHTML = renderCta();
+    document.getElementById("step-tag").textContent = "step " + (state.step + 1) + " / 5";
+  }
+
+  // Event delegation (re-render replaces nodes, so listen on stable parents).
+  document.getElementById("content").addEventListener("click", function (e) {
+    var t = e.target.closest("[data-toggle]");
+    if (t) { toggle(t.getAttribute("data-toggle")); return; }
+    if (e.target.closest("[data-reset]")) { go(0); }
+  });
+  document.getElementById("cta").addEventListener("click", function (e) {
+    if (e.target.closest("[data-cta]")) go(state.step + 1);
+  });
+
+  // ── Dither wall background ──
+  function hash(x, y, s) { var n = Math.sin(x * 127.1 + y * 311.7 + s * 53.123) * 43758.5453; return n - Math.floor(n); }
+  function vnoise(x, y, s) { var xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi; var u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf); var a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s); return a * (1 - u) * (1 - v) + b * u * (1 - v) + c * (1 - u) * v + d * u * v; }
+  function fbm(x, y, s) { var t = 0, a = 0.5, f = 1; for (var i = 0; i < 4; i++) { t += a * vnoise(x * f, y * f, s + i * 7.7); f *= 2; a *= 0.5; } return t; }
+  function drawWall() {
+    var cv = document.getElementById("wall");
+    var dpr = Math.min(window.devicePixelRatio || 1, 2), w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    var ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+    var seed = 5, cell = 4, s = 3, bayer = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]], asp = Math.max(1, w / h);
+    ctx.fillStyle = "#b4b4bd";
+    var cols = Math.ceil(w / cell), rows = Math.ceil(h / cell);
+    for (var gy = 0; gy < rows; gy++) for (var gx = 0; gx < cols; gx++) {
+      var px = gx * cell + cell / 2, py = gy * cell + cell / 2, nx = (px / w) * 2 - 1, ny = (py / h) * 2 - 1;
+      var n = fbm(nx * 1.6 * asp + seed, ny * 1.6 + seed), grad = (ny + 1) / 2;
+      var d = Math.min(0.95, 0.06 + 0.56 * Math.pow(n, 1.6) + grad * 0.24);
+      if (d > (bayer[gy & 3][gx & 3] + 0.5) / 16) ctx.fillRect(Math.round(px - s / 2), Math.round(py - s / 2), s, s);
+    }
+  }
+  window.addEventListener("resize", drawWall);
+
+  render();
+  drawWall();
+  enter(0);
+})();
+</script>
+</body>
+</html>

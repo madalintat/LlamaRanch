@@ -1,7 +1,7 @@
 {
   "name": "@llamaranch/wizard",
-  "version": "0.4.0",
-  "description": "One-command installer for LlamaRanch: engine, models, config, and desktop app",
+  "version": "0.5.0",
+  "description": "One command to set up LlamaRanch: the llama.cpp engine, models fit to your machine, config, and the desktop app. Nothing leaves the valley.",
   "type": "module",
   "license": "MIT",
   "author": "cetusian",

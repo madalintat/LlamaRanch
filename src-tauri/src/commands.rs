@@ -1,6 +1,8 @@
 use crate::catalog;
 use crate::config::{self, Config, ModelOverride};
+use crate::fit;
 use crate::gguf;
+use crate::hardware;
 use crate::launch;
 use crate::scanner;
 use crate::server::{self, SharedServer};
@@ -27,21 +29,21 @@ pub fn list_tools(cfg: State<AppConfig>) -> Vec<ToolInfo> {
         ToolInfo {
             name: "get_time".into(),
             label: "Clock".into(),
-            scope: "local".into(),
+            scope: crate::brain::tools::scope_of("get_time").into(),
             enabled: true,
             note: String::new(),
         },
         ToolInfo {
             name: "calculate".into(),
             label: "Calculator".into(),
-            scope: "local".into(),
+            scope: crate::brain::tools::scope_of("calculate").into(),
             enabled: true,
             note: String::new(),
         },
         ToolInfo {
             name: "read_file".into(),
             label: "Filesystem".into(),
-            scope: "local".into(),
+            scope: crate::brain::tools::scope_of("read_file").into(),
             enabled: !c.allowed_dirs.is_empty(),
             note: if c.allowed_dirs.is_empty() {
                 "grant a folder in Settings to enable".into()
@@ -52,14 +54,14 @@ pub fn list_tools(cfg: State<AppConfig>) -> Vec<ToolInfo> {
         ToolInfo {
             name: "web_fetch".into(),
             label: "Web fetch".into(),
-            scope: "online".into(),
+            scope: crate::brain::tools::scope_of("web_fetch").into(),
             enabled: !c.offline_mode,
             note: if c.offline_mode { "offline".into() } else { String::new() },
         },
         ToolInfo {
             name: "web_search".into(),
             label: "Web search".into(),
-            scope: "online".into(),
+            scope: crate::brain::tools::scope_of("web_search").into(),
             enabled: !c.offline_mode && !c.searxng_url.is_empty(),
             note: if c.offline_mode {
                 "offline".into()
@@ -955,6 +957,92 @@ pub fn model_info(model_id: String, cfg: State<AppConfig>) -> ModelInfoView {
     ModelInfoView { native_ctx, file_bytes, kv_per_token, r#override }
 }
 
+/// Everything the UI needs to tell the truth about a model's fit at a given
+/// context: the verdict, the numbers behind it, and how to make it fit. All
+/// derived from the pure `fit` math against the detected `hardware`.
+#[derive(Serialize)]
+pub struct FitView {
+    pub verdict: String, // fast | tight | slow | wont_fit
+    pub eval_ctx: u32,
+    pub needed_bytes: u64,
+    pub fast_budget: u64,
+    pub total_ram: u64,
+    pub gpu_label: String,
+    pub fast_ctx: u32,
+    pub usable_ctx: u32,
+    pub needs_smaller_quant: bool,
+    pub native_ctx: u32,
+}
+
+/// Pure assembly of a `FitView` from a model's memory shape and the machine, so
+/// the command stays a thin shell over the unit-tested `fit` logic.
+fn build_fit_view(m: &fit::ModelMem, native_ctx: u32, eval_ctx: u32, hw: &hardware::Hardware) -> FitView {
+    let needed_bytes = fit::estimate_bytes(m, eval_ctx);
+    let verdict = fit::classify(needed_bytes, hw);
+    let rec = fit::recommend(m, native_ctx, hw);
+    FitView {
+        verdict: verdict.as_str().to_string(),
+        eval_ctx,
+        needed_bytes,
+        fast_budget: hw.fast_budget(),
+        total_ram: hw.total_ram,
+        gpu_label: hw.gpu_label(),
+        fast_ctx: rec.fast_ctx,
+        usable_ctx: rec.usable_ctx,
+        needs_smaller_quant: rec.needs_smaller_quant,
+        native_ctx,
+    }
+}
+
+/// Estimate whether a model fits this machine at `ctx_size` (or its configured
+/// context, or a sane default), using the q8_0 KV cache the router actually
+/// runs and counting the vision mmproj. Returns a zeroed view for a model that
+/// cannot be resolved or read, so the UI always has something to render.
+#[tauri::command]
+pub fn fit_estimate(model_id: String, ctx_size: Option<u32>, cfg: State<AppConfig>) -> FitView {
+    let c = cfg_of(&cfg);
+    let (native_ctx, weights, kv_per_token, mmproj) = match resolve_model(&c, &model_id) {
+        Some(r) => match gguf::read_info(&r.path) {
+            Some(info) => {
+                let mmproj = r
+                    .mmproj_path
+                    .as_ref()
+                    .and_then(|p| std::fs::metadata(p).ok())
+                    .map(|m| m.len())
+                    .unwrap_or(0);
+                (info.n_ctx_train, r.file_bytes, fit::kv_bytes_per_token_q8(&info), mmproj)
+            }
+            None => (0, r.file_bytes, 0, 0),
+        },
+        None => (0, 0, 0, 0),
+    };
+    let m = fit::ModelMem { weights, mmproj, kv_per_token };
+    // Evaluate at the asked-for context, else the model's configured override,
+    // else a sane default that never exceeds what the model was trained for.
+    let configured = c.model_config.get(&model_id).and_then(|o| o.ctx_size);
+    let eval_ctx = ctx_size.or(configured).unwrap_or_else(|| native_ctx.min(8192));
+    let hw = hardware::detect();
+    build_fit_view(&m, native_ctx, eval_ctx, &hw)
+}
+
+/// Run the tool-calling reliability eval for a model and return its report.
+/// Ensures the model is loaded, then runs the curated cases off the UI thread
+/// (each case is a separate inference call, so this takes a few seconds).
+#[tauri::command]
+pub async fn eval_tool_reliability(
+    model_id: String,
+    cfg: State<'_, AppConfig>,
+) -> Result<crate::eval::ReliabilityReport, String> {
+    let port = cfg.0.lock().unwrap().port;
+    tauri::async_runtime::spawn_blocking(move || {
+        // Best-effort load; a failed load surfaces as failing cases, not a panic.
+        let _ = server::load(port, &model_id);
+        crate::eval::run_eval(port, &model_id)
+    })
+    .await
+    .map_err(|e| format!("eval task failed: {e}"))
+}
+
 #[tauri::command]
 pub fn set_model_config(
     model_id: String,
@@ -1020,6 +1108,17 @@ pub fn set_shortcuts(
     }
 
     Ok(())
+}
+
+/// Recent routing activity: the rolled-up summary plus the last 20 decisions
+/// (newest first), for the Activity view.
+#[tauri::command]
+pub fn recent_activity(tel: State<crate::telemetry::Telemetry>) -> serde_json::Value {
+    let events = tel.snapshot();
+    let summary = crate::telemetry::summarize(&events);
+    let recent: Vec<_> = events.iter().rev().take(20).cloned().collect();
+    let ledger = tel.ledger();
+    serde_json::json!({ "summary": summary, "recent": recent, "ledger": ledger })
 }
 
 #[tauri::command]
@@ -1298,6 +1397,50 @@ mod tests {
         // Must terminate (no stack overflow / infinite loop).
         collect_files(root.path(), &mut found, &mut scanned, 0);
         assert!(found.iter().any(|p| p.ends_with("f.txt")));
+    }
+
+    #[test]
+    fn build_fit_view_comfortable_model_is_fast() {
+        // ~5 GB model, modest KV, on a 64 GB Apple Silicon box: runs fast.
+        let m = fit::ModelMem { weights: 5_000_000_000, mmproj: 0, kv_per_token: 131_072 };
+        let hw = hardware::Hardware {
+            total_ram: 64 * 1024 * 1024 * 1024,
+            gpu: hardware::GpuKind::AppleSilicon,
+        };
+        let v = build_fit_view(&m, 8192, 8192, &hw);
+        assert_eq!(v.verdict, "fast");
+        assert_eq!(v.eval_ctx, 8192);
+        assert_eq!(v.gpu_label, "Apple Silicon");
+        assert!(!v.needs_smaller_quant);
+        assert!(v.fast_ctx >= 8192); // the whole native context runs fast
+    }
+
+    #[test]
+    fn build_fit_view_oversized_model_wont_fit_and_needs_smaller_quant() {
+        // 30 GB of weights on a 16 GB box: will not fit at any context.
+        let m = fit::ModelMem { weights: 30_000_000_000, mmproj: 0, kv_per_token: 131_072 };
+        let hw = hardware::Hardware {
+            total_ram: 16 * 1024 * 1024 * 1024,
+            gpu: hardware::GpuKind::AppleSilicon,
+        };
+        let v = build_fit_view(&m, 8192, 8192, &hw);
+        assert_eq!(v.verdict, "wont_fit");
+        assert_eq!(v.usable_ctx, 0);
+        assert!(v.needs_smaller_quant);
+    }
+
+    #[test]
+    fn build_fit_view_recommends_smaller_context_when_tight() {
+        // A model that fits at a small context but not at a large one: fast_ctx
+        // lands below the evaluated context, telling the user how far to trim.
+        let m = fit::ModelMem { weights: 20_000_000_000, mmproj: 0, kv_per_token: 1_000_000 };
+        let hw = hardware::Hardware {
+            total_ram: 32 * 1024 * 1024 * 1024,
+            gpu: hardware::GpuKind::AppleSilicon,
+        };
+        let v = build_fit_view(&m, 32768, 32768, &hw);
+        assert!(v.fast_ctx < v.eval_ctx);
+        assert!(v.usable_ctx >= v.fast_ctx);
     }
 
     #[test]

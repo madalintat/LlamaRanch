@@ -10,23 +10,24 @@ import {
   isEnabled as autoIsEnabled,
 } from "@tauri-apps/plugin-autostart";
 import { saveTheme, getStoredTheme, type Theme } from "./brand/theme.ts";
-import { basename } from "./paths.ts";
+import { basename, escapeHtml } from "./paths.ts";
+import { loadedModelIds, restoreLoaded } from "./router-restore";
 import "./styles.css";
 
 tagOS(); // match the main window: Linux opaque, macOS/Windows frosted
 
 const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
 const win = getCurrentWindow();
-const fit = () => fitWindow(440, 640);
+const fit = () => fitWindow(700, 640);
 
 // (No entrance animation: the settings window renders statically. Animating a
 // transparent, acrylic-blurred window on macOS can glitch the compositor.)
 
 // ── Settings tab switching ────────────────────────────────────────
-type SettingsTab = "general" | "tools" | "server";
+type SettingsTab = "general" | "models" | "tools" | "server" | "gateway" | "privacy";
 
 function switchTab(tab: SettingsTab) {
-  const tabs: SettingsTab[] = ["general", "tools", "server"];
+  const tabs: SettingsTab[] = ["general", "models", "tools", "server", "gateway", "privacy"];
   tabs.forEach((t) => {
     const btn = document.getElementById(`s-tab-${t}`)!;
     const panel = document.getElementById(`s-panel-${t}`)!;
@@ -34,12 +35,76 @@ function switchTab(tab: SettingsTab) {
     btn.classList.toggle("tab--active", active);
     panel.classList.toggle("s-panel--hidden", !active);
   });
+  if (tab === "privacy") void renderActivity(); // the Ledger lives in Privacy now
   fit();
 }
 
 document.getElementById("s-tab-general")?.addEventListener("click", () => switchTab("general"));
+document.getElementById("s-tab-models")?.addEventListener("click", () => switchTab("models"));
 document.getElementById("s-tab-tools")?.addEventListener("click", () => switchTab("tools"));
 document.getElementById("s-tab-server")?.addEventListener("click", () => switchTab("server"));
+document.getElementById("s-tab-gateway")?.addEventListener("click", () => switchTab("gateway"));
+document.getElementById("s-tab-privacy")?.addEventListener("click", () => switchTab("privacy"));
+
+// ── Activity view ─────────────────────────────────────────────────
+type ActModel = { model: string; count: number };
+type ActSummary = { total: number; via_gateway: number; via_chat: number; per_model: ActModel[] };
+type ActEvent = { seq: number; model: string; category: string; via_gateway: boolean };
+type ActOnline = { seq: number; name: string; scope: string; ok: boolean };
+type LedgerData = { local_actions: number; online_actions: number; stayed_local: boolean; recent_online: ActOnline[] };
+type ActivityData = { summary: ActSummary; recent: ActEvent[]; ledger: LedgerData };
+
+// The proof-of-local banner: a green light and "nothing left the valley" when no
+// online tool ran, otherwise an honest count of what reached the internet.
+function renderLedger(lg: LedgerData | undefined): string {
+  if (!lg) return "";
+  const ledCls = lg.stayed_local ? "led--on" : "led--idle";
+  const text = lg.stayed_local
+    ? "Nothing left the valley"
+    : `${lg.online_actions} action${lg.online_actions === 1 ? "" : "s"} reached the internet`;
+  return (
+    `<div class="s-act-ledger">` +
+      `<span class="led ${ledCls}"></span>` +
+      `<span class="s-act-ledger__text">${text}</span>` +
+      `<span class="s-act-ledger__count">${lg.local_actions} local</span>` +
+    `</div>`
+  );
+}
+
+async function renderActivity() {
+  const host = document.getElementById("s-activity");
+  if (!host) return;
+  let data: ActivityData;
+  try {
+    data = await invoke<ActivityData>("recent_activity");
+  } catch {
+    host.innerHTML = `<div class="meta">Activity is unavailable right now.</div>`;
+    return;
+  }
+  const ledgerHtml = renderLedger(data.ledger);
+  const s = data.summary;
+  if (!s.total) {
+    host.innerHTML = ledgerHtml + `<div class="meta">No routing yet. Chat or the gateway will fill this in.</div>`;
+    fit();
+    return;
+  }
+  const perModel = s.per_model
+    .map((m) => `<div class="s-act-row"><span>${escapeHtml(m.model)}</span><span class="s-act-count">${m.count}</span></div>`)
+    .join("");
+  const recent = data.recent
+    .map(
+      (e) =>
+        `<div class="s-act-line"><span class="s-act-cat">${escapeHtml(e.category)}</span> ${escapeHtml(e.model)} <span class="s-act-src">${e.via_gateway ? "gateway" : "chat"}</span></div>`,
+    )
+    .join("");
+  host.innerHTML =
+    ledgerHtml +
+    `<div class="s-act-summary meta">${s.total} routes · ${s.via_gateway} via gateway · ${s.via_chat} in chat</div>` +
+    `<div class="s-act-models">${perModel}</div>` +
+    `<div class="s-section__label label s-act-recent-label">Recent</div>` +
+    `<div class="s-act-recent">${recent}</div>`;
+  fit();
+}
 
 // ── Theme segmented control ───────────────────────────────────────
 
@@ -112,6 +177,15 @@ function bindToggle(toggleId: string, checkId: string, ledId: string) {
 const setExpose    = bindToggle("s-expose-toggle",    "s-expose",    "s-expose-led");
 const setAutostart = bindToggle("s-autostart-toggle", "s-autostart", "s-autostart-led");
 const setOffline   = bindToggle("s-offline-toggle",   "s-offline",   "s-offline-led");
+const setGateway   = bindToggle("s-gw-toggle",        "s-gw",        "s-gw-led");
+const setSpec      = bindToggle("s-spec-toggle",      "s-spec",      "s-spec-led");
+
+// Keep the read-only endpoint field showing the address apps should point at.
+function syncGatewayEndpoint() {
+  const port = Number($("s-gw-port").value) || 2277;
+  $("s-gw-endpoint").value = `http://127.0.0.1:${port}/v1`;
+}
+$("s-gw-port").addEventListener("input", syncGatewayEndpoint);
 
 // Full-row click forwarding: let any part of the toggle row trigger the pill
 document.getElementById("s-expose-row")?.addEventListener("click", (e) => {
@@ -122,6 +196,12 @@ document.getElementById("s-autostart-row")?.addEventListener("click", (e) => {
 });
 document.getElementById("s-offline-row")?.addEventListener("click", (e) => {
   if (!(e.target as HTMLElement).closest(".toggle")) document.getElementById("s-offline-toggle")!.click();
+});
+document.getElementById("s-gw-row")?.addEventListener("click", (e) => {
+  if (!(e.target as HTMLElement).closest(".toggle")) document.getElementById("s-gw-toggle")!.click();
+});
+document.getElementById("s-spec-row")?.addEventListener("click", (e) => {
+  if (!(e.target as HTMLElement).closest(".toggle")) document.getElementById("s-spec-toggle")!.click();
 });
 
 function renderTools(tools: ToolInfo[]) {
@@ -716,6 +796,10 @@ async function load() {
   $("s-hf").value = cfg.hf_token ?? "";
   setExpose(cfg.expose_to_network);
   setOffline(cfg.offline_mode ?? false);
+  setGateway(cfg.gateway_enabled ?? true);
+  setSpec(cfg.speculative_decoding ?? false);
+  $("s-gw-port").value = String(cfg.gateway_port ?? 2277);
+  syncGatewayEndpoint();
   ($("s-searxng") as HTMLInputElement).value = cfg.searxng_url ?? "";
   void renderWebSearch();
   allowedDirs = (cfg.allowed_dirs ?? []) as string[];
@@ -779,6 +863,9 @@ async function save() {
     const searxngField = ($("s-searxng") as HTMLInputElement).value.trim();
     const searxng_url = searxngField || (freshCfg.searxng_url ?? "");
 
+    // set_config restarts the router (dropping loaded models); snapshot them so
+    // we can bring them back instead of silently unloading what was running.
+    const wasLoaded = await loadedModelIds();
     await invoke("set_config", {
       newCfg: {
         ...freshCfg,
@@ -792,10 +879,14 @@ async function save() {
         hf_token: $("s-hf").value.trim(),
         expose_to_network: $("s-expose").checked,
         offline_mode: $("s-offline").checked,
+        gateway_enabled: $("s-gw").checked,
+        gateway_port: Number($("s-gw-port").value) || 2277,
+        speculative_decoding: $("s-spec").checked,
         searxng_url,
         allowed_dirs,
       },
     });
+    await restoreLoaded(wasLoaded);
   } catch (e) {
     const err = document.getElementById("s-error")!;
     err.textContent = String(e).replace(/^error:\s*/, "");

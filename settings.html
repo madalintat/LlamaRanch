@@ -11,20 +11,25 @@
   <body>
     <div id="app">
       <header class="s-head" data-tauri-drag-region>
-        <img class="s-head__logo" src="/src/assets/llama.svg" alt="" width="20" height="20" />
-        <span class="s-head__title serif">Settings</span>
+        <img class="s-head__logo" src="/src/assets/llama.svg" alt="" width="22" height="22" />
+        <span class="s-head__title serif">LlamaRanch</span>
         <div class="s-head__spacer" data-tauri-drag-region></div>
         <button class="s-head__close" id="s-close" title="Close" aria-label="Close">&times;</button>
       </header>
 
-      <!-- Settings tabs -->
-      <div class="tabs s-tabs">
-        <button class="tab tab--active" id="s-tab-general">General</button>
-        <button class="tab" id="s-tab-tools">Tools</button>
-        <button class="tab" id="s-tab-server">Server</button>
-      </div>
+      <!-- Sidebar + content (design §02) -->
+      <div class="s-shell">
+        <aside class="s-rail">
+          <div class="s-rail__title serif">Settings</div>
+          <button class="s-rail__item tab--active" id="s-tab-general">General</button>
+          <button class="s-rail__item" id="s-tab-models">Models</button>
+          <button class="s-rail__item" id="s-tab-tools">Tools &amp; connectors</button>
+          <button class="s-rail__item" id="s-tab-server">Server</button>
+          <button class="s-rail__item" id="s-tab-gateway">Gateway</button>
+          <button class="s-rail__item" id="s-tab-privacy">Privacy</button>
+        </aside>
 
-      <div class="s-body">
+        <div class="s-body">
 
         <!-- ── PANEL: General ─────────────────────────────────────── -->
         <section class="s-section s-panel" id="s-panel-general">
@@ -39,9 +44,7 @@
             </div>
           </div>
 
-          <!-- Shortcuts section -->
           <div class="s-section__label label" style="margin-top:1.2rem;">Shortcuts</div>
-
           <div class="s-shortcut-row" id="s-sc-row-cmdbar">
             <span class="s-shortcut-row__name">Command bar</span>
             <kbd class="s-shortcut-key" id="s-sc-key-cmdbar"></kbd>
@@ -58,9 +61,62 @@
             <button class="btn btn--ghost btn--sm" id="s-sc-rebind-settings">Rebind</button>
           </div>
           <div class="error hidden" id="s-sc-error" style="margin-top:0.4rem;"></div>
+
+          <div class="s-section__label label" style="margin-top:1.2rem;">Startup</div>
+          <div class="s-toggle-row" id="s-autostart-row">
+            <span class="led led--idle" id="s-autostart-led"></span>
+            <div class="s-toggle-row__body">
+              <div class="s-toggle-row__name">Start on login</div>
+              <div class="s-toggle-row__sub meta">Launch LlamaRanch automatically at startup.</div>
+            </div>
+            <div class="toggle toggle--off" id="s-autostart-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
+            <input type="checkbox" id="s-autostart" class="s-hidden-check" />
+          </div>
         </section>
 
-        <!-- ── PANEL: Tools ──────────────────────────────────────── -->
+        <!-- ── PANEL: Models ─────────────────────────────────────── -->
+        <section class="s-section s-panel s-panel--hidden" id="s-panel-models">
+          <div class="s-section__label label">Library</div>
+
+          <label class="s-field-wrap">
+            <span class="label s-field-wrap__label">Models directory</span>
+            <input id="s-models" class="field" type="text" placeholder="~/.local/share/llamaranch" />
+          </label>
+
+          <div class="s-field-row s-field-row--2up">
+            <label class="s-field-wrap">
+              <span class="label s-field-wrap__label">Max models loaded</span>
+              <input id="s-models-max" class="field" type="number" min="1" max="16" step="1" />
+            </label>
+            <label class="s-field-wrap">
+              <span class="label s-field-wrap__label">Unload idle after (s, 0=never)</span>
+              <input id="s-idle" class="field" type="number" min="0" />
+            </label>
+          </div>
+
+          <label class="s-field-wrap">
+            <span class="label s-field-wrap__label">Context size (tokens, 0 = auto-fit to memory)</span>
+            <input id="s-ctx" class="field" type="number" min="0" step="1024" placeholder="16384" />
+          </label>
+
+          <label class="s-field-wrap">
+            <span class="label s-field-wrap__label">Hugging Face token (for gated models)</span>
+            <input id="s-hf" class="field" type="password" placeholder="hf_..." />
+          </label>
+
+          <div class="s-section__label label" style="margin-top:1.2rem;">Speed</div>
+          <div class="s-toggle-row" id="s-spec-row">
+            <span class="led led--idle" id="s-spec-led"></span>
+            <div class="s-toggle-row__body">
+              <div class="s-toggle-row__name">Speculative decoding</div>
+              <div class="s-toggle-row__sub meta">Pair each model with a small same-family draft for faster decode, same output. The draft is auto-picked from your herd. Off until validated on your hardware. Applies on restart.</div>
+            </div>
+            <div class="toggle toggle--off" id="s-spec-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
+            <input type="checkbox" id="s-spec" class="s-hidden-check" />
+          </div>
+        </section>
+
+        <!-- ── PANEL: Tools & connectors ─────────────────────────── -->
         <section class="s-section s-panel s-panel--hidden" id="s-panel-tools">
           <div class="s-section__label label">Tools &amp; connectors</div>
 
@@ -78,17 +134,6 @@
             <div class="toggle toggle--off" aria-label="MCP disabled" title="MCP servers"></div>
           </div>
 
-          <!-- Offline mode pill -->
-          <div class="s-toggle-row" id="s-offline-row">
-            <span class="led led--idle" id="s-offline-led"></span>
-            <div class="s-toggle-row__body">
-              <div class="s-toggle-row__name">Offline mode</div>
-              <div class="s-toggle-row__sub meta">Disable all internet-reaching tools.</div>
-            </div>
-            <div class="toggle toggle--off" id="s-offline-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
-            <input type="checkbox" id="s-offline" class="s-hidden-check" />
-          </div>
-
           <!-- Web search: adaptive one-click block (rendered by settings.ts) -->
           <div class="s-field-wrap">
             <span class="label s-field-wrap__label">Web search</span>
@@ -101,7 +146,6 @@
                 </div>
                 <div class="s-ws__actions" id="s-ws-actions"></div>
               </div>
-              <!-- Extra content: progress line, install card, etc. -->
               <div class="s-ws__extra" id="s-ws-extra"></div>
             </div>
           </div>
@@ -132,51 +176,20 @@
 
         <!-- ── PANEL: Server ─────────────────────────────────────── -->
         <section class="s-section s-panel s-panel--hidden" id="s-panel-server">
-          <div class="s-section__label label">Server</div>
+          <div class="s-section__label label">Endpoint</div>
 
-          <!-- Port + Models dir two-up -->
           <div class="s-field-row s-field-row--2up">
             <label class="s-field-wrap">
               <span class="label s-field-wrap__label">Port</span>
               <input id="s-port" class="field" type="number" />
             </label>
             <label class="s-field-wrap s-field-wrap--grow">
-              <span class="label s-field-wrap__label">Models directory</span>
-              <input id="s-models" class="field" type="text" placeholder="~/.local/share/llamaranch" />
+              <span class="label s-field-wrap__label">llama-server binary</span>
+              <input id="s-bin" class="field" type="text" placeholder="/usr/local/bin/llama-server" />
             </label>
           </div>
 
-          <!-- llama-server binary -->
-          <label class="s-field-wrap">
-            <span class="label s-field-wrap__label">llama-server binary</span>
-            <input id="s-bin" class="field" type="text" placeholder="/usr/local/bin/llama-server" />
-          </label>
-
-          <!-- Unload idle + Max models two-up -->
-          <div class="s-field-row s-field-row--2up">
-            <label class="s-field-wrap">
-              <span class="label s-field-wrap__label">Unload idle after (s, 0=never)</span>
-              <input id="s-idle" class="field" type="number" min="0" />
-            </label>
-            <label class="s-field-wrap">
-              <span class="label s-field-wrap__label">Max models loaded</span>
-              <input id="s-models-max" class="field" type="number" min="1" max="16" step="1" />
-            </label>
-          </div>
-
-          <!-- Context size -->
-          <label class="s-field-wrap">
-            <span class="label s-field-wrap__label">Context size (tokens, 0 = auto-fit to memory)</span>
-            <input id="s-ctx" class="field" type="number" min="0" step="1024" placeholder="16384" />
-          </label>
-
-          <!-- HF token -->
-          <label class="s-field-wrap">
-            <span class="label s-field-wrap__label">Hugging Face token (optional)</span>
-            <input id="s-hf" class="field" type="password" placeholder="hf_..." />
-          </label>
-
-          <!-- Expose to network -->
+          <div class="s-section__label label" style="margin-top:1.2rem;">Network</div>
           <div class="s-toggle-row" id="s-expose-row">
             <span class="led led--idle" id="s-expose-led"></span>
             <div class="s-toggle-row__body">
@@ -184,26 +197,55 @@
               <div class="s-toggle-row__sub meta">Bind 0.0.0.0, other devices can connect. Off by default.</div>
             </div>
             <div class="toggle toggle--off" id="s-expose-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
-            <!-- hidden checkbox keeps config wiring unchanged -->
             <input type="checkbox" id="s-expose" class="s-hidden-check" />
           </div>
+        </section>
 
-          <!-- Start on login -->
-          <div class="s-toggle-row" id="s-autostart-row">
-            <span class="led led--idle" id="s-autostart-led"></span>
+        <!-- ── PANEL: Gateway ────────────────────────────────────── -->
+        <section class="s-section s-panel s-panel--hidden" id="s-panel-gateway">
+          <div class="s-section__label label">Smart-routing gateway</div>
+          <div class="s-toggle-row" id="s-gw-row">
+            <span class="led led--idle" id="s-gw-led"></span>
             <div class="s-toggle-row__body">
-              <div class="s-toggle-row__name">Start on login</div>
-              <div class="s-toggle-row__sub meta">Launch LlamaRanch automatically at startup.</div>
+              <div class="s-toggle-row__name">Smart-routing gateway</div>
+              <div class="s-toggle-row__sub meta">One OpenAI-compatible endpoint any app can use. Send model:auto and it picks the best local expert. Applies on restart.</div>
             </div>
-            <div class="toggle toggle--off" id="s-autostart-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
-            <!-- hidden checkbox keeps config wiring unchanged -->
-            <input type="checkbox" id="s-autostart" class="s-hidden-check" />
+            <div class="toggle toggle--off" id="s-gw-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
+            <input type="checkbox" id="s-gw" class="s-hidden-check" />
+          </div>
+          <div class="s-field-row s-field-row--2up">
+            <label class="s-field-wrap">
+              <span class="label s-field-wrap__label">Gateway port</span>
+              <input id="s-gw-port" class="field" type="number" min="1" max="65535" step="1" />
+            </label>
+            <label class="s-field-wrap s-field-wrap--grow">
+              <span class="label s-field-wrap__label">Endpoint (point any app here)</span>
+              <input id="s-gw-endpoint" class="field" type="text" readonly />
+            </label>
+          </div>
+        </section>
+
+        <!-- ── PANEL: Privacy ────────────────────────────────────── -->
+        <section class="s-section s-panel s-panel--hidden" id="s-panel-privacy">
+          <div class="s-section__label label">Where your data goes</div>
+
+          <div class="s-toggle-row" id="s-offline-row">
+            <span class="led led--idle" id="s-offline-led"></span>
+            <div class="s-toggle-row__body">
+              <div class="s-toggle-row__name">Offline mode</div>
+              <div class="s-toggle-row__sub meta">Cut every internet-reaching tool at once. Models still run; nothing reaches the network.</div>
+            </div>
+            <div class="toggle toggle--off" id="s-offline-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
+            <input type="checkbox" id="s-offline" class="s-hidden-check" />
           </div>
 
+          <div class="s-section__label label" style="margin-top:1.2rem;">The Ledger</div>
+          <div id="s-activity"></div>
         </section>
 
         <div class="error hidden" id="s-error"></div>
-      </div>
+        </div><!-- /.s-body -->
+      </div><!-- /.s-shell -->
 
       <footer class="s-foot">
         <span class="s-foot__spacer"></span>

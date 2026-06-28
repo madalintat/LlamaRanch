@@ -1,9 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import { exit, relaunch } from "@tauri-apps/plugin-process";
-import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { listen, emit } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -17,6 +15,7 @@ import { mountDither, Dither } from "./dither";
 import llamaMark from "./assets/llama.svg";
 import { tagOS, fitWindow } from "./platform";
 import { prettyName } from "./pretty";
+import { escapeHtml } from "./paths.ts";
 
 tagOS();
 
@@ -42,12 +41,6 @@ type ModelOverride = {
 };
 type ModelInfo = { native_ctx: number; file_bytes: number; kv_per_token: number; override: ModelOverride };
 
-const CTX_TIERS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
-const tierLabel = (n: number) => (n % 1024 === 0 ? `${n / 1024}k` : String(n));
-
-// which model's expander is open (survives re-renders so polling won't collapse it)
-let openCfg: string | null = null;
-
 let models: ModelView[] = [];
 let catalog: CatalogView[] = [];
 let router: RouterStatus = { status: "starting", endpoint: "" };
@@ -70,208 +63,244 @@ function updateHairlineColor() {
   dither?.refresh();
 }
 
+// Color the endpoint pill's status dot: ink when running, muted while starting,
+// red on error. The pulse is CSS.
 function setHeader() {
-  const el = $("status");
-  const label = $("status-label");
-  el.className = "head__status";
-  if (router.status.startsWith("error")) {
-    el.classList.add("head__status--error");
-    label.textContent = "error";
-    return;
-  }
-  if (router.status !== "running") {
-    el.classList.add("head__status--starting");
-    label.textContent = "starting";
-    return;
-  }
-  const loaded = models.filter((m) => LOADED(m.status));
-  const loading = models.find((m) => BUSY(m.status));
-  if (loading) {
-    el.classList.add("head__status--starting");
-    label.textContent = "loading";
-  } else {
-    el.classList.add("head__status--running");
-    if (loaded.length > 1) {
-      label.textContent = `serving ${loaded.length}`;
-    } else if (loaded.length === 1) {
-      label.textContent = `serving ${prettyName(loaded[0].name || loaded[0].id)}`;
-    } else {
-      label.textContent = "running";
-    }
-  }
+  const led = document.getElementById("status-led");
+  if (!led) return;
+  led.className = "ms-endpoint__dot";
+  if (router.status.startsWith("error")) led.classList.add("ms-endpoint__dot--error");
+  else if (router.status !== "running") led.classList.add("ms-endpoint__dot--starting");
+  else led.classList.add("ms-endpoint__dot--on");
 }
 
-function renderInstalled() {
-  const host = $("models");
-  host.innerHTML = "";
-  if (models.length === 0) {
-    const msg = router.status === "running"
-      ? "no models yet, try discover"
-      : "starting router…";
-    host.innerHTML = `<div class="empty">${msg}</div>`;
-    return;
+// ── Model selector (the design's hero + list) ──────────────────────────────
+
+/** A short sub-line for the hero: size, vision, placement. (gb() carries the unit.) */
+function heroSub(m: ModelView): string {
+  const parts: string[] = [];
+  if (m.size_bytes > 0) parts.push(gb(m.size_bytes));
+  if (m.vision) parts.push("vision");
+  if (m.placement) parts.push("on your " + m.placement.toUpperCase());
+  return parts.join(" · ") || "ready to ride";
+}
+
+/** A short sub-line for a list row. (gb() already includes " GB".) */
+function rowSub(m: ModelView): string {
+  if (m.need_download) {
+    return "Cloud · " + (m.size_bytes > 0 ? gb(m.size_bytes) + " to fetch" : "fetch to run");
+  }
+  const parts: string[] = [];
+  if (m.size_bytes > 0) parts.push(gb(m.size_bytes));
+  if (m.vision) parts.push("vision");
+  else if (m.placement) parts.push("fits");
+  return parts.join(" · ");
+}
+
+/** Open the chat window (the hero "Open chat" action). */
+async function openChatWindow() {
+  try {
+    const w = await WebviewWindow.getByLabel("chat");
+    if (w) { await w.show(); try { await (w as any).unminimize?.(); } catch { /* not minimized */ } await w.setFocus(); }
+  } catch { showError("Could not open the chat window."); }
+}
+
+/** Best-effort fill of the hero's context stat from real model info.
+    (tok/sec stays a dash until live server metrics are wired.) */
+async function fillHeroStats(m: ModelView) {
+  try {
+    const info = await invoke<ModelInfo>("model_info", { modelId: m.id });
+    const ctx = info.override.ctx_size ?? info.native_ctx ?? 0;
+    const el = document.getElementById("hero-ctx");
+    if (el && ctx > 0) el.textContent = ctx % 1024 === 0 ? `${ctx / 1024}K` : String(ctx);
+  } catch { /* leave the dash */ }
+}
+
+// Feather "settings" gear — the configure affordance on the hero and rows.
+const GEAR =
+  `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+
+/** Open the per-model configuration window for a downloaded model. */
+async function openConfigWindow(m: ModelView) {
+  try {
+    await emit("open-config", { modelId: m.id, name: prettyName(m.name || m.id), local: m.local });
+    const w = await WebviewWindow.getByLabel("config");
+    if (w) { await w.show(); try { await (w as any).unminimize?.(); } catch { /* not minimized */ } await w.setFocus(); }
+  } catch (e) { showError(String(e)); }
+}
+
+/** True when the resolved theme is dark (explicit data-theme or system). */
+function isDarkTheme(): boolean {
+  const t = document.documentElement.dataset.theme;
+  return t === "dark" || (t !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+}
+
+/** Build a bare .ms-row (dot + name + sub); the caller appends the action(s). */
+function makeRow(dotClass: string, name: string, sub: string, dim = false): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "ms-row";
+  const dot = document.createElement("span");
+  dot.className = "ms-row__dot " + dotClass;
+  row.appendChild(dot);
+  const body = document.createElement("div");
+  body.className = "ms-row__body";
+  const nm = document.createElement("div");
+  nm.className = "ms-row__name" + (dim ? " ms-row__name--cloud" : "");
+  nm.textContent = name;
+  const sb = document.createElement("div");
+  sb.className = "ms-row__sub";
+  sb.textContent = sub;
+  body.append(nm, sb);
+  row.appendChild(body);
+  return row;
+}
+
+function renderSelector() {
+  const heroHost = document.getElementById("hero");
+  const listHost = $("models");
+  const label = document.getElementById("list-label");
+  if (!heroHost) return;
+
+  const serving = models.find((m) => LOADED(m.status));
+  const loading = models.find((m) => BUSY(m.status));
+  const hero = serving || loading;
+
+  // ── HERO ──
+  heroHost.innerHTML = "";
+  if (serving) {
+    const name = prettyName(serving.name || serving.id);
+    heroHost.innerHTML =
+      `<div class="ms-hero__label">Serving now</div>` +
+      `<div class="ms-hero__name">${escapeHtml(name)}</div>` +
+      `<div class="ms-hero__sub">${escapeHtml(heroSub(serving))}</div>` +
+      `<div class="ms-hero__scope"><canvas data-glyph="scope" data-seed="3" data-cell="2.2" data-color="${isDarkTheme() ? "#f4f4f5" : "#0d0d0f"}" style="width:100%;height:100%;display:block;"></canvas></div>` +
+      `<div class="ms-stats">` +
+        `<div class="ms-stat"><div class="ms-stat__v" id="hero-tps">&mdash;</div><div class="ms-stat__l">tok / sec</div></div>` +
+        `<div class="ms-stat"><div class="ms-stat__v" id="hero-ctx">&mdash;</div><div class="ms-stat__l">context</div></div>` +
+        `<div class="ms-stat"><div class="ms-stat__v">${serving.size_bytes > 0 ? (serving.size_bytes / 1e9).toFixed(1) : "&mdash;"}<span class="ms-stat__u">GB</span></div><div class="ms-stat__l">memory</div></div>` +
+      `</div>` +
+      `<div class="ms-hero__actions">` +
+        `<button class="ms-btn ms-btn--primary" id="hero-stop">Stop serving</button>` +
+        `<button class="ms-btn" id="hero-chat">Open chat</button>` +
+        `<button class="ms-btn ms-btn--icon" id="hero-cfg" title="Configure" aria-label="Configure">${GEAR}</button>` +
+      `</div>`;
+    heroHost.querySelector("#hero-stop")?.addEventListener("click", async () => {
+      try { await invoke("unload_model", { modelId: serving.id }); } catch (e) { showError(String(e)); }
+      await refresh(); startPolling();
+    });
+    heroHost.querySelector("#hero-chat")?.addEventListener("click", () => openChatWindow());
+    heroHost.querySelector("#hero-cfg")?.addEventListener("click", () => openConfigWindow(serving));
+    void fillHeroStats(serving);
+  } else if (loading) {
+    const name = prettyName(loading.name || loading.id);
+    heroHost.innerHTML =
+      `<div class="ms-hero__label">Saddling up</div>` +
+      `<div class="ms-hero__name">${escapeHtml(name)}</div>` +
+      `<div class="ms-hero__sub">Loading into memory…</div>` +
+      `<div class="ms-hero__loadscope"><canvas data-glyph="scan" data-seed="5" data-cell="2.2" data-color="${isDarkTheme() ? "#f4f4f5" : "#0d0d0f"}" style="width:100%;height:100%;display:block;"></canvas></div>` +
+      `<div class="ms-hero__barlabel">fitting layers to your hardware</div>`;
+  } else {
+    heroHost.innerHTML =
+      `<div class="ms-hero__quiet">The ranch is quiet.</div>` +
+      `<div class="ms-hero__quietsub">Load a model below to start serving. Nothing leaves the valley.</div>`;
   }
 
-  const list = [...models].sort((a, b) => {
-    const al = LOADED(a.status) ? 0 : 1, bl = LOADED(b.status) ? 0 : 1;
-    return al - bl || prettyName(a.id).localeCompare(prettyName(b.id));
-  });
+  if (label) label.textContent = hero ? "Switch to" : "Models";
 
-  list.forEach((m, idx) => {
+  // ── LIST (everything that is not the hero) ──
+  listHost.innerHTML = "";
+  const rest = models
+    .filter((m) => m !== hero)
+    .sort((a, b) => prettyName(a.id).localeCompare(prettyName(b.id)));
+
+  if (rest.length === 0) {
+    listHost.innerHTML = `<div class="ms-empty">${
+      router.status === "running" ? "No other models. Discover more below." : "Starting the router…"
+    }</div>`;
+  }
+
+  rest.forEach((m) => {
+    const cloud = m.need_download;
     const loaded = LOADED(m.status);
-    const busy = BUSY(m.status);
-    const name = prettyName(m.name || m.id);
-    const num = String(idx + 1).padStart(2, "0");
+    const dotClass = loaded ? "ms-row__dot--on" : cloud ? "ms-row__dot--cloud" : "ms-row__dot--idle";
+    const row = makeRow(dotClass, prettyName(m.name || m.id), rowSub(m), cloud);
 
-    // Build .meta string: "2.4 GB / GPU / VISION"
-    const parts: string[] = [];
-    if (m.size_bytes > 0) parts.push(gb(m.size_bytes));
-    else if (m.need_download) parts.push("CLOUD");
-    if (m.placement) parts.push(m.placement.toUpperCase());
-    if (m.vision) parts.push("VISION");
-    const metaStr = parts.join(" / ");
-
-    const row = document.createElement("div");
-    row.className = "row" + (loaded ? " row--serving" : "");
-
-    // Scan canvas behind serving row
-    if (loaded) {
-      const cv = document.createElement("canvas");
-      cv.className = "row__scan";
-      cv.dataset.glyph = "scan";
-      cv.dataset.seed = String((idx + 1) * 3);
-      cv.dataset.cell = "2.4";
-      cv.dataset.color = document.documentElement.dataset.theme === "dark" ||
-        (!document.documentElement.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches)
-        ? "#33312a" : "#ddd9cd";
-      row.appendChild(cv);
+    // Clicking a downloaded model's name opens its config window.
+    if (!cloud) {
+      const bodyEl = row.querySelector<HTMLElement>(".ms-row__body");
+      if (bodyEl) { bodyEl.style.cursor = "pointer"; bodyEl.onclick = () => openConfigWindow(m); }
     }
 
-    // Part number
-    const pn = document.createElement("span");
-    pn.className = "partno";
-    pn.textContent = num;
-    row.appendChild(pn);
-
-    // Body
-    const body = document.createElement("div");
-    body.className = "row__body";
-    const nameEl = document.createElement("div");
-    nameEl.className = "row__name" + (loaded ? " row__name--serving" : "");
-    nameEl.title = name;
-    nameEl.textContent = name;
-    const metaEl = document.createElement("div");
-    metaEl.className = "meta";
-    metaEl.textContent = metaStr;
-    body.appendChild(nameEl);
-    body.appendChild(metaEl);
-    row.appendChild(body);
-
-    // Cfg toggle (hover-revealed, only for downloaded models)
-    const downloaded = m.local || !m.need_download;
-    if (downloaded) {
+    // Configure gear (downloaded models only) — hover-revealed, opens the window.
+    if (!cloud) {
       const cfgBtn = document.createElement("button");
-      cfgBtn.className = "ubtn row__cfg-btn";
-      cfgBtn.textContent = "cfg";
+      cfgBtn.className = "ms-row__cfg";
       cfgBtn.title = "Configure";
-      cfgBtn.onclick = (e) => {
-        e.stopPropagation();
-        openCfg = openCfg === m.id ? null : m.id;
-        render();
-      };
+      cfgBtn.setAttribute("aria-label", "Configure " + prettyName(m.name || m.id));
+      cfgBtn.innerHTML = GEAR;
+      cfgBtn.onclick = (e) => { e.stopPropagation(); openConfigWindow(m); };
       row.appendChild(cfgBtn);
     }
 
-    // Primary action ubtn
-    const actionLabel = loaded ? "stop" : m.need_download ? "get" : "load";
-    const actionBtn = document.createElement("button");
-    actionBtn.className = "ubtn row__action";
-    actionBtn.textContent = actionLabel;
-    actionBtn.disabled = busy;
-    actionBtn.onclick = async () => {
-      try {
-        if (loaded) await invoke("unload_model", { modelId: m.id });
-        else await invoke("load_model", { modelId: m.id });
-      } catch (err) { showError(String(err)); }
-      await refresh();
-      startPolling();
+    const btn = document.createElement("button");
+    btn.className = loaded || cloud ? "ms-row__get" : "ms-row__load";
+    btn.textContent = loaded ? "Stop" : cloud ? "Get" : "Load";
+    btn.onclick = async () => {
+      if (loaded) {
+        try { await invoke("unload_model", { modelId: m.id }); } catch (e) { showError(String(e)); }
+        await refresh(); startPolling(); return;
+      }
+      if (cloud) { view = "discover"; render(); return; }
+      try { await invoke("load_model", { modelId: m.id }); } catch (e) { showError(String(e)); }
+      await refresh(); startPolling();
     };
-    row.appendChild(actionBtn);
+    row.appendChild(btn);
 
-    // Square LED
-    const led = document.createElement("span");
-    led.className = "led row__led " + (
-      loaded ? "led--on" : m.need_download ? "led--cloud" : "led--idle"
-    );
-    row.appendChild(led);
-
-    host.appendChild(row);
-
-    // Config expander immediately after this row
-    if (downloaded && openCfg === m.id) {
-      const ph = document.createElement("div");
-      ph.className = "cfg-expander";
-      ph.id = "cfg-open";
-      ph.innerHTML = `<div class="cfg-expander__label">Loading…</div>`;
-      host.appendChild(ph);
-    }
+    listHost.appendChild(row);
   });
 
-  dither?.refresh();
+  // No dither.refresh() here — render() (our only caller) refreshes after us.
 }
 
 function renderDiscover() {
+  // Discover has no serving hero — clear it so the list owns the card.
+  const heroHost = document.getElementById("hero");
+  if (heroHost) heroHost.innerHTML = "";
   const host = $("models");
   host.innerHTML = "";
 
-  catalog.forEach((e, idx) => {
-    const num = String(idx + 1).padStart(2, "0");
+  if (catalog.length === 0) {
+    host.innerHTML = `<div class="ms-empty">Nothing new to discover right now.</div>`;
+    dither?.refresh();
+    return;
+  }
+
+  catalog.forEach((e) => {
     const prog = dl.get(e.id);
-
-    const row = document.createElement("div");
-    row.className = "disc-row";
-
-    const head = document.createElement("div");
-    head.className = "disc-row__head";
-
-    const pn = document.createElement("span");
-    pn.className = "partno";
-    pn.textContent = num;
-    head.appendChild(pn);
-
-    const body = document.createElement("div");
-    body.className = "disc-row__body";
-    const nameEl = document.createElement("div");
-    nameEl.className = "disc-row__name" + (e.installed ? " disc-row__name--installed" : "");
-    nameEl.textContent = e.name;
-    const metaEl = document.createElement("div");
-    metaEl.className = "meta";
-    metaEl.textContent = `~${e.approx_gb.toFixed(1)} GB · ${e.description || e.group}`;
-    body.appendChild(nameEl);
-    body.appendChild(metaEl);
-    head.appendChild(body);
-
-    // Action
     const pct = prog && prog.total ? Math.round((prog.done / prog.total) * 100) : 0;
+    const dotClass = e.installed ? "ms-row__dot--on" : prog ? "ms-row__dot--dl" : "ms-row__dot--cloud";
+    const sub = `${e.approx_gb.toFixed(1)} GB · ${e.description || e.group}`;
+    const row = makeRow(dotClass, e.name, sub, !e.installed);
+
     if (e.installed) {
       const done = document.createElement("span");
-      done.className = "ubtn";
-      done.textContent = "done ▣";
-      head.appendChild(done);
+      done.className = "ms-row__get";
+      done.textContent = "Installed";
+      row.appendChild(done);
     } else if (prog) {
       const pctEl = document.createElement("span");
-      pctEl.className = "disc-row__pct";
+      pctEl.className = "ms-row__pct";
       pctEl.textContent = prog.total ? `${pct}%` : "…";
-      head.appendChild(pctEl);
+      row.appendChild(pctEl);
       const cancel = document.createElement("button");
-      cancel.className = "ubtn";
-      cancel.textContent = "cancel";
+      cancel.className = "ms-row__get";
+      cancel.textContent = "Cancel";
       cancel.onclick = () => invoke("cancel_download", { id: e.id });
-      head.appendChild(cancel);
+      row.appendChild(cancel);
     } else {
       const getBtn = document.createElement("button");
-      getBtn.className = "ubtn ubtn--bordered";
-      getBtn.textContent = "get";
+      getBtn.className = "ms-row__load";
+      getBtn.textContent = "Get";
       getBtn.onclick = async () => {
         dl.set(e.id, { done: 0, total: 0 });
         renderDiscover();
@@ -283,152 +312,41 @@ function renderDiscover() {
           renderDiscover();
         }
       };
-      head.appendChild(getBtn);
-    }
-
-    row.appendChild(head);
-
-    // Dithered progress bar (only during download)
-    if (prog) {
-      const track = document.createElement("div");
-      track.className = "progress-track";
-      const fill = document.createElement("div");
-      fill.className = "progress-fill";
-      fill.style.width = prog.total ? `${pct}%` : "6%";
-      const isDark = document.documentElement.dataset.theme === "dark" ||
-        (!document.documentElement.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches);
-      const cv = document.createElement("canvas");
-      cv.dataset.glyph = "band";
-      cv.dataset.seed = String(idx + 3);
-      cv.dataset.cell = "2";
-      cv.dataset.color = isDark ? "#ece9df" : "#15140f";
-      cv.style.width = "100%";
-      cv.style.height = "10px";
-      fill.appendChild(cv);
-      track.appendChild(fill);
-      row.appendChild(track);
+      row.appendChild(getBtn);
     }
 
     host.appendChild(row);
+
+    // Solid progress bar beneath a downloading row (the design's discover bar).
+    if (prog) {
+      const track = document.createElement("div");
+      track.className = "ms-prog";
+      const fill = document.createElement("div");
+      fill.className = "ms-prog__fill";
+      fill.style.width = prog.total ? `${pct}%` : "6%";
+      track.appendChild(fill);
+      host.appendChild(track);
+    }
   });
 
   dither?.refresh();
 }
 
-async function hydrateCfg(id: string) {
-  const host = document.getElementById("cfg-open");
-  if (!host) return;
-  const info = await invoke<ModelInfo>("model_info", { modelId: id });
-  if (document.getElementById("cfg-open") !== host) return;
-  const ov: ModelOverride = { ...info.override };
-  const m = models.find((x) => x.id === id);
-  const name = m ? prettyName(m.name || m.id) : id;
-  host.innerHTML = "";
-
-  // Context tier picker
-  const max = info.native_ctx || 262144;
-  const mem = (ctx: number) =>
-    info.kv_per_token > 0 ? gb(info.file_bytes + ctx * info.kv_per_token) : "n/a";
-  const ctxLabel = document.createElement("div");
-  ctxLabel.className = "cfg-expander__label";
-  ctxLabel.textContent = info.native_ctx ? `Context · max ${tierLabel(info.native_ctx)}` : "Context";
-  host.appendChild(ctxLabel);
-
-  const pills = document.createElement("div");
-  pills.className = "cfg-expander__pills";
-  const mk = (text: string, val: number | null, sub: string) => {
-    const b = document.createElement("button");
-    b.className = "cfg-expander__pill" + ((ov.ctx_size ?? null) === val ? " cfg-expander__pill--on" : "");
-    b.innerHTML = `${text}<span class="cfg-expander__sub">${sub}</span>`;
-    b.onclick = () => {
-      ov.ctx_size = val;
-      pills.querySelectorAll(".cfg-expander__pill").forEach((el) => el.classList.remove("cfg-expander__pill--on"));
-      b.classList.add("cfg-expander__pill--on");
-    };
-    return b;
-  };
-  pills.appendChild(mk("Auto", null, "fit"));
-  for (const t of CTX_TIERS.filter((t) => t <= max)) pills.appendChild(mk(tierLabel(t), t, mem(t)));
-  host.appendChild(pills);
-
-  // Sampling fields
-  const fields: [keyof ModelOverride, string][] = [
-    ["temp", "temp"], ["top_p", "top-p"], ["top_k", "top-k"], ["min_p", "min-p"],
-    ["repeat_penalty", "repeat"], ["presence_penalty", "presence"], ["frequency_penalty", "freq"],
-  ];
-  const grid = document.createElement("div");
-  grid.className = "cfg-expander__grid";
-  for (const [k, lbl] of fields) {
-    const f = document.createElement("label");
-    f.className = "cfg-expander__field";
-    f.innerHTML = `<span>${lbl}</span><input type="number" step="0.05" value="${ov[k] ?? ""}" />`;
-    const inp = f.querySelector("input") as HTMLInputElement;
-    inp.oninput = () => { (ov[k] as number | null) = inp.value === "" ? null : Number(inp.value); };
-    grid.appendChild(f);
-  }
-  host.appendChild(grid);
-
-  // Actions: delete (ghost left) + reset + save (right)
-  const actions = document.createElement("div");
-  actions.className = "cfg-expander__actions";
-
-  // Delete - ghost left
-  const delBtn = document.createElement("button");
-  delBtn.className = "ubtn";
-  delBtn.textContent = "delete";
-  delBtn.onclick = async () => {
-    const msg = m?.local
-      ? `Delete ${name} from disk?`
-      : `Delete ${name}? This removes it from the shared cache (also used by the Llama app).`;
-    if (!confirm(msg)) return;
-    try { await invoke("delete_model", { modelId: id }); } catch (err) { showError(String(err)); }
-    if (openCfg === id) openCfg = null;
-    await refresh();
-    startPolling();
-  };
-
-  const right = document.createElement("div");
-  right.style.display = "flex";
-  right.style.gap = "8px";
-
-  const reset = document.createElement("button");
-  reset.className = "ubtn";
-  reset.textContent = "reset";
-  reset.onclick = async () => {
-    await invoke("set_model_config", { modelId: id, override: {} });
-    openCfg = null; await refresh(); startPolling();
-  };
-
-  const save = document.createElement("button");
-  save.className = "ubtn ubtn--bordered";
-  save.textContent = "save";
-  save.onclick = async () => {
-    await invoke("set_model_config", { modelId: id, override: ov });
-    openCfg = null; await refresh(); startPolling();
-  };
-
-  right.append(reset, save);
-  actions.append(delBtn, right);
-  host.appendChild(actions);
-
-  fitWindow(360);
-  dither?.refresh();
-}
-
 function render() {
   setHeader();
-  // (no resetGlyphs - per-model glyphs dropped)
-  const ready = router.status === "running";
-  const agentBtn = $("agent-btn") as HTMLButtonElement;
-  agentBtn.disabled = !ready;
-  agentBtn.title = ready ? "" : "Router is starting";
-  $("tab-installed").classList.toggle("tab--active", view === "installed");
-  $("tab-discover").classList.toggle("tab--active", view === "discover");
-  if (view === "installed") renderInstalled();
-  else renderDiscover();
+  const dLink = document.getElementById("discover-link");
+  if (view === "installed") {
+    const n = catalog.filter((c) => !c.installed).length;
+    if (dLink) dLink.textContent = n > 0 ? `Discover ${n} more` : "Discover models";
+    renderSelector();
+  } else {
+    const lbl = document.getElementById("list-label");
+    if (lbl) lbl.textContent = "Discover";
+    if (dLink) dLink.textContent = "← Installed";
+    renderDiscover();
+  }
   lastSig = sigOf();
-  fitWindow(360);
-  if (view === "installed" && openCfg) void hydrateCfg(openCfg);
+  fitWindow(384, 760);
   dither?.refresh();
 }
 
@@ -717,55 +635,22 @@ async function init() {
     }
   });
 
-  // Footer: "LLAMARANCH <appVersion> · LLAMA.CPP b<build>"
-  const rawVer = (await invoke<string>("llama_cpp_version")) || "";
-  const build = rawVer.match(/\b(\d{3,})\b/)?.[1];
-  const appVer = await getVersion().catch(() => "");
-  ($("version") as HTMLElement).textContent = [
-    appVer ? `LLAMARANCH ${appVer}` : "LLAMARANCH",
-    build ? `LLAMA.CPP b${build}` : rawVer ? rawVer.toUpperCase() : "LLAMA.CPP",
-  ].filter(Boolean).join(" · ");
-
-  $("tab-installed").onclick = () => { view = "installed"; render(); };
-  $("tab-discover").onclick = () => { view = "discover"; render(); };
-
+  // Copy the endpoint; the pill flashes "copied".
   $("copy").onclick = async () => {
     await navigator.clipboard.writeText(router.endpoint || "");
     const label = $("copy-label");
-    const prev = label.textContent;
     label.textContent = "copied";
-    setTimeout(() => (label.textContent = prev), 1200);
+    setTimeout(() => (label.textContent = ""), 1200);
   };
 
-  // AGENT button: opens the in-app chat window
-  $("agent-btn").onclick = async () => {
-    const w = await WebviewWindow.getByLabel("chat");
-    if (w) {
-      await w.show();
-      if (typeof (w as any).unminimize === "function") {
-        await (w as any).unminimize();
-      }
-      await w.setFocus();
-    } else {
-      showError("Could not open the chat window.");
-    }
+  // "Discover N more" / "← Installed" toggles the model list view.
+  $("discover-link").onclick = () => {
+    view = view === "installed" ? "discover" : "installed";
+    render();
   };
 
-  // ⌘K hint button - labeled based on OS
-  const cmdkHint = $("cmdk-hint") as HTMLButtonElement;
-  const isMac = document.documentElement.dataset.os === "macos";
-  cmdkHint.textContent = isMac ? "⌘K" : "Ctrl K";
-  cmdkHint.onclick = () => openCmdk();
-
-  $("quit").onclick = () => exit(0);
-
-  $("close-btn").onclick = async () => {
-    await getCurrentWindow().hide();
-    if (!localStorage.getItem("tray-hint-shown")) {
-      localStorage.setItem("tray-hint-shown", "1");
-      notify("LlamaRanch is still running", "Click the llama icon in your tray to reopen it.");
-    }
-  };
+  // Open the showroom chat window (always reachable from the footer).
+  $("agent-btn").onclick = () => openChatWindow();
 
   // ── ⌘K / Ctrl+K global keyboard handler ──────────────────────────────
   document.addEventListener("keydown", (e) => {
