@@ -259,10 +259,15 @@ pub fn start_router<R: Runtime>(app: &AppHandle<R>) {
     if let Some(parent) = preset_path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(
-        &preset_path,
-        server::preset_for(&models, &cfg.model_config, cfg.speculative_decoding),
-    );
+    // Write the preset atomically (temp + rename) so a router spawning
+    // concurrently can never read a half-written, multi-section ini.
+    let preset_body = server::preset_for(&models, &cfg.model_config, cfg.speculative_decoding);
+    let tmp_preset = preset_path.with_extension("ini.tmp");
+    if std::fs::write(&tmp_preset, &preset_body).is_ok() {
+        let _ = std::fs::rename(&tmp_preset, &preset_path);
+    } else {
+        let _ = std::fs::write(&preset_path, &preset_body);
+    }
 
     // Capture the generation of the router we just started; if another
     // start_router runs later (settings change, download, delete), `generation`
