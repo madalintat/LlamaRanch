@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { listen } from "@tauri-apps/api/event";
+import { listen, emit } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { check } from "@tauri-apps/plugin-updater";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -40,114 +40,6 @@ type ModelOverride = {
   min_p?: number | null; repeat_penalty?: number | null; presence_penalty?: number | null; frequency_penalty?: number | null;
 };
 type ModelInfo = { native_ctx: number; file_bytes: number; kv_per_token: number; override: ModelOverride };
-type ModelFit = {
-  verdict: string; // fast | tight | slow | wont_fit
-  eval_ctx: number; needed_bytes: number;
-  fast_budget: number; usable_ceiling: number; total_ram: number;
-  gpu_label: string; fast_ctx: number; usable_ctx: number;
-  needs_smaller_quant: boolean; native_ctx: number;
-};
-type RelCase = { id: string; passed: boolean; detail: string };
-type RelReport = { model: string; passed: number; total: number; score: number; verdict: string; cases: RelCase[] };
-type Quant = { label: string; bpw: number };
-type QuantMetrics = { kld: number; top1_agreement: number; ppl_ratio: number };
-type QuantEntry = {
-  quant: Quant; model_id: string; metrics: QuantMetrics;
-  sharpness: number; band: string; is_reference: boolean;
-};
-type QuantReport = {
-  base: string; reference: string; entries: QuantEntry[];
-  sweet_spot: string | null; measured_unix: number; calibration_version: number;
-};
-
-const CTX_TIERS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
-const tierLabel = (n: number) => (n % 1024 === 0 ? `${n / 1024}k` : String(n));
-
-// Turn a backend fit estimate into a one-line verdict for the model config panel:
-// a state class (ok/warn/error), the headline, the numbers, and what to do next.
-function fitVerdict(f: ModelFit): { word: string; cls: string; detail: string; advice: string } {
-  const have = f.gpu_label === "CPU" ? f.total_ram : f.fast_budget;
-  const detail = `needs ~${gb(f.needed_bytes)} · ${f.gpu_label} ~${gb(have)}`;
-  switch (f.verdict) {
-    case "fast":
-      return { word: "Fits fast", cls: "ok", detail,
-        advice: `full ${tierLabel(f.native_ctx)} context runs fast` };
-    case "tight":
-      return { word: "Tight fit", cls: "warn", detail,
-        advice: f.fast_ctx > 0
-          ? `drop to ${tierLabel(f.fast_ctx)} to run fast`
-          : `fits up to ${tierLabel(f.usable_ctx)}, but close to the limit` };
-    case "slow":
-      return { word: "Runs slow", cls: "warn", detail,
-        advice: f.fast_ctx > 0
-          ? `drop to ${tierLabel(f.fast_ctx)} to run fast`
-          : `no GPU here, runs on CPU at this size` };
-    default: // wont_fit
-      return { word: "Won't fit", cls: "error", detail,
-        advice: f.needs_smaller_quant
-          ? `too big for this machine, try a smaller quant`
-          : `too big at this context, try ${tierLabel(f.usable_ctx)} or less` };
-  }
-}
-
-// Tool-reliability verdict → status class, and the rendered result block.
-function relCls(verdict: string): string {
-  return verdict === "dependable" ? "ok" : verdict === "flaky" ? "warn" : "error";
-}
-function renderRel(r: RelReport): string {
-  const dots = r.cases
-    .map((c) => {
-      const tip = escapeHtml(`${c.id}: ${c.detail}`);
-      return `<span class="cfg-rel__dot cfg-rel__dot--${c.passed ? "ok" : "bad"}" title="${tip}"></span>`;
-    })
-    .join("");
-  return (
-    `<div class="cfg-fit__head">` +
-      `<span class="cfg-fit__led cfg-fit__led--${relCls(r.verdict)}"></span>` +
-      `<span class="cfg-fit__word">Tools: ${r.verdict}</span>` +
-      `<span class="cfg-fit__detail">${r.passed}/${r.total} cases</span>` +
-    `</div>` +
-    `<div class="cfg-rel__dots">${dots}</div>`
-  );
-}
-
-// Model quality: a quant's band → status class (crisp/solid/reference are calm,
-// soft warns, rough errors), and the rendered grade list for the config panel.
-function bandCls(band: string): string {
-  return band === "rough" ? "error" : band === "soft" ? "warn" : "ok";
-}
-function renderQuality(r: QuantReport): string {
-  if (!r.entries.length) return `<div class="cfg-note">No sizes to measure.</div>`;
-  // A single installed size is its own reference: nothing to measure loss against.
-  if (r.entries.length === 1) {
-    return `<div class="cfg-note">Only ${escapeHtml(r.entries[0].quant.label)} installed. Add a higher size to measure what you'd lose.</div>`;
-  }
-  const rows = r.entries
-    .map((e) => {
-      const note = e.is_reference ? "reference" : escapeHtml(e.band);
-      const sweet =
-        r.sweet_spot && e.quant.label === r.sweet_spot
-          ? `<span class="cfg-qual__star">sweet spot</span>`
-          : "";
-      return (
-        `<div class="cfg-qual__row">` +
-          `<span class="cfg-fit__led cfg-fit__led--${bandCls(e.band)}"></span>` +
-          `<span class="cfg-qual__label">${escapeHtml(e.quant.label)}</span>` +
-          `<span class="cfg-qual__pct">${e.is_reference ? "ref" : e.sharpness + "%"}</span>` +
-          `<span class="cfg-qual__note">${note}</span>` +
-          sweet +
-        `</div>`
-      );
-    })
-    .join("");
-  return (
-    `<div class="cfg-qual__ref">vs ${escapeHtml(r.reference)}, the heaviest you have</div>` +
-    `<div class="cfg-qual__rows">${rows}</div>`
-  );
-}
-
-// which model's expander is open (survives re-renders so polling won't collapse it)
-let openCfg: string | null = null;
 
 let models: ModelView[] = [];
 let catalog: CatalogView[] = [];
@@ -228,10 +120,13 @@ async function fillHeroStats(m: ModelView) {
 const GEAR =
   `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
 
-/** Toggle the inline config expander for a downloaded model. */
-function toggleCfg(id: string) {
-  openCfg = openCfg === id ? null : id;
-  render();
+/** Open the per-model configuration window for a downloaded model. */
+async function openConfigWindow(m: ModelView) {
+  try {
+    await emit("open-config", { modelId: m.id, name: prettyName(m.name || m.id), local: m.local });
+    const w = await WebviewWindow.getByLabel("config");
+    if (w) { await w.show(); await (w as any).unminimize?.(); await w.setFocus(); }
+  } catch (e) { showError(String(e)); }
 }
 
 /** True when the resolved theme is dark (explicit data-theme or system). */
@@ -258,15 +153,6 @@ function makeRow(dotClass: string, name: string, sub: string, dim = false): HTML
   body.append(nm, sb);
   row.appendChild(body);
   return row;
-}
-
-/** The inline config panel placeholder (hydrateCfg fills #cfg-open). */
-function cfgExpander(): HTMLDivElement {
-  const ph = document.createElement("div");
-  ph.className = "cfg-expander";
-  ph.id = "cfg-open";
-  ph.innerHTML = `<div class="cfg-note">Loading…</div>`;
-  return ph;
 }
 
 function renderSelector() {
@@ -296,14 +182,14 @@ function renderSelector() {
       `<div class="ms-hero__actions">` +
         `<button class="ms-btn ms-btn--primary" id="hero-stop">Stop serving</button>` +
         `<button class="ms-btn" id="hero-chat">Open chat</button>` +
-        `<button class="ms-btn ms-btn--icon${openCfg === serving.id ? " ms-btn--icon-on" : ""}" id="hero-cfg" title="Configure" aria-label="Configure">${GEAR}</button>` +
+        `<button class="ms-btn ms-btn--icon" id="hero-cfg" title="Configure" aria-label="Configure">${GEAR}</button>` +
       `</div>`;
     heroHost.querySelector("#hero-stop")?.addEventListener("click", async () => {
       try { await invoke("unload_model", { modelId: serving.id }); } catch (e) { showError(String(e)); }
       await refresh(); startPolling();
     });
     heroHost.querySelector("#hero-chat")?.addEventListener("click", () => openChatWindow());
-    heroHost.querySelector("#hero-cfg")?.addEventListener("click", () => toggleCfg(serving.id));
+    heroHost.querySelector("#hero-cfg")?.addEventListener("click", () => openConfigWindow(serving));
     void fillHeroStats(serving);
   } else if (loading) {
     const name = prettyName(loading.name || loading.id);
@@ -339,20 +225,20 @@ function renderSelector() {
     const dotClass = loaded ? "ms-row__dot--on" : cloud ? "ms-row__dot--cloud" : "ms-row__dot--idle";
     const row = makeRow(dotClass, prettyName(m.name || m.id), rowSub(m), cloud);
 
-    // Clicking a downloaded model's name opens its config panel inline.
+    // Clicking a downloaded model's name opens its config window.
     if (!cloud) {
       const bodyEl = row.querySelector<HTMLElement>(".ms-row__body");
-      if (bodyEl) { bodyEl.style.cursor = "pointer"; bodyEl.onclick = () => toggleCfg(m.id); }
+      if (bodyEl) { bodyEl.style.cursor = "pointer"; bodyEl.onclick = () => openConfigWindow(m); }
     }
 
-    // Configure gear (downloaded models only) — hover-revealed, opens inline.
+    // Configure gear (downloaded models only) — hover-revealed, opens the window.
     if (!cloud) {
       const cfgBtn = document.createElement("button");
-      cfgBtn.className = "ms-row__cfg" + (openCfg === m.id ? " ms-row__cfg--on" : "");
+      cfgBtn.className = "ms-row__cfg";
       cfgBtn.title = "Configure";
       cfgBtn.setAttribute("aria-label", "Configure " + prettyName(m.name || m.id));
       cfgBtn.innerHTML = GEAR;
-      cfgBtn.onclick = (e) => { e.stopPropagation(); toggleCfg(m.id); };
+      cfgBtn.onclick = (e) => { e.stopPropagation(); openConfigWindow(m); };
       row.appendChild(cfgBtn);
     }
 
@@ -371,14 +257,7 @@ function renderSelector() {
     row.appendChild(btn);
 
     listHost.appendChild(row);
-    // Config panel opens directly beneath the row it belongs to.
-    if (openCfg === m.id) listHost.appendChild(cfgExpander());
   });
-
-  // The serving model's gear lives on the hero, so anchor its panel at the top.
-  if (openCfg && hero && openCfg === hero.id && !listHost.querySelector("#cfg-open")) {
-    listHost.insertBefore(cfgExpander(), listHost.firstChild);
-  }
 
   // No dither.refresh() here — render() (our only caller) refreshes after us.
 }
@@ -453,210 +332,6 @@ function renderDiscover() {
   dither?.refresh();
 }
 
-async function hydrateCfg(id: string) {
-  const host = document.getElementById("cfg-open");
-  if (!host) return;
-  const info = await invoke<ModelInfo>("model_info", { modelId: id });
-  if (document.getElementById("cfg-open") !== host) return;
-  const ov: ModelOverride = { ...info.override };
-  const m = models.find((x) => x.id === id);
-  const name = m ? prettyName(m.name || m.id) : id;
-  const grow = () => fitWindow(384, 760);
-  host.innerHTML = "";
-
-  // Small helper: a titled section with breathing room.
-  const section = (label?: string): HTMLDivElement => {
-    const s = document.createElement("div");
-    s.className = "cfg-sec";
-    if (label) {
-      const l = document.createElement("div");
-      l.className = "cfg-sec__label";
-      l.textContent = label;
-      s.appendChild(l);
-    }
-    host.appendChild(s);
-    return s;
-  };
-  const stillOpen = () => document.getElementById("cfg-open") === host;
-
-  // ── Header: the model's name ──
-  const header = document.createElement("div");
-  header.className = "cfg-head";
-  header.innerHTML = `<span class="cfg-head__name">${escapeHtml(name)}</span>`;
-  host.appendChild(header);
-
-  // ── Fit: does it fit, and how fast, at the chosen context (re-checked on change) ──
-  const fit = document.createElement("div");
-  fit.className = "cfg-fit";
-  host.appendChild(fit);
-  const renderFit = async (ctx: number | null) => {
-    let f: ModelFit;
-    try {
-      f = await invoke<ModelFit>("fit_estimate", { modelId: id, ctxSize: ctx });
-    } catch {
-      fit.innerHTML = "";
-      return;
-    }
-    if (!stillOpen()) return;
-    const v = fitVerdict(f);
-    fit.innerHTML =
-      `<div class="cfg-fit__head">` +
-        `<span class="cfg-fit__led cfg-fit__led--${v.cls}"></span>` +
-        `<span class="cfg-fit__word">${v.word}</span>` +
-        `<span class="cfg-fit__detail">${escapeHtml(v.detail)}</span>` +
-      `</div>` +
-      `<div class="cfg-fit__advice">${escapeHtml(v.advice)}</div>`;
-    grow();
-  };
-  renderFit(ov.ctx_size ?? null);
-
-  // ── Quality: the grade for this size against the heaviest you have installed ──
-  const qSec = section("Quality");
-  const qual = document.createElement("div");
-  qual.className = "cfg-qual";
-  qSec.appendChild(qual);
-  const qualBtn = document.createElement("button");
-  qualBtn.className = "btn cfg-action";
-  qualBtn.textContent = "Measure quality";
-  qSec.appendChild(qualBtn);
-  const showQual = (r: QuantReport) => {
-    if (!stillOpen()) return;
-    qual.innerHTML = renderQuality(r);
-    qualBtn.textContent = "Re-measure";
-    grow();
-  };
-  qualBtn.onclick = async () => {
-    qualBtn.disabled = true;
-    const prev = qualBtn.textContent;
-    qualBtn.textContent = "Measuring…";
-    try {
-      showQual(await invoke<QuantReport>("measure_quality", { modelId: id }));
-    } catch (e) {
-      if (stillOpen()) qual.innerHTML = `<div class="cfg-note">Couldn't measure: ${escapeHtml(String(e))}</div>`;
-    } finally {
-      qualBtn.disabled = false;
-      if (qualBtn.textContent === "Measuring…") qualBtn.textContent = prev || "Measure quality";
-    }
-    grow();
-  };
-  // Show a cached grade instantly if the night shift already measured this family.
-  invoke<QuantReport | null>("quality_report", { modelId: id })
-    .then((r) => { if (r) showQual(r); })
-    .catch(() => {});
-
-  // ── Context: the one prominent control ──
-  const max = info.native_ctx || 262144;
-  const mem = (ctx: number) =>
-    info.kv_per_token > 0 ? gb(info.file_bytes + ctx * info.kv_per_token) : "n/a";
-  const cSec = section(info.native_ctx ? `Context length · up to ${tierLabel(info.native_ctx)}` : "Context length");
-  const pills = document.createElement("div");
-  pills.className = "cfg-pills";
-  const mk = (text: string, val: number | null, sub: string) => {
-    const b = document.createElement("button");
-    b.className = "cfg-pill" + ((ov.ctx_size ?? null) === val ? " cfg-pill--on" : "");
-    b.innerHTML = `${text}<span class="cfg-pill__sub">${sub}</span>`;
-    b.onclick = () => {
-      ov.ctx_size = val;
-      pills.querySelectorAll(".cfg-pill").forEach((el) => el.classList.remove("cfg-pill--on"));
-      b.classList.add("cfg-pill--on");
-      renderFit(val);
-    };
-    return b;
-  };
-  pills.appendChild(mk("Auto", null, "fit"));
-  for (const t of CTX_TIERS.filter((t) => t <= max)) pills.appendChild(mk(tierLabel(t), t, mem(t)));
-  cSec.appendChild(pills);
-
-  // ── Advanced (folded): sampling + a tool-call check most people never touch ──
-  const adv = document.createElement("details");
-  adv.className = "cfg-adv";
-  adv.innerHTML = `<summary class="cfg-adv__summary">Advanced</summary>`;
-  adv.addEventListener("toggle", grow);
-
-  const fields: [keyof ModelOverride, string][] = [
-    ["temp", "Temperature"], ["top_p", "Top-p"], ["top_k", "Top-k"], ["min_p", "Min-p"],
-    ["repeat_penalty", "Repeat"], ["presence_penalty", "Presence"], ["frequency_penalty", "Frequency"],
-  ];
-  const grid = document.createElement("div");
-  grid.className = "cfg-grid";
-  for (const [k, lbl] of fields) {
-    const f = document.createElement("label");
-    f.className = "cfg-field";
-    f.innerHTML = `<span>${lbl}</span><input type="number" step="0.05" value="${ov[k] ?? ""}" placeholder="auto" />`;
-    const inp = f.querySelector("input") as HTMLInputElement;
-    inp.oninput = () => { (ov[k] as number | null) = inp.value === "" ? null : Number(inp.value); };
-    grid.appendChild(f);
-  }
-  adv.appendChild(grid);
-
-  const rel = document.createElement("div");
-  rel.className = "cfg-rel";
-  const relBtn = document.createElement("button");
-  relBtn.className = "btn cfg-action";
-  relBtn.textContent = "Test tool calls";
-  relBtn.onclick = async () => {
-    relBtn.disabled = true;
-    relBtn.textContent = "Testing…";
-    try {
-      const r = await invoke<RelReport>("eval_tool_reliability", { modelId: id });
-      if (stillOpen()) rel.innerHTML = renderRel(r);
-    } catch (e) {
-      rel.innerHTML = `<div class="cfg-note">Test failed: ${escapeHtml(String(e))}</div>`;
-    } finally {
-      relBtn.disabled = false;
-      if (relBtn.textContent === "Testing…") relBtn.textContent = "Test tool calls";
-    }
-    grow();
-  };
-  rel.appendChild(relBtn);
-  adv.appendChild(rel);
-  host.appendChild(adv);
-
-  // ── Actions: Save / Reset, with Delete a quiet ghost ──
-  const actions = document.createElement("div");
-  actions.className = "cfg-actions";
-
-  const delBtn = document.createElement("button");
-  delBtn.className = "btn btn--ghost cfg-actions__del";
-  delBtn.textContent = "Delete";
-  delBtn.onclick = async () => {
-    const msg = m?.local
-      ? `Delete ${name} from disk?`
-      : `Delete ${name}? This removes it from the shared cache (also used by the Llama app).`;
-    if (!confirm(msg)) return;
-    try { await invoke("delete_model", { modelId: id }); } catch (err) { showError(String(err)); }
-    if (openCfg === id) openCfg = null;
-    await refresh();
-    startPolling();
-  };
-
-  const right = document.createElement("div");
-  right.className = "cfg-actions__right";
-
-  const reset = document.createElement("button");
-  reset.className = "btn";
-  reset.textContent = "Reset";
-  reset.onclick = async () => {
-    await invoke("set_model_config", { modelId: id, override: {} });
-    openCfg = null; await refresh(); startPolling();
-  };
-
-  const save = document.createElement("button");
-  save.className = "btn btn--primary";
-  save.textContent = "Save";
-  save.onclick = async () => {
-    await invoke("set_model_config", { modelId: id, override: ov });
-    openCfg = null; await refresh(); startPolling();
-  };
-
-  right.append(reset, save);
-  actions.append(delBtn, right);
-  host.appendChild(actions);
-
-  grow();
-  dither?.refresh();
-}
-
 function render() {
   setHeader();
   const dLink = document.getElementById("discover-link");
@@ -672,8 +347,6 @@ function render() {
   }
   lastSig = sigOf();
   fitWindow(384, 760);
-  // Per-model config opens inline via the hero / row gear (toggleCfg sets openCfg).
-  if (view === "installed" && openCfg) void hydrateCfg(openCfg);
   dither?.refresh();
 }
 

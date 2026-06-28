@@ -69,6 +69,28 @@
         "visible": false,
         "decorations": true,
         "transparent": false
+      },
+      {
+        "label": "config",
+        "title": "Configure model",
+        "url": "config.html",
+        "width": 460,
+        "height": 600,
+        "minWidth": 460,
+        "minHeight": 220,
+        "center": true,
+        "resizable": false,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "skipTaskbar": true,
+        "windowEffects": {
+          "effects": [
+            "hudWindow",
+            "acrylic"
+          ],
+          "radius": 16
+        }
       }
     ],
     "security": {

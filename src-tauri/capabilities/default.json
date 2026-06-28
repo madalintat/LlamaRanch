@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main", "settings", "chat"],
+  "windows": ["main", "settings", "chat", "config"],
   "permissions": [
     "core:default",
     "core:event:default",

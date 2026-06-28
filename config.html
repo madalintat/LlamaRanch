@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Configure model</title>
+    <script>
+      (function(){var t=localStorage.getItem('lr_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);})();
+    </script>
+  </head>
+  <body>
+    <div id="app" class="cfg-win">
+      <header class="cfg-win__head" data-tauri-drag-region>
+        <img class="cfg-win__logo" src="/src/assets/llama.svg" alt="" width="20" height="20" />
+        <span class="cfg-win__eyebrow">Configure</span>
+        <span class="ms-spacer"></span>
+        <button class="cfg-win__close" id="cfg-close" title="Close" aria-label="Close">&times;</button>
+      </header>
+      <div id="cfg-body" class="cfg-win__body">
+        <div class="cfg-note">Loading…</div>
+      </div>
+    </div>
+    <script type="module" src="/src/config.ts"></script>
+  </body>
+</html>
