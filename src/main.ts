@@ -101,7 +101,7 @@ function rowSub(m: ModelView): string {
 async function openChatWindow() {
   try {
     const w = await WebviewWindow.getByLabel("chat");
-    if (w) { await w.show(); await (w as any).unminimize?.(); await w.setFocus(); }
+    if (w) { await w.show(); try { await (w as any).unminimize?.(); } catch { /* not minimized */ } await w.setFocus(); }
   } catch { showError("Could not open the chat window."); }
 }
 
@@ -125,7 +125,7 @@ async function openConfigWindow(m: ModelView) {
   try {
     await emit("open-config", { modelId: m.id, name: prettyName(m.name || m.id), local: m.local });
     const w = await WebviewWindow.getByLabel("config");
-    if (w) { await w.show(); await (w as any).unminimize?.(); await w.setFocus(); }
+    if (w) { await w.show(); try { await (w as any).unminimize?.(); } catch { /* not minimized */ } await w.setFocus(); }
   } catch (e) { showError(String(e)); }
 }
 

@@ -37,19 +37,19 @@ const gb = (n: number) => (n / 1e9).toFixed(1) + " GB";
 const CTX_TIERS = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
 const tierLabel = (n: number) => (n % 1024 === 0 ? `${n / 1024}k` : String(n));
 
-// Auto-size the window to its content (config window is 460 wide).
+// Auto-size the window to its content (config window is 420 wide).
 const fit = () => {
   requestAnimationFrame(() => {
     const el = document.getElementById("app");
     if (!el) return;
     const h = Math.min(760, Math.max(220, Math.ceil(el.offsetHeight)));
-    win.setSize(new LogicalSize(460, h)).catch(() => {});
+    win.setSize(new LogicalSize(420, h)).catch(() => {});
   });
   setTimeout(() => {
     const el = document.getElementById("app");
     if (!el) return;
     const h = Math.min(760, Math.max(220, Math.ceil(el.offsetHeight)));
-    win.setSize(new LogicalSize(460, h)).catch(() => {});
+    win.setSize(new LogicalSize(420, h)).catch(() => {});
   }, 90);
 };
 
@@ -111,6 +111,33 @@ function renderQuality(r: QuantReport): string {
     );
   }).join("");
   return `<div class="cfg-qual__ref">vs ${escapeHtml(r.reference)}, the heaviest you have</div><div class="cfg-qual__rows">${rows}</div>`;
+}
+
+/** A design slider: label + live value on top, a filled range track below. */
+function mkSlider(
+  label: string, min: number, max: number, step: number, init: number,
+  fmt: (v: number) => string, onInput: (v: number) => void,
+): HTMLDivElement {
+  const wrap = document.createElement("div");
+  wrap.className = "cfg-slider";
+  const head = document.createElement("div");
+  head.className = "cfg-slider__head";
+  const lab = document.createElement("span"); lab.className = "cfg-slider__label"; lab.textContent = label;
+  const val = document.createElement("span"); val.className = "cfg-slider__val";
+  head.append(lab, val);
+  const input = document.createElement("input");
+  input.type = "range"; input.className = "cfg-range";
+  input.min = String(min); input.max = String(max); input.step = String(step); input.value = String(init);
+  const paint = () => {
+    const v = Number(input.value);
+    const pct = max > min ? ((v - min) / (max - min)) * 100 : 0;
+    input.style.setProperty("--pct", pct + "%");
+    val.textContent = fmt(v);
+  };
+  input.oninput = () => { paint(); onInput(Number(input.value)); };
+  paint();
+  wrap.append(head, input);
+  return wrap;
 }
 
 let currentId = "";
@@ -194,47 +221,40 @@ async function render(id: string, displayName: string, isLocal: boolean) {
 
   // Context
   const max = info.native_ctx || 262144;
-  const mem = (ctx: number) => (info.kv_per_token > 0 ? gb(info.file_bytes + ctx * info.kv_per_token) : "n/a");
-  const cSec = section(info.native_ctx ? `Context length · up to ${tierLabel(info.native_ctx)}` : "Context length");
-  const pills = document.createElement("div");
-  pills.className = "cfg-pills";
-  const mk = (text: string, val: number | null, sub: string) => {
-    const b = document.createElement("button");
-    b.className = "cfg-pill" + ((ov.ctx_size ?? null) === val ? " cfg-pill--on" : "");
-    b.innerHTML = `${text}<span class="cfg-pill__sub">${sub}</span>`;
-    b.onclick = () => {
-      ov.ctx_size = val;
-      pills.querySelectorAll(".cfg-pill").forEach((el) => el.classList.remove("cfg-pill--on"));
-      b.classList.add("cfg-pill--on");
-      renderFit(val);
-    };
-    return b;
-  };
-  pills.appendChild(mk("Auto", null, "fit"));
-  for (const t of CTX_TIERS.filter((t) => t <= max)) pills.appendChild(mk(tierLabel(t), t, mem(t)));
-  cSec.appendChild(pills);
+  const mem = (ctx: number) => (info.kv_per_token > 0 ? gb(info.file_bytes + ctx * info.kv_per_token) : "");
+  const tiers = CTX_TIERS.filter((t) => t <= max);
+  const ctxStops: (number | null)[] = [null, ...tiers]; // index 0 = Auto (fit to memory)
+  let ctxIdx = ctxStops.findIndex((s) => s === (ov.ctx_size ?? null));
+  if (ctxIdx < 0) ctxIdx = 0;
+  const cSec = section(info.native_ctx ? `Context window · up to ${tierLabel(info.native_ctx)}` : "Context window");
+  cSec.appendChild(mkSlider(
+    "Length", 0, ctxStops.length - 1, 1, ctxIdx,
+    (i) => { const s = ctxStops[Math.round(i)]; return s == null ? "Auto" : tierLabel(s) + (mem(s) ? ` · ${mem(s)}` : ""); },
+    (i) => { const s = ctxStops[Math.round(i)]; ov.ctx_size = s; renderFit(s); },
+  ));
 
-  // Advanced
-  const adv = document.createElement("details");
-  adv.className = "cfg-adv";
-  adv.innerHTML = `<summary class="cfg-adv__summary">Advanced</summary>`;
-  adv.addEventListener("toggle", fit);
-  const advFields: [keyof ModelOverride, string][] = [
-    ["temp", "Temperature"], ["top_p", "Top-p"], ["top_k", "Top-k"], ["min_p", "Min-p"],
-    ["repeat_penalty", "Repeat"], ["presence_penalty", "Presence"], ["frequency_penalty", "Frequency"],
+  // ── Sampling: sliders (Reset clears all back to the model's own defaults) ──
+  const sSec = section("Sampling");
+  type SDef = { k: keyof ModelOverride; label: string; min: number; max: number; step: number; def: number };
+  const sdefs: SDef[] = [
+    { k: "temp", label: "Temperature", min: 0, max: 2, step: 0.05, def: 0.7 },
+    { k: "top_p", label: "Top-p", min: 0, max: 1, step: 0.01, def: 0.9 },
+    { k: "top_k", label: "Top-k", min: 0, max: 100, step: 1, def: 40 },
+    { k: "min_p", label: "Min-p", min: 0, max: 0.5, step: 0.01, def: 0.05 },
+    { k: "repeat_penalty", label: "Repeat penalty", min: 1, max: 1.5, step: 0.01, def: 1.1 },
   ];
-  const grid = document.createElement("div");
-  grid.className = "cfg-grid";
-  for (const [k, lbl] of advFields) {
-    const f = document.createElement("label");
-    f.className = "cfg-field";
-    f.innerHTML = `<span>${lbl}</span><input type="number" step="0.05" value="${ov[k] ?? ""}" placeholder="auto" />`;
-    const inp = f.querySelector("input") as HTMLInputElement;
-    inp.oninput = () => { (ov[k] as number | null) = inp.value === "" ? null : Number(inp.value); };
-    grid.appendChild(f);
+  for (const d of sdefs) {
+    const isInt = d.step >= 1;
+    const init = (ov[d.k] as number | null) ?? d.def;
+    sSec.appendChild(mkSlider(
+      d.label, d.min, d.max, d.step, init,
+      () => ((ov[d.k] as number | null) == null ? "auto" : (isInt ? String(Math.round(ov[d.k] as number)) : (ov[d.k] as number).toFixed(2))),
+      (v) => { (ov[d.k] as number | null) = isInt ? Math.round(v) : Number(v.toFixed(2)); },
+    ));
   }
-  adv.appendChild(grid);
 
+  // ── Reliability: a one-shot tool-call check ──
+  const relSec = section("Reliability");
   const rel = document.createElement("div");
   rel.className = "cfg-rel";
   const relBtn = document.createElement("button");
@@ -248,9 +268,7 @@ async function render(id: string, displayName: string, isLocal: boolean) {
     finally { relBtn.disabled = false; if (relBtn.textContent === "Testing…") relBtn.textContent = "Test tool calls"; }
     fit();
   };
-  rel.appendChild(relBtn);
-  adv.appendChild(rel);
-  body.appendChild(adv);
+  relSec.append(relBtn, rel);
 
   // Actions
   const actions = document.createElement("div");
