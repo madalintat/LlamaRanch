@@ -163,7 +163,7 @@ async function render(id: string, displayName: string, isLocal: boolean) {
   const name = displayName || id;
   body.innerHTML = "";
 
-  const section = (label?: string): HTMLDivElement => {
+  const section = (label: string | undefined, host: HTMLElement): HTMLDivElement => {
     const s = document.createElement("div");
     s.className = "cfg-sec";
     if (label) {
@@ -172,20 +172,43 @@ async function render(id: string, displayName: string, isLocal: boolean) {
       l.textContent = label;
       s.appendChild(l);
     }
-    body.appendChild(s);
+    host.appendChild(s);
     return s;
   };
 
-  // Header
+  // Header (model name)
   const header = document.createElement("div");
   header.className = "cfg-head";
   header.innerHTML = `<span class="cfg-head__name">${escapeHtml(name)}</span>`;
   body.appendChild(header);
 
-  // Fit
+  // Two tabs so nothing scrolls: Model (fit/quality/context) and Sampling.
+  const tabbar = document.createElement("div");
+  tabbar.className = "cfg-tabs";
+  const tModel = document.createElement("div");
+  tModel.className = "cfg-tab";
+  const tSampling = document.createElement("div");
+  tSampling.className = "cfg-tab cfg-tab--hidden";
+  const mkTab = (label: string, panel: HTMLElement, active: boolean) => {
+    const b = document.createElement("button");
+    b.className = "cfg-tab-btn" + (active ? " cfg-tab-btn--on" : "");
+    b.textContent = label;
+    b.onclick = () => {
+      tabbar.querySelectorAll(".cfg-tab-btn").forEach((el) => el.classList.remove("cfg-tab-btn--on"));
+      b.classList.add("cfg-tab-btn--on");
+      tModel.classList.toggle("cfg-tab--hidden", panel !== tModel);
+      tSampling.classList.toggle("cfg-tab--hidden", panel !== tSampling);
+      fit();
+    };
+    return b;
+  };
+  tabbar.append(mkTab("Model", tModel, true), mkTab("Sampling", tSampling, false));
+  body.append(tabbar, tModel, tSampling);
+
+  // Fit (Model tab)
   const fitEl = document.createElement("div");
   fitEl.className = "cfg-fit";
-  body.appendChild(fitEl);
+  tModel.appendChild(fitEl);
   const renderFit = async (ctx: number | null) => {
     let f: ModelFit;
     try { f = await invoke<ModelFit>("fit_estimate", { modelId: id, ctxSize: ctx }); } catch { fitEl.innerHTML = ""; return; }
@@ -199,7 +222,7 @@ async function render(id: string, displayName: string, isLocal: boolean) {
   renderFit(ov.ctx_size ?? null);
 
   // Quality
-  const qSec = section("Quality");
+  const qSec = section("Quality", tModel);
   const qual = document.createElement("div");
   qual.className = "cfg-qual";
   qSec.appendChild(qual);
@@ -226,7 +249,7 @@ async function render(id: string, displayName: string, isLocal: boolean) {
   const ctxStops: (number | null)[] = [null, ...tiers]; // index 0 = Auto (fit to memory)
   let ctxIdx = ctxStops.findIndex((s) => s === (ov.ctx_size ?? null));
   if (ctxIdx < 0) ctxIdx = 0;
-  const cSec = section(info.native_ctx ? `Context window · up to ${tierLabel(info.native_ctx)}` : "Context window");
+  const cSec = section(info.native_ctx ? `Context window · up to ${tierLabel(info.native_ctx)}` : "Context window", tModel);
   cSec.appendChild(mkSlider(
     "Length", 0, ctxStops.length - 1, 1, ctxIdx,
     (i) => { const s = ctxStops[Math.round(i)]; return s == null ? "Auto" : tierLabel(s) + (mem(s) ? ` · ${mem(s)}` : ""); },
@@ -234,7 +257,7 @@ async function render(id: string, displayName: string, isLocal: boolean) {
   ));
 
   // ── Sampling: sliders (Reset clears all back to the model's own defaults) ──
-  const sSec = section("Sampling");
+  const sSec = section("Sampling", tSampling);
   type SDef = { k: keyof ModelOverride; label: string; min: number; max: number; step: number; def: number };
   const sdefs: SDef[] = [
     { k: "temp", label: "Temperature", min: 0, max: 2, step: 0.05, def: 0.7 },
@@ -254,7 +277,7 @@ async function render(id: string, displayName: string, isLocal: boolean) {
   }
 
   // ── Reliability: a one-shot tool-call check ──
-  const relSec = section("Reliability");
+  const relSec = section("Reliability", tSampling);
   const rel = document.createElement("div");
   rel.className = "cfg-rel";
   const relBtn = document.createElement("button");

@@ -39,7 +39,7 @@
         "title": "Settings",
         "url": "settings.html",
         "width": 700,
-        "height": 580,
+        "height": 620,
         "minWidth": 700,
         "minHeight": 420,
         "center": true,

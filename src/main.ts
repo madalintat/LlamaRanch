@@ -650,7 +650,7 @@ async function init() {
   };
 
   // Open the showroom chat window (always reachable from the footer).
-  $("chat-btn").onclick = () => openChatWindow();
+  $("agent-btn").onclick = () => openChatWindow();
 
   // ── ⌘K / Ctrl+K global keyboard handler ──────────────────────────────
   document.addEventListener("keydown", (e) => {

@@ -23,10 +23,10 @@ const fit = () => fitWindow(700, 640);
 // transparent, acrylic-blurred window on macOS can glitch the compositor.)
 
 // ── Settings tab switching ────────────────────────────────────────
-type SettingsTab = "general" | "models" | "tools" | "server" | "privacy";
+type SettingsTab = "general" | "models" | "tools" | "server" | "gateway" | "privacy";
 
 function switchTab(tab: SettingsTab) {
-  const tabs: SettingsTab[] = ["general", "models", "tools", "server", "privacy"];
+  const tabs: SettingsTab[] = ["general", "models", "tools", "server", "gateway", "privacy"];
   tabs.forEach((t) => {
     const btn = document.getElementById(`s-tab-${t}`)!;
     const panel = document.getElementById(`s-panel-${t}`)!;
@@ -42,6 +42,7 @@ document.getElementById("s-tab-general")?.addEventListener("click", () => switch
 document.getElementById("s-tab-models")?.addEventListener("click", () => switchTab("models"));
 document.getElementById("s-tab-tools")?.addEventListener("click", () => switchTab("tools"));
 document.getElementById("s-tab-server")?.addEventListener("click", () => switchTab("server"));
+document.getElementById("s-tab-gateway")?.addEventListener("click", () => switchTab("gateway"));
 document.getElementById("s-tab-privacy")?.addEventListener("click", () => switchTab("privacy"));
 
 // ── Activity view ─────────────────────────────────────────────────

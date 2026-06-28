@@ -25,6 +25,7 @@
           <button class="s-rail__item" id="s-tab-models">Models</button>
           <button class="s-rail__item" id="s-tab-tools">Tools &amp; connectors</button>
           <button class="s-rail__item" id="s-tab-server">Server</button>
+          <button class="s-rail__item" id="s-tab-gateway">Gateway</button>
           <button class="s-rail__item" id="s-tab-privacy">Privacy</button>
         </aside>
 
@@ -188,7 +189,21 @@
             </label>
           </div>
 
-          <div class="s-section__label label" style="margin-top:1.2rem;">Gateway</div>
+          <div class="s-section__label label" style="margin-top:1.2rem;">Network</div>
+          <div class="s-toggle-row" id="s-expose-row">
+            <span class="led led--idle" id="s-expose-led"></span>
+            <div class="s-toggle-row__body">
+              <div class="s-toggle-row__name">Expose to network</div>
+              <div class="s-toggle-row__sub meta">Bind 0.0.0.0, other devices can connect. Off by default.</div>
+            </div>
+            <div class="toggle toggle--off" id="s-expose-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
+            <input type="checkbox" id="s-expose" class="s-hidden-check" />
+          </div>
+        </section>
+
+        <!-- ── PANEL: Gateway ────────────────────────────────────── -->
+        <section class="s-section s-panel s-panel--hidden" id="s-panel-gateway">
+          <div class="s-section__label label">Smart-routing gateway</div>
           <div class="s-toggle-row" id="s-gw-row">
             <span class="led led--idle" id="s-gw-led"></span>
             <div class="s-toggle-row__body">
@@ -207,17 +222,6 @@
               <span class="label s-field-wrap__label">Endpoint (point any app here)</span>
               <input id="s-gw-endpoint" class="field" type="text" readonly />
             </label>
-          </div>
-
-          <div class="s-section__label label" style="margin-top:1.2rem;">Network</div>
-          <div class="s-toggle-row" id="s-expose-row">
-            <span class="led led--idle" id="s-expose-led"></span>
-            <div class="s-toggle-row__body">
-              <div class="s-toggle-row__name">Expose to network</div>
-              <div class="s-toggle-row__sub meta">Bind 0.0.0.0, other devices can connect. Off by default.</div>
-            </div>
-            <div class="toggle toggle--off" id="s-expose-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
-            <input type="checkbox" id="s-expose" class="s-hidden-check" />
           </div>
         </section>
 
