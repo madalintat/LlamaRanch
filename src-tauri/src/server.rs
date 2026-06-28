@@ -29,7 +29,9 @@ impl SharedServer {
         })))
     }
     pub fn lock(&self) -> std::sync::MutexGuard<'_, ServerState> {
-        self.0.lock().unwrap()
+        // Recover the guard if a thread panicked while holding it, rather than
+        // letting one panic poison the mutex and brick every later command.
+        self.0.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
@@ -318,7 +320,21 @@ pub fn reclaim_stale_router() {
     if let Some(pid) = pid_to_reclaim(recorded_router_pid(), process_name) {
         #[cfg(unix)]
         {
-            let _ = Command::new("kill").arg(pid.to_string()).status();
+            // SIGKILL the stale process, then wait for it to actually exit so the
+            // port is free before we spawn the new router (avoids EADDRINUSE).
+            let _ = Command::new("kill").arg("-9").arg(pid.to_string()).status();
+            for _ in 0..40 {
+                let alive = Command::new("kill")
+                    .arg("-0")
+                    .arg(pid.to_string())
+                    .status()
+                    .map(|s| s.success())
+                    .unwrap_or(false);
+                if !alive {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
         }
     }
 }
@@ -330,8 +346,10 @@ fn write_router_pid(pid: u32) {
 /// Spawn the router process, logging its stderr to a file. Readiness is
 /// reported later via `status`. Bumps `generation` so older poll threads stop.
 pub fn start_router(state: &mut ServerState, cfg: &Config, preset_path: &str) -> Result<(), String> {
-    stop(state);
+    // Reclaim a stale router from a prior run BEFORE stop() removes the pid file
+    // (stop deletes it, so reading it afterwards always found nothing).
     reclaim_stale_router();
+    stop(state);
     let log = router_log_path();
     if let Some(parent) = log.parent() {
         let _ = std::fs::create_dir_all(parent);

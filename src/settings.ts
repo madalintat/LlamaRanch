@@ -11,6 +11,7 @@ import {
 } from "@tauri-apps/plugin-autostart";
 import { saveTheme, getStoredTheme, type Theme } from "./brand/theme.ts";
 import { basename, escapeHtml } from "./paths.ts";
+import { loadedModelIds, restoreLoaded } from "./router-restore";
 import "./styles.css";
 
 tagOS(); // match the main window: Linux opaque, macOS/Windows frosted
@@ -862,6 +863,9 @@ async function save() {
     const searxngField = ($("s-searxng") as HTMLInputElement).value.trim();
     const searxng_url = searxngField || (freshCfg.searxng_url ?? "");
 
+    // set_config restarts the router (dropping loaded models); snapshot them so
+    // we can bring them back instead of silently unloading what was running.
+    const wasLoaded = await loadedModelIds();
     await invoke("set_config", {
       newCfg: {
         ...freshCfg,
@@ -882,6 +886,7 @@ async function save() {
         allowed_dirs,
       },
     });
+    await restoreLoaded(wasLoaded);
   } catch (e) {
     const err = document.getElementById("s-error")!;
     err.textContent = String(e).replace(/^error:\s*/, "");

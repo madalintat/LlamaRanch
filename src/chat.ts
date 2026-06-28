@@ -634,6 +634,15 @@ async function init() {
       applyTheme(e.payload);
     });
 
+    // Config/tools changed elsewhere (Settings, the config window, a download/
+    // delete): re-pull tools, the privacy panel, and the model picker so the
+    // chat never shows a stale tool state or a model that no longer exists.
+    await listen("config-changed", () => {
+      void refreshTools();
+      void loadPicker();
+      void refreshPool();
+    });
+
     // Respect OS theme changes when in system mode.
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
       if (!document.documentElement.dataset.theme) {
