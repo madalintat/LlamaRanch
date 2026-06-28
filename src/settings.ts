@@ -17,7 +17,7 @@ tagOS(); // match the main window: Linux opaque, macOS/Windows frosted
 
 const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
 const win = getCurrentWindow();
-const fit = () => fitWindow(440, 640);
+const fit = () => fitWindow(700, 640);
 
 // (No entrance animation: the settings window renders statically. Animating a
 // transparent, acrylic-blurred window on macOS can glitch the compositor.)

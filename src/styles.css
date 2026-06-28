@@ -1330,6 +1330,7 @@ button:focus-visible {
 .s-rail__item.tab--active { font-weight: 600; color: var(--d-ink); background: var(--d-chip-2); }
 
 .s-body { flex: 1; min-width: 0; overflow-y: auto; padding: 22px 24px; background: var(--d-card); }
+.s-section { padding: 0; overflow: visible; }  /* the scroll gutter lives on .s-body now */
 .s-section__label, .s-body .label { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--d-faint); font-weight: 500; }
 .s-body .meta { font-size: 12.5px; color: var(--d-muted); line-height: 1.5; }
 

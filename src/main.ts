@@ -516,7 +516,7 @@ async function hydrateCfg(id: string) {
   qual.className = "cfg-qual";
   qSec.appendChild(qual);
   const qualBtn = document.createElement("button");
-  qualBtn.className = "ubtn ubtn--bordered cfg-action";
+  qualBtn.className = "btn cfg-action";
   qualBtn.textContent = "Measure quality";
   qSec.appendChild(qualBtn);
   const showQual = (r: QuantReport) => {
@@ -592,7 +592,7 @@ async function hydrateCfg(id: string) {
   const rel = document.createElement("div");
   rel.className = "cfg-rel";
   const relBtn = document.createElement("button");
-  relBtn.className = "ubtn cfg-action";
+  relBtn.className = "btn cfg-action";
   relBtn.textContent = "Test tool calls";
   relBtn.onclick = async () => {
     relBtn.disabled = true;
@@ -617,7 +617,7 @@ async function hydrateCfg(id: string) {
   actions.className = "cfg-actions";
 
   const delBtn = document.createElement("button");
-  delBtn.className = "ubtn cfg-actions__del";
+  delBtn.className = "btn btn--ghost cfg-actions__del";
   delBtn.textContent = "Delete";
   delBtn.onclick = async () => {
     const msg = m?.local
@@ -634,7 +634,7 @@ async function hydrateCfg(id: string) {
   right.className = "cfg-actions__right";
 
   const reset = document.createElement("button");
-  reset.className = "ubtn";
+  reset.className = "btn";
   reset.textContent = "Reset";
   reset.onclick = async () => {
     await invoke("set_model_config", { modelId: id, override: {} });
@@ -642,7 +642,7 @@ async function hydrateCfg(id: string) {
   };
 
   const save = document.createElement("button");
-  save.className = "ubtn ubtn--bordered";
+  save.className = "btn btn--primary";
   save.textContent = "Save";
   save.onclick = async () => {
     await invoke("set_model_config", { modelId: id, override: ov });
