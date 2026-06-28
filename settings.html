@@ -11,21 +11,23 @@
   <body>
     <div id="app">
       <header class="s-head" data-tauri-drag-region>
-        <img class="s-head__logo" src="/src/assets/llama.svg" alt="" width="20" height="20" />
-        <span class="s-head__title serif">Settings</span>
+        <img class="s-head__logo" src="/src/assets/llama.svg" alt="" width="22" height="22" />
+        <span class="s-head__title serif">LlamaRanch</span>
         <div class="s-head__spacer" data-tauri-drag-region></div>
         <button class="s-head__close" id="s-close" title="Close" aria-label="Close">&times;</button>
       </header>
 
-      <!-- Settings tabs -->
-      <div class="tabs s-tabs">
-        <button class="tab tab--active" id="s-tab-general">General</button>
-        <button class="tab" id="s-tab-tools">Tools</button>
-        <button class="tab" id="s-tab-server">Server</button>
-        <button class="tab" id="s-tab-activity">Activity</button>
-      </div>
+      <!-- Sidebar + content (design §02) -->
+      <div class="s-shell">
+        <aside class="s-rail">
+          <div class="s-rail__title serif">Settings</div>
+          <button class="s-rail__item tab--active" id="s-tab-general">General</button>
+          <button class="s-rail__item" id="s-tab-tools">Tools &amp; connectors</button>
+          <button class="s-rail__item" id="s-tab-server">Server</button>
+          <button class="s-rail__item" id="s-tab-activity">Activity</button>
+        </aside>
 
-      <div class="s-body">
+        <div class="s-body">
 
         <!-- ── PANEL: General ─────────────────────────────────────── -->
         <section class="s-section s-panel" id="s-panel-general">
@@ -243,7 +245,8 @@
         </section>
 
         <div class="error hidden" id="s-error"></div>
-      </div>
+        </div><!-- /.s-body -->
+      </div><!-- /.s-shell -->
 
       <footer class="s-foot">
         <span class="s-foot__spacer"></span>

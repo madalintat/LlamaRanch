@@ -260,6 +260,15 @@ function makeRow(dotClass: string, name: string, sub: string, dim = false): HTML
   return row;
 }
 
+/** The inline config panel placeholder (hydrateCfg fills #cfg-open). */
+function cfgExpander(): HTMLDivElement {
+  const ph = document.createElement("div");
+  ph.className = "cfg-expander";
+  ph.id = "cfg-open";
+  ph.innerHTML = `<div class="cfg-note">Loading…</div>`;
+  return ph;
+}
+
 function renderSelector() {
   const heroHost = document.getElementById("hero");
   const listHost = $("models");
@@ -330,6 +339,12 @@ function renderSelector() {
     const dotClass = loaded ? "ms-row__dot--on" : cloud ? "ms-row__dot--cloud" : "ms-row__dot--idle";
     const row = makeRow(dotClass, prettyName(m.name || m.id), rowSub(m), cloud);
 
+    // Clicking a downloaded model's name opens its config panel inline.
+    if (!cloud) {
+      const bodyEl = row.querySelector<HTMLElement>(".ms-row__body");
+      if (bodyEl) { bodyEl.style.cursor = "pointer"; bodyEl.onclick = () => toggleCfg(m.id); }
+    }
+
     // Configure gear (downloaded models only) — hover-revealed, opens inline.
     if (!cloud) {
       const cfgBtn = document.createElement("button");
@@ -356,15 +371,13 @@ function renderSelector() {
     row.appendChild(btn);
 
     listHost.appendChild(row);
+    // Config panel opens directly beneath the row it belongs to.
+    if (openCfg === m.id) listHost.appendChild(cfgExpander());
   });
 
-  // Inline config expander for whichever model has it open (hydrateCfg fills it).
-  if (openCfg) {
-    const ph = document.createElement("div");
-    ph.className = "cfg-expander";
-    ph.id = "cfg-open";
-    ph.innerHTML = `<div class="cfg-note">Loading…</div>`;
-    listHost.appendChild(ph);
+  // The serving model's gear lives on the hero, so anchor its panel at the top.
+  if (openCfg && hero && openCfg === hero.id && !listHost.querySelector("#cfg-open")) {
+    listHost.insertBefore(cfgExpander(), listHost.firstChild);
   }
 
   // No dither.refresh() here — render() (our only caller) refreshes after us.
@@ -962,6 +975,9 @@ async function init() {
     view = view === "installed" ? "discover" : "installed";
     render();
   };
+
+  // Open the showroom chat window (always reachable from the footer).
+  $("chat-btn").onclick = () => openChatWindow();
 
   // ── ⌘K / Ctrl+K global keyboard handler ──────────────────────────────
   document.addEventListener("keydown", (e) => {
