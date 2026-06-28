@@ -31,20 +31,20 @@ html, body {
   display: block;
   background: var(--d-card);
   border: none;
-  border-radius: 22px;
+  border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(13,13,15,.05), 0 30px 70px rgba(13,13,15,.22);
+  box-shadow: 0 1px 2px rgba(13,13,15,.05), 0 24px 56px rgba(13,13,15,.2);
 }
 .ms-spacer { flex: 1; }
 
 /* Brand strip */
-.ms-brand { display: flex; align-items: center; gap: 11px; padding: 18px 22px 14px; }
-.ms-brand__mark { width: 26px; height: 26px; border-radius: 8px; display: block; }
-.ms-brand__name { font-family: 'Bricolage Grotesque', sans-serif; font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+.ms-brand { display: flex; align-items: center; gap: 9px; padding: 13px 16px 8px; }
+.ms-brand__mark { width: 22px; height: 22px; border-radius: 7px; display: block; }
+.ms-brand__name { font-family: 'Bricolage Grotesque', sans-serif; font-size: 15.5px; font-weight: 600; letter-spacing: -.01em; }
 .ms-endpoint {
-  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; border: none;
-  font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--d-muted);
-  background: var(--d-chip); padding: 6px 11px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer; border: none;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--d-muted);
+  background: var(--d-chip); padding: 5px 9px; border-radius: 999px;
 }
 .ms-endpoint:hover { background: var(--d-chip-hover); }
 .ms-endpoint__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--d-ink); animation: ms-pulse 2.2s ease-in-out infinite; }
@@ -55,69 +55,69 @@ html, body {
 @keyframes ms-rowin { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 
 /* Hero */
-.ms-hero { padding: 4px 22px 18px; }
-.ms-hero__label { font-size: 12.5px; font-weight: 600; color: var(--d-muted); }
-.ms-hero__name { font-family: 'Bricolage Grotesque', sans-serif; font-size: 34px; font-weight: 600; letter-spacing: -.025em; line-height: 1; margin-top: 7px; }
-.ms-hero__sub { font-size: 13.5px; color: var(--d-muted); margin-top: 8px; }
-.ms-hero__scope { position: relative; height: 46px; margin: 18px 0 14px; overflow: hidden; }
-.ms-stats { display: flex; gap: 9px; }
-.ms-stat { flex: 1; background: var(--d-chip); border-radius: 13px; padding: 13px 0; text-align: center; }
-.ms-stat__v { font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; font-weight: 600; }
-.ms-stat__u { font-size: 12px; color: var(--d-faint); }
-.ms-stat__l { font-size: 11.5px; color: var(--d-faint); margin-top: 2px; }
-.ms-hero__actions { display: flex; gap: 10px; margin-top: 16px; }
+.ms-hero { padding: 2px 16px 13px; }
+.ms-hero__label { font-size: 11.5px; font-weight: 600; color: var(--d-muted); }
+.ms-hero__name { font-family: 'Bricolage Grotesque', sans-serif; font-size: 25px; font-weight: 600; letter-spacing: -.02em; line-height: 1.05; margin-top: 4px; }
+.ms-hero__sub { font-size: 12.5px; color: var(--d-muted); margin-top: 5px; }
+.ms-hero__scope { position: relative; height: 34px; margin: 12px 0 10px; overflow: hidden; }
+.ms-stats { display: flex; gap: 7px; }
+.ms-stat { flex: 1; background: var(--d-chip); border-radius: 11px; padding: 9px 0; text-align: center; }
+.ms-stat__v { font-family: 'Bricolage Grotesque', sans-serif; font-size: 17px; font-weight: 600; }
+.ms-stat__u { font-size: 11px; color: var(--d-faint); }
+.ms-stat__l { font-size: 10.5px; color: var(--d-faint); margin-top: 1px; }
+.ms-hero__actions { display: flex; gap: 8px; margin-top: 12px; }
 .ms-btn {
-  cursor: pointer; text-align: center; font-weight: 600; font-size: 14px; padding: 12px 20px;
-  border-radius: 12px; border: 1px solid var(--d-edge); background: var(--d-card); color: var(--d-ink);
+  cursor: pointer; text-align: center; font-weight: 600; font-size: 13px; padding: 9px 14px;
+  border-radius: 10px; border: 1px solid var(--d-edge); background: var(--d-card); color: var(--d-ink);
   font-family: 'Hanken Grotesk', sans-serif;
 }
 .ms-btn:hover { background: var(--d-hover); }
 .ms-btn--primary { flex: 1; background: var(--d-ink); color: var(--d-on-ink); border-color: var(--d-ink); }
 .ms-btn--primary:hover { background: var(--d-ink-hover); }
-.ms-btn--icon { flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 44px; color: var(--d-muted); }
+.ms-btn--icon { flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 38px; color: var(--d-muted); }
 .ms-btn--icon:hover { color: var(--d-ink); }
 .ms-btn--icon-on { background: var(--d-ink); color: var(--d-on-ink); border-color: var(--d-ink); }
 .ms-btn--icon-on:hover { background: var(--d-ink-hover); color: var(--d-on-ink); }
 .ms-row__cfg {
   flex: none; display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; border: none; background: none; color: var(--d-faint);
+  width: 28px; height: 28px; border: none; background: none; color: var(--d-faint);
   border-radius: 8px; cursor: pointer; opacity: 0; transition: opacity .12s, color .12s, background .12s;
 }
 .ms-row:hover .ms-row__cfg, .ms-row__cfg--on { opacity: 1; }
 .ms-row__cfg:hover { color: var(--d-ink); background: var(--d-line); }
 .ms-row__cfg--on { color: var(--d-ink); background: var(--d-line); }
-.ms-hero__bar { position: relative; height: 12px; margin: 22px 0 6px; border-radius: 999px; background: var(--d-line); overflow: hidden; }
+.ms-hero__bar { position: relative; height: 10px; margin: 16px 0 6px; border-radius: 999px; background: var(--d-line); overflow: hidden; }
 .ms-hero__bar-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 60%; background: var(--d-ink); border-radius: 999px; animation: ms-saddle 1.4s ease-in-out infinite; }
 @keyframes ms-saddle { 0% { width: 18%; } 50% { width: 78%; } 100% { width: 18%; } }
 .ms-hero__barlabel { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--d-faint); margin-top: 8px; }
-.ms-hero__quiet { font-family: 'Bricolage Grotesque', sans-serif; font-size: 26px; font-weight: 600; letter-spacing: -.02em; text-align: center; padding-top: 14px; }
-.ms-hero__quietsub { font-size: 14px; color: var(--d-muted); margin: 8px auto 0; max-width: 34ch; text-align: center; }
+.ms-hero__quiet { font-family: 'Bricolage Grotesque', sans-serif; font-size: 21px; font-weight: 600; letter-spacing: -.02em; text-align: center; padding-top: 8px; }
+.ms-hero__quietsub { font-size: 13px; color: var(--d-muted); margin: 6px auto 0; max-width: 34ch; text-align: center; }
 
 /* List */
-.ms-list { padding: 6px 12px 12px; border-top: 1px solid var(--d-line); }
-.ms-list__label { font-size: 12px; color: var(--d-faint); padding: 12px 10px 6px; }
+.ms-list { padding: 4px 9px 9px; border-top: 1px solid var(--d-line); }
+.ms-list__label { font-size: 11.5px; color: var(--d-faint); padding: 9px 9px 4px; }
 #models { display: block; }
-.ms-row { display: flex; align-items: center; gap: 13px; padding: 13px 10px; border-radius: 13px; animation: ms-rowin .25s ease-out both; }
+.ms-row { display: flex; align-items: center; gap: 11px; padding: 9px 9px; border-radius: 11px; animation: ms-rowin .25s ease-out both; }
 .ms-row:hover { background: var(--d-hover); }
 .ms-row__dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .ms-row__dot--idle { border: 1.5px solid var(--d-dotline); }
 .ms-row__dot--cloud { border: 1.5px dashed var(--d-dotline); }
 .ms-row__dot--dl { background: var(--d-ink); box-shadow: 0 0 0 4px rgba(13,13,15,.1); animation: ms-pulse 1.2s ease-in-out infinite; }
 .ms-row__body { flex: 1; min-width: 0; }
-.ms-row__name { font-size: 15px; font-weight: 500; color: var(--d-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-row__name { font-size: 14px; font-weight: 500; color: var(--d-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ms-row__name--cloud { color: var(--d-faint); }
-.ms-row__sub { font-size: 12.5px; color: var(--d-muted); margin-top: 1px; }
-.ms-row__load { cursor: pointer; font-size: 12.5px; font-weight: 600; border: 1px solid var(--d-edge); background: var(--d-card); color: var(--d-ink); padding: 7px 15px; border-radius: 999px; font-family: 'Hanken Grotesk', sans-serif; }
+.ms-row__sub { font-size: 12px; color: var(--d-muted); margin-top: 1px; }
+.ms-row__load { cursor: pointer; font-size: 12px; font-weight: 600; border: 1px solid var(--d-edge); background: var(--d-card); color: var(--d-ink); padding: 6px 13px; border-radius: 999px; font-family: 'Hanken Grotesk', sans-serif; }
 .ms-row__load:hover { background: var(--d-line); }
-.ms-row__get { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--d-muted); border: none; background: none; font-family: 'Hanken Grotesk', sans-serif; }
+.ms-row__get { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--d-muted); border: none; background: none; font-family: 'Hanken Grotesk', sans-serif; }
 .ms-row__get:hover { color: var(--d-ink); }
 .ms-row__pct { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--d-ink); }
 .ms-row__dot--on { background: var(--d-ink); box-shadow: 0 0 0 4px rgba(13,13,15,.08); }
 .ms-prog { height: 8px; margin: 0 10px 8px; border-radius: 999px; background: var(--d-line); overflow: hidden; }
 .ms-prog__fill { height: 8px; background: var(--d-ink); border-radius: 999px; transition: width .14s linear; }
 .ms-empty { padding: 18px 10px; font-size: 13px; color: var(--d-faint); text-align: center; }
-.ms-foot { display: flex; align-items: center; gap: 8px; padding: 13px 10px 6px; border-top: 1px solid var(--d-line); margin-top: 6px; }
-.ms-foot__link { cursor: pointer; border: none; background: none; font-family: 'Hanken Grotesk', sans-serif; font-size: 13px; color: var(--d-muted); padding: 0; }
+.ms-foot { display: flex; align-items: center; gap: 8px; padding: 10px 9px 5px; border-top: 1px solid var(--d-line); margin-top: 5px; }
+.ms-foot__link { cursor: pointer; border: none; background: none; font-family: 'Hanken Grotesk', sans-serif; font-size: 12.5px; color: var(--d-muted); padding: 0; }
 .ms-foot__link:hover { color: var(--d-ink); }
 .ms-foot__link--strong { font-weight: 600; color: var(--d-ink); }
 

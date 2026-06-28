@@ -461,7 +461,7 @@ async function hydrateCfg(id: string) {
   const ov: ModelOverride = { ...info.override };
   const m = models.find((x) => x.id === id);
   const name = m ? prettyName(m.name || m.id) : id;
-  const grow = () => fitWindow(430, 760);
+  const grow = () => fitWindow(384, 760);
   host.innerHTML = "";
 
   // Small helper: a titled section with breathing room.
@@ -671,7 +671,7 @@ function render() {
     renderDiscover();
   }
   lastSig = sigOf();
-  fitWindow(430, 760);
+  fitWindow(384, 760);
   // Per-model config opens inline via the hero / row gear (toggleCfg sets openCfg).
   if (view === "installed" && openCfg) void hydrateCfg(openCfg);
   dither?.refresh();
