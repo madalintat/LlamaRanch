@@ -129,7 +129,10 @@ function renderTools(tools: ToolInfo[]): void {
         descText = t.note || "Disabled.";
       } else if (t.scope === "online") {
         badgeClass = "mono privacy__badge privacy__badge--muted";
-        descText = "Reaches the internet when used.";
+        descText =
+          t.name === "web_fetch" ? "Opens a specific web page you point it at."
+          : t.name === "web_search" ? "Searches the web through your SearXNG."
+          : "Reaches the internet when used.";
       } else {
         descText = "Stays on your machine.";
       }
