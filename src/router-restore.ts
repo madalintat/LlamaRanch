@@ -37,12 +37,9 @@ export async function loadWithRetry(modelId: string, timeoutMs = 15000): Promise
     retrying until the new router accepts each. A failure on one doesn't stop
     the rest. */
 export async function restoreLoaded(ids: string[]): Promise<void> {
+  if (!ids.length) return;
   await sleep(500); // let the old router shut down before poking the new one
-  for (const m of ids) {
-    try {
-      await loadWithRetry(m);
-    } catch {
-      /* restore the rest */
-    }
-  }
+  // Load in parallel so a slow or dead router caps the wait at one retry window
+  // (not models × 15s); a failure on one doesn't block the rest.
+  await Promise.allSettled(ids.map((m) => loadWithRetry(m)));
 }

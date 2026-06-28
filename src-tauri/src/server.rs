@@ -346,9 +346,14 @@ fn write_router_pid(pid: u32) {
 /// Spawn the router process, logging its stderr to a file. Readiness is
 /// reported later via `status`. Bumps `generation` so older poll threads stop.
 pub fn start_router(state: &mut ServerState, cfg: &Config, preset_path: &str) -> Result<(), String> {
-    // Reclaim a stale router from a prior run BEFORE stop() removes the pid file
-    // (stop deletes it, so reading it afterwards always found nothing).
-    reclaim_stale_router();
+    // Reclaim a stale router from a PRIOR run before stop() removes the pid file.
+    // Skip when the recorded pid is our own current child: stop() reaps that, and
+    // SIGKILLing an un-waited child leaves a zombie whose pid still answers kill -0,
+    // making the liveness poll wait out its full timeout on every in-run restart.
+    let ours = state.child.as_ref().map(|c| c.id());
+    if recorded_router_pid() != ours {
+        reclaim_stale_router();
+    }
     stop(state);
     let log = router_log_path();
     if let Some(parent) = log.parent() {

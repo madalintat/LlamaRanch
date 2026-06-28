@@ -86,7 +86,7 @@ function relCls(verdict: string): string {
 }
 function renderRel(r: RelReport): string {
   const dots = r.cases.map((c) => {
-    const tip = escapeHtml(`${c.id}: ${c.passed ? "passed" : "failed"} — ${c.detail}`);
+    const tip = escapeHtml(`${c.id}: ${c.passed ? "passed" : "failed"} · ${c.detail}`);
     return `<span class="cfg-rel__dot cfg-rel__dot--${c.passed ? "ok" : "bad"}" title="${tip}"></span>`;
   }).join("");
   const word = r.verdict === "dependable" ? "Reliable with tools" : r.verdict === "flaky" ? "Sometimes works" : "Struggles with tools";
@@ -145,7 +145,7 @@ function mkSlider(
     input.style.setProperty("--pct", pct + "%");
     val.textContent = fmt(v);
   };
-  input.oninput = () => { paint(); onInput(Number(input.value)); };
+  input.oninput = () => { onInput(Number(input.value)); paint(); };
   paint();
   wrap.append(head, input);
   return wrap;
@@ -292,7 +292,7 @@ async function render(id: string, displayName: string, isLocal: boolean) {
   const relNote = document.createElement("div");
   relNote.className = "cfg-note";
   relNote.textContent =
-    "The agent reaches for tools (web search, reading files) by emitting a structured call. This runs four tiny tests to see whether this model produces valid calls — handy before you trust it in the agent.";
+    "The agent reaches for tools (web search, reading files) by emitting a structured call. This runs four tiny tests to see whether this model produces valid calls, so you know before you trust it in the agent.";
   relSec.appendChild(relNote);
   const rel = document.createElement("div");
   rel.className = "cfg-rel";
