@@ -234,6 +234,26 @@ function toggleCfg(id: string) {
   render();
 }
 
+/** Build a bare .ms-row (dot + name + sub); the caller appends the action(s). */
+function makeRow(dotClass: string, name: string, sub: string, dim = false): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "ms-row";
+  const dot = document.createElement("span");
+  dot.className = "ms-row__dot " + dotClass;
+  row.appendChild(dot);
+  const body = document.createElement("div");
+  body.className = "ms-row__body";
+  const nm = document.createElement("div");
+  nm.className = "ms-row__name" + (dim ? " ms-row__name--cloud" : "");
+  nm.textContent = name;
+  const sb = document.createElement("div");
+  sb.className = "ms-row__sub";
+  sb.textContent = sub;
+  body.append(nm, sb);
+  row.appendChild(body);
+  return row;
+}
+
 function renderSelector() {
   const heroHost = document.getElementById("hero");
   const listHost = $("models");
@@ -301,24 +321,8 @@ function renderSelector() {
   rest.forEach((m) => {
     const cloud = m.need_download;
     const loaded = LOADED(m.status);
-    const row = document.createElement("div");
-    row.className = "ms-row";
-
-    const dot = document.createElement("span");
-    dot.className = "ms-row__dot " + (loaded ? "ms-row__dot--on" : cloud ? "ms-row__dot--cloud" : "ms-row__dot--idle");
-    row.appendChild(dot);
-
-    const body = document.createElement("div");
-    body.className = "ms-row__body";
-    const nm = document.createElement("div");
-    nm.className = "ms-row__name" + (cloud ? " ms-row__name--cloud" : "");
-    nm.textContent = prettyName(m.name || m.id);
-    const sb = document.createElement("div");
-    sb.className = "ms-row__sub";
-    sb.textContent = rowSub(m);
-    body.appendChild(nm);
-    body.appendChild(sb);
-    row.appendChild(body);
+    const dotClass = loaded ? "ms-row__dot--on" : cloud ? "ms-row__dot--cloud" : "ms-row__dot--idle";
+    const row = makeRow(dotClass, prettyName(m.name || m.id), rowSub(m), cloud);
 
     // Configure gear (downloaded models only) — hover-revealed, opens inline.
     if (!cloud) {
@@ -357,7 +361,7 @@ function renderSelector() {
     listHost.appendChild(ph);
   }
 
-  dither?.refresh();
+  // No dither.refresh() here — render() (our only caller) refreshes after us.
 }
 
 function renderDiscover() {
@@ -376,25 +380,9 @@ function renderDiscover() {
   catalog.forEach((e) => {
     const prog = dl.get(e.id);
     const pct = prog && prog.total ? Math.round((prog.done / prog.total) * 100) : 0;
-
-    const row = document.createElement("div");
-    row.className = "ms-row";
-
-    const dot = document.createElement("span");
-    dot.className = "ms-row__dot " + (e.installed ? "ms-row__dot--on" : prog ? "ms-row__dot--dl" : "ms-row__dot--cloud");
-    row.appendChild(dot);
-
-    const body = document.createElement("div");
-    body.className = "ms-row__body";
-    const nm = document.createElement("div");
-    nm.className = "ms-row__name" + (e.installed ? "" : " ms-row__name--cloud");
-    nm.textContent = e.name;
-    const sb = document.createElement("div");
-    sb.className = "ms-row__sub";
-    sb.textContent = `${e.approx_gb.toFixed(1)} GB · ${e.description || e.group}`;
-    body.appendChild(nm);
-    body.appendChild(sb);
-    row.appendChild(body);
+    const dotClass = e.installed ? "ms-row__dot--on" : prog ? "ms-row__dot--dl" : "ms-row__dot--cloud";
+    const sub = `${e.approx_gb.toFixed(1)} GB · ${e.description || e.group}`;
+    const row = makeRow(dotClass, e.name, sub, !e.installed);
 
     if (e.installed) {
       const done = document.createElement("span");
@@ -665,8 +653,7 @@ function render() {
   }
   lastSig = sigOf();
   fitWindow(430, 760);
-  // The per-model config surface is being rebuilt in the Full Design pass; keep
-  // its renderer wired so it stays live for that work.
+  // Per-model config opens inline via the hero / row gear (toggleCfg sets openCfg).
   if (view === "installed" && openCfg) void hydrateCfg(openCfg);
   dither?.refresh();
 }

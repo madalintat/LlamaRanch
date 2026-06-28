@@ -1,9 +1,8 @@
 import chalk from 'chalk';
 import { VERSION } from './version.js';
 
-// Brand palette
-const CREAM = '#d8d8dd';
-const GOLD = '#f4f4f5';
+// Brand palette (monochrome): soft-white text, cool-grey muted.
+const TEXT = '#d8d8dd';
 const MUTED = '#8a8a92';
 
 function useColor() {
@@ -14,7 +13,7 @@ function useColor() {
 
 // ASCII llama, derived from our real logo (src/assets/llama.svg) by
 // half-block downsampling. Head + ears top-left, long neck curving down
-// into the body. Rendered in brand cream.
+// into the body. Rendered in soft white.
 export const LLAMA_LINES = [
   '         ███        ████',
   '         █████      █████',
@@ -44,10 +43,10 @@ export const LLAMA_LINES = [
   '                   █████████████████',
 ];
 
-// Block glyphs render in brand cream.
+// Block glyphs render in soft white.
 function colorLine(line, colored) {
   if (!colored) return line;
-  return line.replace(/[█▀▄]/g, m => chalk.hex(CREAM)(m));
+  return line.replace(/[█▀▄]/g, m => chalk.hex(TEXT)(m));
 }
 
 export function renderLogo() {
@@ -65,7 +64,7 @@ export function renderLogo() {
   if (colored) {
     output.push(
       '  ' +
-      chalk.bgHex(CREAM).hex('#0c0c0e').bold(' LlamaRanch ') +
+      chalk.bgHex(TEXT).hex('#0c0c0e').bold(' LlamaRanch ') +
       '  ' +
       chalk.hex(MUTED)('setup wizard · v' + VERSION)
     );
