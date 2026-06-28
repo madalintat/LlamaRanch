@@ -1079,13 +1079,19 @@ async function runWizard() {
         );
       }
       rows.push(React.createElement(Text, { key: 'outro-gap2', color: '#44444c' }, '│'));
+      // Real, runnable commands. The package bin is `llamaranch-wizard`, and via
+      // npx no persistent command is installed, so point at npx + an actual
+      // subcommand. The desktop app launches per-OS, not through this CLI.
+      const openAppCmd = process.platform === 'darwin' ? 'open -a LlamaRanch'
+        : process.platform === 'win32' ? 'start "" "LlamaRanch"'
+        : 'open the LlamaRanch app from your menu';
       rows.push(
         React.createElement(
           Box,
           { key: 'outro-cmd1', flexDirection: 'row' },
           React.createElement(Text, null, '   '),
-          React.createElement(Text, { color: '#f4f4f5' }, 'llamaranch chat'),
-          React.createElement(Text, { color: '#8a8a92' }, '     # start a local conversation')
+          React.createElement(Text, { color: '#f4f4f5' }, 'npx @llamaranch/wizard serve'),
+          React.createElement(Text, { color: '#8a8a92' }, '   # serve at 127.0.0.1:2276/v1')
         )
       );
       rows.push(
@@ -1093,8 +1099,8 @@ async function runWizard() {
           Box,
           { key: 'outro-cmd2', flexDirection: 'row' },
           React.createElement(Text, null, '   '),
-          React.createElement(Text, { color: '#f4f4f5' }, 'llamaranch ui'),
-          React.createElement(Text, { color: '#8a8a92' }, '       # open the desktop app')
+          React.createElement(Text, { color: '#f4f4f5' }, openAppCmd),
+          React.createElement(Text, { color: '#8a8a92' }, '   # open the desktop app')
         )
       );
       // Surface config write failure if it occurred
